@@ -7,9 +7,11 @@ import json
 import sys
 import threading
 import time
+import urllib.request
 
 import pytest
 
+from apply.dashboard import Dashboard
 from apply.plain import tile, window_capture
 from apply.plain.tile import PortFrames
 
@@ -148,6 +150,69 @@ def test_a_connection_from_another_workers_chrome_shows_nothing_on_the_tile(help
 
         assert shown is None and reply is None and bofa.started == [] and bofa.inputs == []
         assert frames.notice(0) == tile.FOREIGN
+
+
+def get(url: str) -> bytes:
+    with urllib.request.urlopen(url) as response:
+        return response.read() if response.status == 200 else b""
+
+
+def test_each_into_tile_shows_and_takes_input_on_its_own_tab_only():
+    """Three forms in one Worker (`apply rehearse --into`): each tile is its form's tab, whichever is active."""
+    forms = {1: b"\xff\xd8 form one", 2: b"\xff\xd8 form two", 3: b"\xff\xd8 form three"}
+    worker = Worker(101, "", forms, tab=1)
+    with PortFrames(1, lambda k: worker, capture="extension") as frames, Dashboard(1, frames) as board:
+        board.add_tile(0), board.add_tile(0)
+        for tile_number, tab in enumerate(forms):
+            board.showing(tile_number, tab)
+        for tab in forms:  # Lisul switches through the Worker's tabs
+            worker.tab = tab
+            frames.wait(0, frames.wait(0, 0, 0)[1], 2)
+            time.sleep(0.3)
+        worker.tab = 2
+        time.sleep(0.3)
+        served = [get(f"{board.url}/frame/{k}") for k in range(3)]
+        board._frames.input(0, {"type": "down", "x": 1, "y": 1})
+
+    assert served == [forms[1], forms[2], forms[3]]
+    assert worker.inputs[-1]["tab"] == 1  # tile 0's click went to tile 0's form, though tab 2 is shown
+
+
+class Filmed:
+    """The helper, faked in place of WindowStream, its frames pushed by the test."""
+
+    def __init__(self, pid, on_frame, **_):
+        self.status, self.alive, self.push = {}, True, on_frame
+
+    def aim(self, window, viewport, title=""):
+        pass
+
+    def close(self):
+        self.alive = False
+
+
+def test_filmed_frames_from_around_a_tab_switch_go_to_neither_tab(helper):
+    films = []
+    helper.setattr(window_capture, "WindowStream", lambda pid, on_frame, **_: films.append(Filmed(pid, on_frame)) or films[-1])
+    worker = Worker(101, "Sign In", {}, tab=1)
+    worker.call = lambda op, timeout=None, **params: None  # no events of its own: the test sends them
+    with PortFrames(1, lambda k: worker, capture="native", chrome={0: 1000}.get) as frames:
+        until = time.monotonic() + 3
+        while not films and time.monotonic() < until:
+            time.sleep(0.05)
+        shown = {"url": "", "title": "Sign In", "window": {"left": 0, "top": 0, "width": 9, "height": 9},
+                 "viewport": {"width": 9, "height": 9}}
+        worker.send("tile.shown", tab=1, **shown)
+        films[0].push(b"\xff\xd8 tab one")
+        time.sleep(tile.SETTLE + 0.1)
+        films[0].push(b"\xff\xd8 tab two, before its tile.shown")
+        worker.send("tile.shown", tab=2, **shown)
+        films[0].push(b"\xff\xd8 tab two, settling")
+        time.sleep(tile.SETTLE + 0.05)
+        films[0].push(b"\xff\xd8 tab two")
+
+        assert frames.frame(0, tab=1) == b"\xff\xd8 tab one"
+        assert frames.frame(0, tab=2) == b"\xff\xd8 tab two"
 
 
 @pytest.mark.parametrize(("window", "tab", "same"), [

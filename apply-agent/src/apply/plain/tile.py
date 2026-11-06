@@ -38,6 +38,8 @@ INPUT_WAIT = 5.0  # s a tile event may take on the page before the window gives 
 WATCH_EVERY = 0.5  # s between looks for Workers that connected or went away
 FIRST_FRAME = 3.0  # s a filmed tile may wait for its first frame before the extension's frames show
 STALLED = 20.0  # s a filmed tile may go without a frame after a `tile.shown`
+SETTLE = 0.25  # s around a switch of the filmed window's tab whose frames go to neither tab's tile (KAN-717)
+KEPT = 1.0  # s of each tab's filmed frames kept, so a switch can take back the ones that showed the next tab
 
 
 class PortFrames:
@@ -63,6 +65,10 @@ class PortFrames:
         self._settings = settings  # tile.start's: interval ms, quality, maxWidth, maxHeight
         self._frames: dict[int, tuple[bytes, int]] = {}  # worker -> (latest frame, its number)
         self._tabs: dict[int, int] = {}  # worker -> the tab its latest frame shows
+        # (worker, tab) -> that tab's own frames, [(when, frame)], newest last, and its number: a tile showing one
+        # of several forms in a Worker (`--into`) shows that form's tab only, never the one shown now (KAN-717).
+        self._by_tab: dict[tuple[int, int], tuple[list[tuple[float, bytes]], int]] = {}
+        self._switched: dict[int, float] = {}  # worker -> when its filmed window last showed another tab
         self._watched: dict[int, Connection] = {}
         self._choosers: dict[int, dict] = {}  # worker -> {mode, tab, frame} of the file input its page asked for
         self._errors: dict[int, tuple[str, float]] = {}
@@ -97,23 +103,32 @@ class PortFrames:
 
     # --- dashboard.Frames
 
-    def frame(self, worker: int) -> bytes | None:
-        return self._frames.get(worker, (None, 0))[0]
-
-    def wait(self, worker: int, after: int, timeout: float) -> tuple[bytes | None, int]:
-        with self._changed:
-            self._changed.wait_for(lambda: self._frames.get(worker, (None, 0))[1] > after, timeout)
+    def _latest(self, worker: int, tab: int | None) -> tuple[bytes | None, int]:
+        if tab is None:
             return self._frames.get(worker, (None, 0))
+        kept, number = self._by_tab.get((worker, tab), ([], 0))
+        return (kept[-1][1] if kept else None), number
 
-    def input(self, worker: int, event: dict) -> dict | None:
+    def frame(self, worker: int, tab: int | None = None) -> bytes | None:
+        """Worker `worker`'s latest frame; with `tab`, the latest that showed that tab (None before one did)."""
+        return self._latest(worker, tab)[0]
+
+    def wait(self, worker: int, after: int, timeout: float, tab: int | None = None) -> tuple[bytes | None, int]:
+        with self._changed:
+            self._changed.wait_for(lambda: self._latest(worker, tab)[1] > after, timeout)
+            return self._latest(worker, tab)
+
+    def input(self, worker: int, event: dict, tab: int | None = None) -> dict | None:
+        """Replay a tile event on `tab` (the tile's own form), else the tab Worker `worker` shows now."""
         connection = self._watched.get(worker)
         if connection is None or connection.closed.is_set() or worker in self._foreign:
             return None
+        tab = self._tabs.get(worker) if tab is None else tab
         try:
             if event["type"] == "files":
                 return self._give(connection, worker, event.get("paths") or [])
-            size = jpeg_size(self.frame(worker) or b"") or (None, None)
-            reply = connection.call("tile.input", timeout=INPUT_WAIT, tab=self._tabs.get(worker), event=event,
+            size = jpeg_size(self.frame(worker, tab) or b"") or (None, None)
+            reply = connection.call("tile.input", timeout=INPUT_WAIT, tab=tab, event=event,
                                     width=size[0], height=size[1])
         except (PortError, OSError):
             return None  # the page went away under it
@@ -145,23 +160,44 @@ class PortFrames:
         if worker not in self._streams:  # a filmed tile's frames come from its window, not the extension
             self._store(worker, base64.b64decode(message.get("data") or ""), message.get("tab"))
 
-    def _store(self, worker: int, frame: bytes, tab: int | None = None) -> None:
+    def _store(self, worker: int, frame: bytes, tab: int | None = None, own: bool = True) -> None:
+        """Keep `frame` as Worker `worker`'s latest, and as `tab`'s own unless `own` is False (it may show another)."""
         if not frame.startswith(b"\xff\xd8"):
             return
+        now = time.monotonic()
         with self._changed:
             self._frames[worker] = (frame, self._frames.get(worker, (None, 0))[1] + 1)
             if tab is not None:
                 self._tabs[worker] = tab
+                if own:
+                    kept, number = self._by_tab.get((worker, tab), ([], 0))
+                    kept = [(when, old) for when, old in kept if now - when < KEPT][-30:] + [(now, frame)]
+                    self._by_tab[(worker, tab)] = (kept, number + 1)
             self._changed.notify_all()
 
     def _aim(self, worker: int, message: dict) -> None:
         """The extension's `tile.shown`: film that window, cropped to that tab's viewport, if its title is the tab's."""
-        self._tabs[worker] = message.get("tab", self._tabs.get(worker))
+        tab, before = message.get("tab", self._tabs.get(worker)), self._tabs.get(worker)
+        if before is not None and tab != before and worker in self._streams:
+            self._switch(worker, before)
+        self._tabs[worker] = tab
         if worker in self._filmed:
             self._filmed[worker]["shown"] = time.monotonic()
         stream, window = self._streams.get(worker), message.get("window") or {}
         if stream and window.get("state") != "minimized" and message.get("viewport", {}).get("width"):
             stream.aim(window, message["viewport"], message.get("title") or "")
+
+    def _switch(self, worker: int, before: int | None) -> None:
+        """The filmed window shows another tab now. Its frames of the last SETTLE s may show the new tab
+        already (`tile.shown` comes a moment after the switch): they leave the old tab's tile."""
+        now = time.monotonic()
+        with self._changed:
+            self._switched[worker] = now
+            if before is not None and (worker, before) in self._by_tab:
+                kept, number = self._by_tab[(worker, before)]
+                self._by_tab[(worker, before)] = ([(when, f) for when, f in kept if when < now - SETTLE] or kept[:0],
+                                                  number + 1)
+            self._changed.notify_all()
 
     def _film(self, worker: int, connection: Connection) -> bool:
         """Start filming Worker `worker`'s window natively; False when it can't be (then the extension's frames)."""
@@ -183,7 +219,8 @@ class PortFrames:
     def _filmed_frame(self, worker: int, frame: bytes) -> None:
         if times := self._filmed.get(worker):
             times["frame"] = time.monotonic()
-        self._store(worker, frame)
+        settled = time.monotonic() - self._switched.get(worker, float("-inf")) >= SETTLE
+        self._store(worker, frame, self._tabs.get(worker), own=settled)
 
     def _blank(self, worker: int, stream: window_capture.WindowStream) -> str:
         """Why Worker `worker`'s filmed tile shows nothing and should take the extension's frames, or ""."""
@@ -285,14 +322,14 @@ class EitherFrames:
     def _of(self, worker: int):
         return self._port if self._plain(worker) else self._cdp
 
-    def frame(self, worker: int) -> bytes | None:
-        return self._of(worker).frame(worker)
+    def frame(self, worker: int, tab: int | None = None) -> bytes | None:
+        return self._port.frame(worker, tab) if self._plain(worker) else self._cdp.frame(worker)
 
-    def wait(self, worker: int, after: int, timeout: float) -> tuple[bytes | None, int]:
-        return self._of(worker).wait(worker, after, timeout)
+    def wait(self, worker: int, after: int, timeout: float, tab: int | None = None) -> tuple[bytes | None, int]:
+        return self._port.wait(worker, after, timeout, tab) if self._plain(worker) else self._cdp.wait(worker, after, timeout)
 
-    def input(self, worker: int, event: dict) -> dict | None:
-        return self._of(worker).input(worker, event)
+    def input(self, worker: int, event: dict, tab: int | None = None) -> dict | None:
+        return self._port.input(worker, event, tab) if self._plain(worker) else self._cdp.input(worker, event)
 
     def chooser(self, worker: int) -> str | None:
         return self._of(worker).chooser(worker)

@@ -70,6 +70,19 @@ them. `apply.plain.tile.PortFrames` is their frame source for the same
   Apply prints one line saying why. Clicks map by the frame's own size
   (`page/tile.js` scales by `width` x `height`), so a 2x filmed frame and a 1x
   extension frame both land on the element under the pointer.
+- **Only its own window and tab (KAN-717).** A tile shows its own Worker's
+  window only. A Connection whose Chrome (the host's parent) isn't the one that
+  has Worker k's profile open (`chrome_pid`) shows nothing on tile k and takes
+  none of its input. The helper films a window of that PID only while macOS
+  lists it with the shown tab's title (`tile.shown`'s `title`;
+  `window_capture.title_matches`, which allows macOS's middle "…"). With no such
+  window it says `mismatch`, sends nothing, and the tile takes the extension's
+  frames. Each tile also shows its own form's tab: `--into` tiles share one
+  Worker, so `Dashboard.showing(tile, tab)` (from the rehearsal's `_Kept.open`)
+  makes `PortFrames` give that tile only the frames that showed its tab, and
+  send its clicks and keys there. A tile whose tab isn't the window's active one
+  keeps its last frame of that tab. Filmed frames within `SETTLE` (0.25 s) of a
+  tab switch go to neither tab.
 - **Out-of-date extensions (KAN-643).** The hello's `features` says what the
   loaded extension's code can do (`bridge.FEATURES`, 2). An older one with
   `extension.reload`, in a profile with Developer mode on, is reloaded in place

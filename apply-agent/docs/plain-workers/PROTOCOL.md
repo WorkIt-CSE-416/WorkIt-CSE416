@@ -207,7 +207,8 @@ S3: `{"event": "tile.frame", "tab", "url", "data": base64 JPEG, "width", "height
 viewport at its CSS size (a Retina capture is scaled down), fitted within `maxWidth` x `maxHeight`.
 KAN-635: `{"event": "tile.shown", "tab", "url", "title", "window": {left, top, width, height, state}, "viewport": {width, height}}`
 (points), with `native`: the window `apply.plain.window_capture` films, and the part of it to crop to. `title` (KAN-717)
-is the tab's: Apply films the window only while macOS lists it, under the Worker Chrome's PID, with that title.
+is the tab's: Apply films the window only while macOS lists it, under the Worker Chrome's PID, with that title. The
+extension sends it at once on a tab switch, and drops a `tile.frame` whose window switched tabs during its capture.
 
 ## Ops (S4: the submit and drive guards)
 
