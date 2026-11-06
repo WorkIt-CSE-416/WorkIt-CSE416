@@ -161,6 +161,7 @@ def apply_to(
     on_captcha: Callable[[str, object, str], bool] = lambda why, page, company: False,
     anyway: bool = False,
     fetched: str | None = None,
+    draft: dict | None = None,
 ) -> Result:
     """`before_submit` runs just before the form is submitted. It returns why
     the Orchestrator holds the Application anyway (the Calibration run), or "";
@@ -209,13 +210,16 @@ def apply_to(
     With `anyway` (Lisul pressed Fill it anyway on a rehearsal that ruled him out), neither the Posting's
     text nor a failed Screener ends it: the form is filled as in any rehearsal.
     `fetched` is the Posting's page as a plain fetch read it, when the caller
-    read it already (embedded.form_behind), so it is not fetched again."""
+    read it already (embedded.form_behind), so it is not fetched again.
+    `draft` is what a reopened form held before Apply stopped (`apply reopen`, KAN-720: its Record's answers,
+    by field name): before each fill, it and what the job system's own saved draft shows on the step
+    (the Filler's `resumed`) are kept, as a Resume keeps Lisul's, so the form comes back as it was."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
     planned.anyway = anyway
     try:
         result = _apply(planned, filler, site, before_submit, rehearse, before_fill, on_verify, on_pause, on_captcha,
-                        fetched)
+                        fetched, draft)
     except Handoff as handoff:
         result = _handed_off(handoff)
     except Closed as closed:  # skipped before any form is filled
@@ -239,6 +243,15 @@ def apply_to(
     return result
 
 
+def _saved_draft(filler, page) -> dict:
+    """What the job system's own saved draft shows on the step open now, by field name (the Filler's `resumed`,
+    Workday's), for a reopened form; {} for a Filler that can't read it."""
+    try:
+        return dict(getattr(filler, "resumed", lambda page: {})(page))
+    except Exception:
+        return {}
+
+
 class ResumeCheck:
     """A Filler's checks on a paused page: called, why Resume can't go on now ("" when it can; `resume_blocked`);
     `signed_in(page)`, whether the page is past its sign-in (the check its own sign-in makes, so a Fill again signs
@@ -254,7 +267,7 @@ class ResumeCheck:
 
 def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None,
            on_verify=lambda verification: None, on_pause=lambda stopped, blocked: False,
-           on_captcha=lambda why, page, company: False, fetched: str | None = None) -> Result:
+           on_captcha=lambda why, page, company: False, fetched: str | None = None, draft: dict | None = None) -> Result:
     posting, profile, claude = planned.posting, planned.profile, planned.claude
     read = description.from_api(posting, site)
     if (why := eligibility.not_eligible(read)) and not planned.anyway:  # before any form opens or Claude is asked
@@ -319,6 +332,8 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                             if stuck.pressed():  # a Resume pressed while Apply was busy, not waiting: taken here
                                 raise stuck.Stopped("you pressed Resume")
                             stuck.doing(f"Filling {_where(filler)}")
+                            if draft is not None:  # a reopened form: what it held, and the site's saved draft (KAN-720)
+                                planned.keep(draft | _saved_draft(filler, page))
                             readback = filler.fill(page, planned.questions, planned.answers)
                         break
                     except stuck.Stopped:  # Resume, while Apply waited inside the fill
