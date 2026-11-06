@@ -1261,3 +1261,39 @@ def test_a_widget_loading_into_its_own_frame_goes_through_the_drive_guard(action
         browser.close()
     assert posts == ([action] if through else [])
     assert ('the "Submit application" click' in blocked) and (("a form submission" in blocked) is not through)
+
+
+# The attach's window (apply.attach, KAN-691) lets the page post the file it was just given. The application's own
+# form holds the résumé's input too, with its Submit: a page that posts that form as the file lands sends nothing
+# (KAN-710), as the iCIMS parse form, which has no button that sends, still posts.
+ATTACH_POSTS = """<title>Apply</title><form id=f method=post enctype=multipart/form-data action="{action}">
+<label>Resume <input type=file id=r name=resume></label>{button}</form>
+<script>document.getElementById('r').addEventListener('change', () =>
+  HTMLFormElement.prototype.submit.call(document.getElementById('f')));</script>"""
+
+
+@pytest.mark.parametrize("button, action, goes", [
+    ("<button name=submit value=1>Submit application</button>", "/acme/jobs/1/save_page", False),
+    ("", "/acme/jobs/1/parse_resume", True),  # iCIMS's parse: no button that sends
+])
+def test_the_attach_window_never_posts_a_form_that_has_a_submit(tmp_path, button, action, goes):
+    from playwright.sync_api import sync_playwright
+
+    resume = tmp_path / "resume.pdf"
+    resume.write_bytes(b"%PDF-1.4")
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/**", lambda route: (
+            posts.append(route.request.url) if route.request.method == "POST" else None,
+            route.fulfill(body=ATTACH_POSTS.format(action=action, button=button), content_type="text/html"))[-1])
+        page.goto("https://jobs.example.com/acme/jobs/1")
+        guard(page)
+        drive = DriveGuard(page)
+        drive.let_upload_post()
+        page.set_input_files("#r", str(resume))
+        page.wait_for_timeout(800)
+        drive.let_upload_post(False)
+        browser.close()
+    assert posts == ([f"https://jobs.example.com{action}"] if goes else [])

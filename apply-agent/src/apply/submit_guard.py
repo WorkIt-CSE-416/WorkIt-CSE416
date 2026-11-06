@@ -603,9 +603,10 @@ _TEMPLATE = r"""
     return away && any(nodes(byName(D, target)), (n) => test(/^I?FRAME$/, tag(n)));
   };
   // Plain code's résumé attach (apply.attach): the page's own script posting the file it was just given, as iCIMS
-  // posts its résumé to be parsed by a native submission (KAN-691). Only a form that holds a chosen file, sent by no
+  // posts its résumé to be parsed by a native submission (KAN-691). Only a form that holds a chosen file and has no
+  // button that sends (KAN-710: the application's own form holds the résumé's input too, and its Submit), sent by no
   // button that sends, and never to a final URL; outside the attach's window it is blocked as ever.
-  const uploadPost = (form, by, href) => S.upload && !(isEl(by) && sends(by))
+  const uploadPost = (form, by, href) => S.upload && !(isEl(by) && sends(by)) && !formSends(form)
     && any(all(form, 'input[type=file]'), chosen) && !postsFinal(form, by, href);
   // The form the guard last let post, and whether by plain code's press: the navigation it makes comes a task later
   // (a script's form.submit()), when the press's dispatch is over, and may name another element its source.
