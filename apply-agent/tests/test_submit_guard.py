@@ -1280,7 +1280,7 @@ FETCHES = """<script>addEventListener('load', () => document.getElementById('go'
   e.preventDefault(); fetch(location.href + '/save', {method: 'POST', body: 'first=Test'}).catch(() => {}); }));</script>"""
 
 
-def _press_tal_apply(action=TAL_APPLY, words="Apply", fields="", page="", start=True, before=None):
+def _press_tal_apply(action=TAL_APPLY, words="Apply", fields="", page="", start=True, before=None, url=TAL_URL):
     """The posts the TAL.net-like posting sent, and what the drive guard blocked, after a press of its button."""
     from playwright.sync_api import sync_playwright
 
@@ -1289,12 +1289,12 @@ def _press_tal_apply(action=TAL_APPLY, words="Apply", fields="", page="", start=
     with sync_playwright() as p:
         browser = p.chromium.launch()
         tab = browser.new_page()
-        tab.route(TAL_URL, lambda route: route.fulfill(body=TAL_POSTING.format(
+        tab.route(url, lambda route: route.fulfill(body=TAL_POSTING.format(
             action=action, words=words, fields=fields, page=page), content_type="text/html"))
         tab.on("request", lambda r: r.method == "POST" and bodies.append(r.post_data))
         _posts_to(tab, posts)
         drive = DriveGuard(tab)
-        tab.goto(TAL_URL)
+        tab.goto(url)
         drive.arm()  # Claude drives
         if start:
             drive.let_start_click()  # Claude fill's first drive, on the Posting's own page
@@ -1345,6 +1345,11 @@ def test_the_postings_apply_sends_its_token_alone_whatever_the_pages_submit_hand
     {"page": "<p>Signed in as Test. Apply with your profile.</p>"},  # the site's saved profile: the press applies
     {"page": '<iframe srcdoc="<input id=first>"></iframe>',
      "before": lambda tab: tab.frame_locator("iframe").locator("#first").fill("Test")},  # an answer in a frame
+    # A one-click apply from the site's saved profile, in words no list knows, on a job system not proven to open
+    # the form alone: blocked though plain code vouched for the page (KAN-725's follow-up).
+    {"url": "https://careers.example.com/jobs/1-engineer", "action": "https://careers.example.com/jobs/1/go",
+     "page": "<p>Ready when you are. We'll use what we have on file.</p>"},
+    {"url": "https://careers.example.com/jobs/1-engineer", "action": "https://careers.example.com/jobs/1/go"},
 ])
 def test_any_other_forms_apply_stays_blocked(given):
     posts, blocked = _press_tal_apply(**given)
@@ -1355,6 +1360,7 @@ def test_any_other_forms_apply_stays_blocked(given):
     (TAL_URL, 0, True), (TAL_URL + "#top", 0, True),
     (TAL_URL, 1, False),  # a later drive: the form, or a page after a sign-in
     (TAL_URL.replace("/opp/14418-Software-Engineer/en-GB", "/eform/1/page/2"), 0, False),  # not the Posting's page
+    ("https://careers.example.com/jobs/1-engineer", 0, False),  # a job system not proven to open the form alone
 ])
 def test_claude_fill_vouches_only_for_the_postings_page_at_its_first_drive(opened, sessions, start):
     from apply.claude_fill import ClaudeFill
@@ -1369,6 +1375,14 @@ def test_claude_fill_vouches_only_for_the_postings_page_at_its_first_drive(opene
 
     claude = type("Claude", (), {"drive": lambda self, **_: __import__("apply.adapters").adapters.Drive({}, 1, 10)})()
     filler = ClaudeFill(claude=claude)
-    filler._guard, filler._url, filler._sessions = Guard(), TAL_URL, sessions
+    filler._guard, filler._url, filler._sessions = Guard(), TAL_URL if "tal.net" in opened else opened, sessions
     filler._drive(type("Page", (), {"url": opened})(), "system", "prompt", {}, [])
     assert said == (["arm", "start"] if start else ["arm"])
+
+
+def test_the_guards_start_hosts_are_claude_fills():
+    from apply import submit_guard
+    from apply.claude_fill import OPENS_ONLY
+
+    listed = submit_guard._TEMPLATE.split("const START_HOSTS = [", 1)[1].split("];", 1)[0]
+    assert sorted(h.replace("\\.", ".") for h in __import__("re").findall(r"\(\^\|\\\.\)(.+?)\$", listed)) == sorted(OPENS_ONLY)

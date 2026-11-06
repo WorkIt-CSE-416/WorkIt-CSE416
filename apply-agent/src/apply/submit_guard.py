@@ -222,7 +222,10 @@ _TEMPLATE = r"""
   // (DriveGuard.let_start_click, KAN-725). Anything done on it since takes the word back: a key, an input or
   // change, a click on anything but that Apply or a cookie banner's button, or the page changing its URL by
   // script (a one-page app turning into the form).
-  const startClick = () => window.__applyStartClick === true;
+  // Only on a job system whose posting's Apply is known to open the form alone (TAL.net's, live): elsewhere a
+  // posting's Apply may apply at once from a profile the site holds, in any words.
+  const START_HOSTS = [/(^|\.)tal\.net$/i];
+  const startClick = () => window.__applyStartClick === true && START_HOSTS.some((r) => r.test(location.hostname));
   // In this frame and the page's top one: an answer typed in a frame of the page's own site takes it back too.
   const unvouch = () => {
     window.__applyStartClick = false;
@@ -239,7 +242,6 @@ _TEMPLATE = r"""
     return false;
   };
   for (const kind of ['keydown', 'input', 'change', 'click']) addEventListener(kind, (event) => {
-    if (!startClick()) return;
     if (kind === 'click') {
       const at = (event.composedPath && event.composedPath()[0]) || event.target;
       const control = at && at.closest && at.closest('button, input, a, [role=button]');
