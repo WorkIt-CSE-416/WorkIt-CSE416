@@ -1813,6 +1813,59 @@ def test_the_fill_prompt_says_how_to_pick_from_a_type_to_search_dropdown():
     assert "Type to Search" in FILL and "first word" in FILL and "browser_wait_for" in FILL
     assert "Don't press Escape" in FILL
 
+# TAL.net's way (live 2026-11-05, KAN-687): Save and Continue goes on with a required box blank. Step one asks
+# the native language, which Lisul had yet to answer; step two is the Declaration, the last step.
+TAL_STEPS = """<!doctype html><body>
+<div id=s1><h2>Languages</h2><label for=n>Your name</label><input id=n>
+<label for=l>What is your native language?</label><select id=l><option>Choose one...</option><option>English</option></select>
+<button onclick="s1.hidden = true; s2.hidden = false">Save and Continue</button></div>
+<div id=s2 hidden><h2>Declaration</h2><p>I certify the above.</p><button>Submit</button></div>
+</body>"""
+NATIVE = "What is your native language?"
+
+
+class TalStepsDriver:
+    """Plays Claude on TAL_STEPS: fills what <fields> asks on the step showing, lists the native language as
+    unlisted on step one, and names Save and Continue, then Submit on the Declaration. Keeps each step's fields."""
+
+    def __init__(self):
+        self.fields: list[list[str]] = []
+
+    def __call__(self, page, schema: dict, prompt: str, files: list) -> dict:
+        fields = json.loads(re.search(r"<fields>(.*?)</fields>", prompt, re.DOTALL)[1])
+        self.fields.append([f["question"] for f in fields])
+        first = page.locator("#s1").is_visible()
+        filled = [{"field": f["field"], "shown": [f["answer"]]} for f in fields if first and f["question"] == "Your name"]
+        if first:
+            page.fill("#n", "Test Person")
+        asked = {f["question"] for f in fields}
+        return {"blocked": False, "why": "", "filled": filled, "submit_button": "" if first else "Submit",
+                "next_button": "Save and Continue" if first else "",
+                "unlisted": [{"label": NATIVE, "kind": "select", "required": True, "options": ["English"]}]
+                if first and NATIVE not in asked else []}
+
+
+def test_an_answer_that_comes_after_its_step_went_by_is_left_behind_not_looked_for_on_later_steps():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import MoreQuestions, Question
+    name = Question("read1", "Your name", "text", True)  # as the read pass names it, apart from the fill's own
+    driver = TalStepsDriver()
+    filler = ClaudeFill(FakeClaude(driver=driver))
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TAL_STEPS)
+        with pytest.raises(MoreQuestions) as more:  # step one: the native language, found there
+            filler.fill(page, [name], {"read1": "Test Person"})
+        [native] = more.value.questions
+        filler.fill(page, [name, native], {"read1": "Test Person"})  # no answer yet: on to the Declaration
+        # Lisul's answer comes now, while the form is on its last step: it is not looked for there.
+        filler.fill(page, [name, native], {"read1": "Test Person", native.name: "English"})
+        browser.close()
+    assert all(NATIVE not in asked for asked in driver.fields)
+    assert filler.left_behind == [(NATIVE, "English")]
+
 
 # Amazon's Job-specific questions (live, KAN-714): a month box whose only word on its format is its placeholder.
 AMAZON_DATES = """<!doctype html><body>

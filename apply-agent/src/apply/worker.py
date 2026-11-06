@@ -135,6 +135,8 @@ class Result:
     verification: "verify.Verification | None" = None  # how verifying the filled form went (apply.verify)
     # each answer Claude wrote for the form, kept so Lisul can have one written again (apply.regenerate)
     regenerable: "regenerate.Form | None" = None
+    # (label, answer) of each answer that came after its step was saved without it (KAN-687): never on the form
+    left_behind: tuple[tuple[str, object], ...] = ()
 
     def drafted_note(self) -> str:
         """The drafts, as the Tracker row and the Record list them."""
@@ -338,6 +340,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         # leave is read from it.
                         shown = dict(getattr(filler, "shown_so_far", {}))
                         stopped = _handed_off(handoff, missing=planned.missing, choices=planned.choices,
+                                              left_behind=_left_behind(filler),
                                               required=planned.required, where=planned.where,
                                               filled=Filled(planned.questions, planned.answers, shown, _screenshot(page),
                                                             html=page_html(page)))
@@ -346,7 +349,9 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                         # Resume: what Lisul put on the step it stopped on stays, as his answers.
                         planned.keep(getattr(filler, "resumed", lambda page: {})(page))
                 questions, answers, holds = planned.questions, planned.answers, list(planned.holds)
-                holds = [f"Not filled: {e}" for e in planned.unfilled] + holds
+                behind = _left_behind(filler)
+                holds = ([f"Not filled: {e}" for e in planned.unfilled] + holds
+                         + [f"Not filled: {label} ({LEFT_BEHIND})" for label, _ in behind])
                 filled = Filled(questions, answers, readback, _screenshot(page), html=page_html(page))
                 problems = readback_problems(questions, answers, readback, planned.accepted)
                 if problems and not replanned and attempt < 2:
@@ -400,7 +405,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     holds += filter(None, [before_submit()])
                     return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, missing=planned.missing,
                                   choices=planned.choices, required=planned.required, where=planned.where, problems=wrong,
-                                  verification=verification)
+                                  verification=verification, left_behind=behind)
                 if holds:
                     return Result(Status.HELD, "; ".join(holds), filled, essay=planned.essay_cell, problems=wrong,
                                   verification=verification)
@@ -455,6 +460,15 @@ def choices(question: Question) -> dict | None:
 def _company(posting: Posting, filler) -> str:
     """The company the link names, else the one its open page names (Claude fill), else its known host's."""
     return posting.company or (getattr(filler, "names", None) or ("", ""))[0] or host_company(posting.url)
+
+
+# Why a left-behind answer is not on the form (KAN-687).
+LEFT_BEHIND = "its answer came after the form saved its step without it"
+
+
+def _left_behind(filler) -> tuple[tuple[str, object], ...]:
+    """The answers a Filler found no field for, since their step had gone by (ClaudeFill's `left_behind`)."""
+    return tuple(getattr(filler, "left_behind", None) or ())
 
 
 def _handed_off(handoff: Handoff, **more) -> Result:

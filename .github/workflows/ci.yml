@@ -192,6 +192,7 @@ jobs:
             tests/test_into.py \
             tests/test_plain_tile_identity.py \
             tests/test_review_kan717_hostile.py \
+            tests/test_left_behind.py \
             tests/test_preflight.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
@@ -202,6 +203,7 @@ jobs:
             tests/test_outside_us.py \
             tests/test_phone_push.py \
             tests/test_plain_bridge.py \
+            tests/test_plain_seed_setup.py \
             tests/test_presubmit_check.py \
             tests/test_privacy_gate.py \
             tests/test_profile.py \
@@ -212,6 +214,7 @@ jobs:
             tests/test_requests.py \
             tests/test_rescue_elsewhere.py \
             tests/test_resume_check.py \
+            tests/test_restart.py \
             tests/test_sameness.py \
             tests/test_schedule.py \
             tests/test_send_click.py \
