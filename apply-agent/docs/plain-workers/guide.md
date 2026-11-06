@@ -9,8 +9,8 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
 `apply.plain.guards`. The CDP path is unchanged: its scripts are byte for byte the same.
 
 - **The same scripts, as files.** `apply plain prepare` writes `submit_guard`'s scripts into
-  `worker-extension/vendor/guards/` (the rehearsal guard, the four drive guards, LIFTED,
-  REARMED). The extension registers one as a MAIN-world content script at `document_start` in
+  `worker-extension/vendor/guards/` (the rehearsal guard and the four drive guards). Each
+  holds this run's tokens (KAN-710), so each Apply process writes a vendor set of its own. The extension registers one as a MAIN-world content script at `document_start` in
   every frame, so it runs before the page's code with no eval and no user scripts. It refuses
   a file whose sha256 is not Apply's: re-run `prepare` after changing `submit_guard.py`.
 - **Below them, declarativeNetRequest.** `guard` puts one session rule per final application
@@ -18,8 +18,11 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   service workers. It blocks a non-GET before it leaves Chrome: page code from another realm,
   a worker, a beacon, or a form's native POST. `lift` takes the rules off and `rearm` puts them
   back.
+- **The guards' state** (KAN-710) is set only by token-named control events the extension sends
+  from its isolated world (`guard.control`, `guard.lift`, `guard.rearm`, `guard.applied`); no page sees
+  or sends them. `guard.tokens` tells the extension the run's touch and tell events once.
 - **Presses are untrusted.** The plain copy of the guard script (`port=True`) counts as a touch
-  the `__apply_touch` the extension sends before each press: Apply's own (`page/dom.js`) and
+  the token-named touch the extension sends before each press (a page can't send one): Apply's own (`page/dom.js`) and
   Lisul's from the tile (`tile.input` calls `touch()` in `ops/guard.js`, which also sends `guard.touched`
   up the port). It also reports each block as a `guard.said` event, which `PlainDriveGuard.blocked()`
   reads, since no console reaches Apply.
@@ -226,7 +229,8 @@ What changes on a plain Worker:
   and Developer mode is on), and both for `protected`. With `plain_chrome: testing` the seed line is ok.
 - **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
   `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
-  hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A
+  hand over to `apply.plain.guards` (`guard.lift`'s events and `onlyLifted`, `guard.applied`). The
+  bindings Lisul's presses call (`TELLS`) fire only on the guard's own tell, never on a page's call. A
   `renote` of a page still guarded leaves it guarded.
 - Tests: `tests/test_plain_routing.py`. Its live test rehearses the fake Greenhouse form twice in
   one reused plain Worker. `tests/test_plain_guards.py -k "held_submit or already_applied"`.

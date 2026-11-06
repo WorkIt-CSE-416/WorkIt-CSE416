@@ -31,21 +31,37 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   (Microsoft's names it Submit; `_through_profile_step`) under
   `DriveGuard.let_profile_click()`, which lets that dialog's button through
   the drive and rehearsal guards and nothing else, waits for the dialog to
-  go, and the fill goes on to the real form. The flag is
-  `__applyProfileClick` (in `worker-extension/ops/guard.js`'s `FLAGS` too).
+  go, and the fill goes on to the real form. A button that holds a frame
+  is never pressed (`DriveGuard.may_press`, KAN-710).
 - A POST to a final application URL stays blocked under plain code's Next and profile clicks (KAN-639,
   `postsFinal`). A path ending in `/apply` is final by its name alone, so there a Next goes on only when
-  the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item), the form has
-  no button that sends (KAN-656), and the button plain code pressed sends it: never a script's post or a
-  step list's link (KAN-710).
-- Plain code's press (KAN-710): `DriveGuard.let_account_click(element)` arms `__applyAccountClick` with the
-  element, in that element's frame alone (a plain Worker: `true` in every frame, and the press is the click
-  right after the extension's `__apply_touch`). The guard lets a form post only for a press that lands on that
-  element in that frame: the pressed button's own submission, a post the page's handlers make while the click
-  is still dispatched, or the pressed element's own form later. A form with any button that sends (hidden,
-  another language, outside it by `form=`) never posts under it, whatever its submitter says. Another form a
-  script posts meanwhile, and a frame inside the pressed element, stay blocked. A link's `ping` never leaves
-  a guarded page: the guard takes it off as the link is clicked and refuses any script that sets one. A profile pop-up may post to its own page there. A known final URL
+  the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item) where a person
+  sees it (a readable size, on the page, not clipped away: KAN-710), the form has no button that sends
+  (KAN-656), and the button plain code pressed sends it: never a script's post or a step list's link.
+- Plain code's press (KAN-710): `DriveGuard.let_account_click(element)` arms the account click with the
+  element, in that element's frame alone (a plain Worker: in every frame, and the press is the click right
+  after the extension's touch). It returns False, and plain code hands off unpressed, when the element holds
+  a frame. The guard lets a form post only for a press that lands on that element in that frame: the pressed
+  button's own submission, the pressed element's own form, or (for a Next in no form) a form that shows a
+  field of the step, posted while the click is still dispatched. A form with any button that sends (hidden,
+  another language, outside it by `form=`, an input with no value, an icon with a title, a role=button), or
+  that had one as the press landed, never posts under it, whatever its submitter says. A form in a shadow
+  root never posts as a step. A link's `ping` never leaves a guarded page: the guard takes it off as the link
+  is clicked (in a shadow root, or by a script's `click()` on a link in no document, too) and refuses any
+  script that sets one.
+- The guards' state (KAN-710) is in each guard's closure, never on `window`: lifted, held, paused (an
+  emailed code), the account, profile and upload allowances, Ask's, the captcha frame's. Apply sets it only
+  with `submit_guard.control`: an event named with a per-run token (`TOKENS`), sent from a CDP isolated world
+  (`Page.createIsolatedWorld`), the worker extension's isolated world (`guard.control`), or an init script
+  (`_init`) before any page code. The rehearsal guard tells Apply of Lisul's own presses (his Submit, Fill
+  again, Dismiss) by a console line with the token (`TELL_PREFIX`), or on a plain Worker an event the relay
+  hears (`TELL_TYPE`): no page can call those, as it could call a binding. The guard takes every built-in it
+  reads with before any page code, and a guard listener that throws blocks what it judged.
+- Each form post is judged again as it leaves (KAN-710): at its `navigate` event, with the URL and entries
+  it really carries. Entries its own fields don't make (a `formdata` handler's), a final URL, or a form that
+  had a Submit, are cancelled there. URLs resolve against the document's base; an empty action or formaction
+  is the page's own URL. A sign-in relay is only the top page's own post into itself, once the page loaded.
+  fetch makes its request once and sends that one. A profile pop-up may post to its own page there. A known final URL
   (Lever's, Greenhouse's, a segment with `submit`) never goes, whatever the page says. TAL.net's
   (`/eform/<n>/page/<k>`, `save_page`), Oracle's (`/apply/section/<n>`, `/apply/email`), iCIMS's, Workday's
   (`/apply/applyManually`) and Microsoft's (`/careers/job/<id>`) URLs match no final rule at all

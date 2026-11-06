@@ -224,11 +224,12 @@ A fresh service worker starts with no content scripts, rules or user scripts.
 | `guard.route` | `key`, `tab` (null: every tab), `regexes`, `caseSensitive` | `{"rules": n}`; one declarativeNetRequest session rule per regex blocking a non-GET (`excludedRequestMethods: get, head, options`) of every resource type, main_frame included, on `tabIds` = the tab, the tabs it opens later, and -1 (service and shared workers). Each regex must pass `isRegexSupported` (RE2, 2 KB compiled) |
 | `guard.unroute` | `key` | `null` |
 | `guard.bind` | `tab` (null: every tab), `name` | `null`; `window[name](...args)` in MAIN, in every frame now and in each document the tab loads, sends a `binding` event |
-| `guard.lift` | `tab`, `again`, `warning`, `wrong`, `held` (KAN-629: what holds Submit, `""` for nothing), `onlyLifted?`, `sha256` (of `lifted.js`) | `null`; `submit_guard.LIFTED` with those values in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm`. A `held` page keeps its Submit blocked by the guard script under a red note whose Dismiss calls the `__applyDismissHold` binding. With `onlyLifted` (renote), a tab not lifted is left as it is: `false` |
-| `guard.applied` | `tab`, `day` (null: dismissed), `sha256` (of `applied.js`) | `null`; KAN-621's "You already applied on <day>" note (`submit_guard.APPLIED_NOTE`) in the top frame now and in each document the tab loads, the guard still on; its second Dismiss press calls `__applyDismissApplied`. `day: null` stops it and marks every frame dismissed |
-| `guard.rearm` | `tab`, `sha256` (of `rearmed.js`) | `null`; stops lifting the tab and runs `submit_guard.REARMED` in its frames |
-| `guard.flags` | `tab`, `set` (`{"__applyDriveLifted"|"__applyAccountClick"|"__applyRehearsalLifted": bool}`) | `null`; in every frame (DriveGuard's `lift`, `arm`, `let_account_click`) |
-| `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches `__apply_touch` in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. `tile.input` calls the exported `touch()` before each press it replays (`by` its own param: `lisul` from the tile, `apply` from `PortPage.mouse`) |
+| `guard.tokens` | `touch` (event names), `tell` (an event name), `tells` (binding names) | `null`; this run's guard events (KAN-710, `apply.plain.guards.tokens`). Every frame's relay asks for them as it starts; the bindings in `tells` fire only on the guard's tell, never on `__apply_call` |
+| `guard.control` | `tab`, `events` (`[[type, detail], ...]`), `mark?` | `[result per frame]`; sends each control event from the isolated world, on the window or on the element marked `data-apply-press=<mark>` ("frame" when that element holds a frame). The guards' state is set by these alone (`submit_guard.control`) |
+| `guard.lift` | `tab`, `events` (the control events of `{"lift": note}`), `onlyLifted?` | `null`; the events in every frame now and in each document the tab (and a tab it opens) loads, until `guard.rearm`. A `held` note keeps its Submit blocked by the guard script under a red note whose Dismiss tells `__applyDismissHold`. With `onlyLifted` (renote), a tab not lifted is left as it is: `false` |
+| `guard.applied` | `tab`, `events` (null: dismissed), `dismissed?` (events) | `null`; KAN-621's "You already applied on <day>" note in the top frame now and in each document the tab loads, the guard still on; its second Dismiss press tells `__applyDismissApplied`. `events: null` stops it and sends `dismissed` to every frame |
+| `guard.rearm` | `tab`, `events` | `null`; stops lifting the tab and sends the events (`{"lift": null}`) to its frames |
+| `guard.touch` | `tab`, `frame?`, `by` (`lisul`/`apply`) | `null`; dispatches the token-named touch events in the frame, which the guard counts as a touch; `by: "lisul"` also sends `guard.touched`. `tile.input` calls the exported `touch()` before each press it replays (`by` its own param: `lisul` from the tile, `apply` from `PortPage.mouse`) |
 | `guard.sync` | `tab`, `timeout?` ms | `null` once every frame's earlier `guard.said` messages have reached the service worker |
 | `guard.status` | `tab?` | `{"scripts": [ids], "rules": n, "lifted": bool}` |
 | `guard.reset` | | `null`; no guard left: every content script, rule, user script, lift and binding goes (`apply.plain.guards.reset(worker)`, for a Worker reused for another Application; a fresh service worker starts so) |
@@ -238,8 +239,9 @@ Events: `{"event": "guard.said", "tab", "frame", "text"}` (a guard's "Apply rehe
 "frame", "name", "args"}`, `{"event": "guard.touched", "tab", "frame", "by"}`.
 
 Page channel: the MAIN world and `page/relay.js` (the isolated world) talk through `CustomEvent`s
-with string `detail` on the document (`__apply_said`, `__apply_call`); the extension's touch is
-`__apply_touch` on window. `page/dom.js` dispatches `__apply_touch` (`by: apply`) before each
+with string `detail` on the document (`__apply_said`, `__apply_call`, and the rehearsal guard's
+token-named tell); the extension's touch is a token-named event on window (`guard.tokens`), which
+no page can send. `page/dom.js` dispatches it (`by: apply`) before each
 `click`, `type`, `press`, `keys` and `check`, as Playwright's trusted input counted as a touch.
 
 ## Ops (S5: Records, Needs you, Resume, emailed code; KAN-611)

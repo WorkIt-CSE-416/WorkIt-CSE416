@@ -70,6 +70,17 @@ in its frame, never a frame inside it or another form a script posts. On a rehea
 the rehearsal's guard blocked too, so a click Claude makes there that would
 send the form is the same Handoff, and still sends nothing.
 
+What a page can't reach (KAN-710, PR 477's review): the guards' state (lifted, held, the account, profile and
+upload allowances, Ask's) lives in each guard's closure, set only by control(): an event named with this run's
+token, sent from an isolated world or an init script, which no page sees. The guard tells Apply of Lisul's presses
+in its own voice (a console line, or the worker extension's event, with the token). It reads with built-ins taken
+before any page code, and a listener of its that throws blocks. Each form post is judged again as it leaves, with
+the URL and entries it really carries; URLs resolve against the document's base; a button that holds a frame is
+never pressed. What no guard can tell: a page's plain fetch, or a form's own hidden field, to a URL that names no
+submit is a save to any guard (a CDP Worker routes only URLs that name a submit; a plain Worker's rules block the
+final URLs); while plain code attaches the résumé, the form that holds it may post (iCIMS parses its whole profile
+form, Submit and all), and a frame with scripts off runs no guard.
+
 Once a rehearsed link has ended, its page is held open for Lisul and lift()
 takes both guards off: Apply no longer drives it, so his own Submit goes
 through, and a green note says so, with a Fill again button. The page tells
