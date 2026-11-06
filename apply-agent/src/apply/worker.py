@@ -61,6 +61,7 @@ from apply.model import (
     Posting,
     Question,
     Status,
+    host_company,
     is_company,
     one_line,
 )
@@ -297,8 +298,10 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
         planned.text = read or getattr(filler, "posting_text", "") or fetched
         # A Request on a job system with no Filler: its link named no company, but its open page did
         # (Claude fill). Planned with that name, "why <company>?" is the High-stakes essay it is.
+        # Else its link's host, when it is a job site known to be one company's (amazon.jobs: Amazon).
         company, title = getattr(filler, "names", None) or ("", "")
-        planned.posting = posting = replace(posting, company=posting.company or company, title=posting.title or title)
+        planned.posting = posting = replace(posting, company=posting.company or company or host_company(posting.url),
+                                            title=posting.title or title)
         # A rehearsal shows its form while Claude writes its answers; a run opens it only once they're written.
         if not rehearse and (stop := planned.add(questions)):
             return stop
@@ -450,8 +453,8 @@ def choices(question: Question) -> dict | None:
 
 
 def _company(posting: Posting, filler) -> str:
-    """The company the link names, else the one its open page names (Claude fill)."""
-    return posting.company or (getattr(filler, "names", None) or ("", ""))[0]
+    """The company the link names, else the one its open page names (Claude fill), else its known host's."""
+    return posting.company or (getattr(filler, "names", None) or ("", ""))[0] or host_company(posting.url)
 
 
 def _handed_off(handoff: Handoff, **more) -> Result:
@@ -873,7 +876,8 @@ def named(posting: Posting, result: Result) -> Posting:
     """The Posting, with the company and role its form's page named where
     its link named neither (a Request on a job system with no Filler)."""
     company, title = result.named
-    return replace(posting, company=posting.company or company, title=posting.title or title)
+    return replace(posting, company=posting.company or company or host_company(posting.url),
+                   title=posting.title or title)
 
 
 def _screenshot(page) -> bytes:
