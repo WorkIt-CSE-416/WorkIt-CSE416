@@ -124,6 +124,11 @@ def _agree(page: Page, box) -> None:
     raise Handoff("Oracle's legal disclaimer wouldn't stay ticked: finish the application yourself.")
 
 
+def signed_in(page: Page) -> bool:
+    """Whether the application form is open, past the email and its code: sign_in's own check."""
+    return _signed_in(page, page.locator("input[type=email]").first)
+
+
 def _signed_in(page: Page, email) -> bool:
     """The application form is open already: a section of it, or its own email field, which can't be edited."""
     if FORM_SECTION.search(page.url):

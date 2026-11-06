@@ -7,6 +7,7 @@ import _thread
 import json
 import urllib.error
 import urllib.request
+from urllib.parse import parse_qs
 
 import pytest
 from fake_workday import EXPERIENCE_STEPS, FakeWorkdayServer
@@ -16,7 +17,7 @@ from test_employer_accounts import XCEL_FORM, XCEL_URL
 from test_rehearse import GOOGLE, NeverSubmittingWorkday, adapters, experience_profile
 from test_run_answers import profile_with
 
-from apply import rehearsal
+from apply import rehearsal, worker
 from apply.dashboard import Dashboard, verdict
 from apply.fillers import FILLERS
 from apply.profile import ApplicantProfile
@@ -136,6 +137,85 @@ def test_resume_on_a_sign_in_page_waits_for_lisul_to_sign_in_and_signs_in_no_mor
     assert board.captions[0]["resume"]["why"] == rehearsal.TAB_CLOSED  # then he closed the tab
     assert any("can't resume yet: The form isn't on an application step yet" in line for line in lines)
     assert len(handed) == 1 and server.created == [] and server.submissions == []
+
+
+def signing_in_himself(monkeypatch, captcha: bool = False):
+    """Lisul at a Workday sign-in that Google paused (it asks for his password): on the held page, he signs in
+    himself, and Google sends him back to Workday signed in. He never presses Resume. With `captcha`, a captcha
+    shows on Google's page first. Once the fill ends, or he has waited a while, he closes the tab."""
+    handed, back = handed_pages(monkeypatch), []
+    real = FakeWorkdayServer._google_page
+
+    def google_page(self, route, parts):
+        if parts.path == "/v3/signin/accountchooser":
+            back.append(parse_qs(parts.query)["continue"][0])  # where Google sends him once he is signed in
+        return real(self, route, parts)
+    monkeypatch.setattr(FakeWorkdayServer, "_google_page", google_page)
+
+    class Lisul(RecordingBoard):
+        turns, typed = 0, []
+
+        def resumed(self, worker):
+            return False  # he never presses it
+
+        def answered(self, worker):  # each turn of the held page, on its own thread
+            if not handed:
+                return []
+            page, self.turns = handed[-1], self.turns + 1
+            if page.is_closed():
+                return []
+            history = " ".join(self.captions[worker].get("history") or [])
+            if "Went on by itself" in history and self.captions[worker].get("status") != "filling" or self.turns > 40:
+                page.close()
+            elif "accounts.google.com" in page.url and self.turns == 2:
+                if captcha:
+                    page.evaluate("""() => { const f = document.createElement('iframe');
+                        f.src = 'https://www.google.com/recaptcha/api2/bframe'; document.body.appendChild(f); }""")
+                self.typed = [box.input_value() for box in page.locator("input[type=password]").all()]
+            elif "accounts.google.com" in page.url and self.turns == 4:
+                page.goto(back[0])  # he typed his password; Google sends him back
+            return []
+    return Lisul(), handed
+
+
+def test_a_form_paused_at_sign_in_goes_on_by_itself_once_lisul_signs_in(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    board, handed = signing_in_himself(monkeypatch)
+    lines = []
+    with FakeWorkdayServer(XCEL_FORM, google="password") as server:
+        [first] = rehearsal.rehearse([XCEL_URL], adapters(server, board=board), ApplicantProfile.load(
+            profile_with(tmp_path, GOOGLE)), 1, keep_open=True, out=lines.append)
+
+    assert first.outcome == "handoff" and "Google asked for more than an account pick" in first.why
+    history = board.captions[0]["history"]
+    assert [h.split(" ", 1)[1].split(":")[0] for h in history][:2] == ["Paused", "Went on by itself"], history
+    # With no Resume, the form was read and filled past sign-in, to a step that waits on him for its own reason.
+    assert "Paused: Workday won't leave its 'My Information' step" in history[2]
+    assert board.typed == [""]  # Apply typed nothing into Google's sign-in page
+    assert len({id(page) for page in handed}) <= 2 and server.created == [] and server.submissions == []
+
+
+def test_a_captcha_on_the_sign_in_page_stops_apply_going_on_by_itself(monkeypatch, tmp_path):
+    monkeypatch.setitem(FILLERS, "workday", NeverSubmittingWorkday)
+    board, _ = signing_in_himself(monkeypatch, captcha=True)
+    lines = []
+    with FakeWorkdayServer(XCEL_FORM, google="password") as server:
+        rehearsal.rehearse([XCEL_URL], adapters(server, board=board), ApplicantProfile.load(
+            profile_with(tmp_path, GOOGLE)), 1, keep_open=True, out=lines.append)
+
+    assert any(rehearsal.CAPTCHA_SHOWED in line for line in lines)
+    assert not any("Went on by itself" in h for h in board.captions[0]["history"])
+    assert board.captions[0]["resume"]["why"] == rehearsal.TAB_CLOSED  # it waited for him, until he closed the tab
+    assert server.created == [] and server.submissions == []
+
+
+def test_a_filler_with_no_signed_in_check_never_goes_on_by_itself():
+    class Plain:
+        def resume_blocked(self, page):
+            return ""
+    check = worker.ResumeCheck(Plain())
+    assert check.signed_in is None and check("page") == ""
+    assert worker.ResumeCheck(object())("page") == ""
 
 
 def test_a_paused_rehearsal_saves_its_record_while_its_page_is_held(monkeypatch, tmp_path):
