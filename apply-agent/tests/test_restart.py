@@ -46,3 +46,26 @@ def test_a_broken_list_reads_as_empty_and_is_written_anew(tmp_path):
     assert batch.forms(path) == []
     batch.note("https://jobs.example/1", path, status="filling")
     assert [f["link"] for f in batch.forms(path)] == ["https://jobs.example/1"]
+
+
+# --- apply preflight --open (KAN-721)
+
+
+def test_preflight_open_lists_the_reopened_sites_that_wait_on_a_sign_in_now():
+    from apply import preflight
+
+    forms = [
+        {"link": "https://acme.wd1.myworkdayjobs.com/x/job/1", "posting_url": "https://acme.wd1.myworkdayjobs.com/x/job/1",
+         "application_id": "a1", "job_system": "workday", "company": "Acme", "worker": 0},
+        {"link": "https://job-boards.greenhouse.io/arc/jobs/2", "posting_url": "https://job-boards.greenhouse.io/arc/jobs/2",
+         "application_id": "a2", "job_system": "greenhouse", "company": "Arc", "worker": 1},
+        {"link": "https://beta.wd5.myworkdayjobs.com/y/job/3", "posting_url": "https://beta.wd5.myworkdayjobs.com/y/job/3",
+         "application_id": "a3", "job_system": "workday", "company": "Beta", "worker": 2},
+    ]
+    tiles = [{"posting_url": forms[0]["posting_url"], "status": "needs sign-in"},
+             {"application_id": "a2", "status": "ready to submit"}]
+    said = preflight.open_report(forms, tiles)
+    now, _, later = said.partition("No window shows these yet")
+    assert "Acme (Browser 1)" in now and "Arc" not in said  # Greenhouse asks no sign-in, and its form is held
+    assert "Beta (Browser 3)" in later
+    assert preflight.open_report([], []).startswith("No open form")
