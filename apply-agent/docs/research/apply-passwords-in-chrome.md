@@ -56,7 +56,7 @@ From [Chrome's Native messaging docs](https://developer.chrome.com/docs/extensio
 
 ### (b) Push the credentials to the WorkIt backend. Don't.
 
-It would put plaintext employer passwords on WorkIt's server: plaintext at the API, and readable by whoever holds the server's key. It breaks the extension's own rule (passwords never leave the browser) and Apply's ("Never in the Tracker, the repo or a log"). WorkIt's earlier research calls server-stored passwords LazyApply's mistake. It also gains nothing here, since the extension and Keychain are on the same Mac. KAN-481 ("saved encrypted on WorkIt") would be safe only with a key held on the device, which turns it back into (c).
+It would put plaintext employer passwords on WorkIt's server: plaintext at the API, and readable by whoever holds the server's key. It breaks the extension's own rule (passwords never leave the browser) and Apply's ("Never in the Tracker, the repo or a log"). It also gains nothing here, since the extension and Keychain are on the same Mac. KAN-481 ("saved encrypted on WorkIt") would be safe only with a key held on the device, which turns it back into (c).
 
 ### (c) The extension's own storage, filled by Apply. Not needed.
 
@@ -73,15 +73,6 @@ This is the smallest step, and the only one that needs no extension change.
 - **Copy password:** `POST /accounts/copy {site}`, with the window's token and `Origin` check, as every other POST has. The server checks that the site is listed, reads Keychain, and puts the password on the clipboard itself. Use `NSPasteboard` with the `org.nspasteboard.ConcealedType` marker, so clipboard managers skip it. The password is never in an HTTP response, so the page never holds it. The row then says "Copied. Paste it within a minute". The server clears the clipboard after 60 s if it still holds the password. Trade-off: while it is on the clipboard, any app can read it.
 - **Open sign-in page:** `open -a "Google Chrome" <url>`. That opens the user's everyday Chrome, not the window's profile. The tenant alone has no Workday site path, so use the Posting link from that company's Tracker row: Workday's job page has Sign In in its header. Check live which path goes straight to the candidate home.
 - **Export for Chrome (optional):** this automates today's CSV. `apply accounts export` writes a `0600` file of `url,username,password` for every listed tenant, tells the user to import it, and deletes it once the user says it is done. Use it once, for the accounts made before step 3 exists.
-
-## 4. What Simplify and Jobright do
-
-Their current packages (Jobright 1.25.2, Simplify 3.1.13) were downloaded from the Web Store update endpoint into empty scratchpad folders and only grepped. Findings:
-
-- **Jobright** keeps **one** password that the student chooses, for every Workday tenant, in the extension's local storage (`WORKDAY_SIGNUP_INFORMATION`). `workday-password-sync.*.js` copies it into the jobright.ai web app's IndexedDB (`jobright-helper-credentials`, key `myworkday`), so the web app's editor can show it. It "never saves or shares it with anyone."
-- **Simplify** keeps **one** set of credentials (`simplifySignupCredentials`, in `chrome.storage.local`), which the student enters or the extension generates (16 characters) on the first Create Account. It reuses them on every tenant: "Your password is stored locally in your browser. Simplify never saves or shares it with anyone."
-- **Neither** writes to Chrome's password manager. Neither calls `PasswordCredential` or `credentials.store`, and neither asks for `nativeMessaging` (grepped both packages; their permission lists have neither). Both fill the sign-in again from their own storage. The user gets back in with the one password the user chose (Jobright) or one they can see in the extension (Simplify).
-- **What WorkIt does better:** a separate password per tenant, so one leak doesn't open every tenant; Keychain as the only copy; and Chrome's own saved password once the user clicks Save.
 
 ## Build plan, in order
 
