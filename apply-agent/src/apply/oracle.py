@@ -5,7 +5,7 @@ Oracle has no passwords: the candidate gives an email address (ticking the
 site's legal disclaimer, never its honeypot box), a returning candidate
 confirms their last name, and Oracle may mail a one-time code, read here from
 Gmail. A code sent by text message is a Handoff, and so is a code that
-doesn't come within about 2 minutes (Apply never clicks Send New Code: it
+doesn't come within about 10 minutes (Apply never clicks Send New Code: it
 goes to Needs you, and Lisul retries himself), a code Oracle
 refuses (it allows 4 tries, then locks for 30 minutes), or an identity
 question other than the last name.
@@ -24,9 +24,11 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from apply.accounts import Accounts
 from apply.model import Handoff
 
-# Gmail search for Oracle's code mail. The sender is the employer's own
-# address, so the subject is searched; only mail since the request counts.
-MAIL_SEARCH = 'subject:(code OR verification OR verify OR "confirm your identity")'
+# Gmail search for Oracle's code mail: Oracle's own senders (JPMorgan's came from
+# workflow.mail.us2.cloud.oracle.com) or the employer's own address with Oracle's
+# subject (American Express's). Not any code mail: an Amazon or Greenhouse code
+# that came meanwhile is not this one. Only mail since the request counts.
+MAIL_SEARCH = '(from:(oracle.com OR oraclecloud.com) OR subject:"confirm your identity")'
 TIMEOUT = 30.0
 TERMS_WAIT = 3.0
 SMS = re.compile(r"text message|\bsms\b|sent .{0,40}to your (mobile|phone)", re.IGNORECASE)

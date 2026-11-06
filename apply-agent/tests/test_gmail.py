@@ -111,6 +111,25 @@ def test_a_code_sent_before_the_request_is_not_used():
     assert box.find_code(search="from:oraclecloud.com", since=NOW) is None
 
 
+def test_a_code_filed_outside_the_inbox_is_still_read_without_changing_it():
+    # JPMorgan's code mails were in Trash (live), and Apply gets one code per sign-in.
+    box, imap = mailbox((NOW + timedelta(seconds=20), mail("no-reply@oracle.com", "Your code", "Your verification code is 482913.")))
+    inbox = imap.search
+    imap.search = lambda charset, *criteria: (inbox(charset, *criteria) if imap.selected[0] == '"[Gmail]/Trash"'
+                                              else ("OK", [b""]))
+
+    assert box.find_code(search="from:oracle.com", since=NOW) == "482913"
+    assert imap.selected == ('"[Gmail]/Trash"', True) and imap.seen == set()
+
+
+def test_a_mailbox_this_account_lacks_is_skipped():
+    box, imap = mailbox((NOW + timedelta(seconds=20), mail("no-reply@oracle.com", "Your code", "Your verification code is 482913.")))
+    select = imap.select
+    imap.select = lambda name, readonly=False: ("NO", [b"no such mailbox"]) if name != '"[Gmail]/Trash"' else select(name, readonly)
+
+    assert box.find_code(search="from:oracle.com", since=NOW) == "482913"
+
+
 def test_the_code_is_read_from_an_html_only_mail():
     message = EmailMessage()
     message["From"], message["Subject"] = "no-reply@oraclecloud.com", "Confirm your identity"

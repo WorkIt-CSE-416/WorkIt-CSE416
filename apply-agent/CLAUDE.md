@@ -60,12 +60,12 @@ Read the file that matches your change. Update it in the same PR: it counts as
 this folder's `CLAUDE.md` for its area.
 
 - `docs/fill-engine.md`: Apply's plan rules, `fill_engine.py`, `APPLY_FILL_ENGINE`, or what the plan answers from the Tracker, the Answer bank or a bare date.
-- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, a Tracker write, the already-applied check, or the tailored resume.
-- `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, page gates, or how a question reaches Needs you.
+- `docs/workit.md`: a WorkIt call, `apply login`, `import-sheet`, `clean-tracker`, a Tracker write, the already-applied check, the resume check, or the tailored resume.
+- `docs/held-forms.md`: verifying, a flag, Resume, Regenerate, Ask Claude, Fill again (`apply fill-again`), page gates, or how a question reaches Needs you.
 - `docs/prompts-and-gates.md`: a prompt, a length, cap or names gate, or the catch-all box rule.
 - `docs/claude-fill.md`: Claude fill, its Next and profile clicks, its dropdowns, or a Filler's `form_url`.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
-- `docs/sign-in.md`: a sign-in page, an Employer account or its password, or the Accounts tab.
+- `docs/sign-in.md`: a sign-in page, an Employer account or its password, the Accounts tab, or `apply preflight`.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
@@ -114,6 +114,13 @@ into it and the window shows "Sample data".
   them, add it to that list. CI never runs the Filler tests
   (`test_*_filler.py`, `test_claude_fill.py` and the other files that open
   Chromium). Run the ones that your change touches on your Mac, with `-k`.
+- **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
+  socket or name lookup to another host raises `NetworkBlocked`, Chrome
+  started by a test resolves other hosts to nothing, and Playwright's own
+  requests are refused. The test then fails, even if it swallowed the error.
+  A test that goes live on purpose names its hosts:
+  `@pytest.mark.live_network("example.com")`. A program that a test starts
+  other than Chrome (`curl`, `gh`) is not covered, so fake those.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live

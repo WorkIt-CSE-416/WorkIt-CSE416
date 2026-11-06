@@ -366,3 +366,21 @@ on the held form itself, not only in its Needs you card.
 fake Greenhouse, Go to question on a paused fake Workday step, finding a
 field by its label and panel, the rest rules, and the window's `/goto` and
 `typed` (opens Chromium).
+
+## Fill again from outside the page: `POST /fill-again` and `apply fill-again` (KAN-672)
+
+Agents and Lisul can press Fill again without a click in the Worker's page:
+
+```
+uv run apply fill-again 54321            # the window's port, when it holds one form
+uv run apply fill-again <application id>  # the form on that tile
+```
+
+- `POST /fill-again` takes `X-Apply-Token` and `{"id": "tile-0"}`. `Dashboard.fill_again` accepts it only
+  while the tile's `askable` is on: a rehearsal's held or paused page, before Lisul presses Submit. Else it
+  is a 409 or a 404 with the why.
+- `_Kept.hold` takes it at its next turn (`Board.fill_again_asked`) and returns AGAIN, as the page's button
+  does. The form fills anew under the same guards. It never submits.
+- A port with several held forms is refused, and the error lists their Application IDs. `into.fill_again`
+  never guesses. The command then waits for the new fill to stop and prints how it stopped.
+- Tests: `tests/test_into.py` (in CI), `tests/test_rehearse.py -k fill_again` (Chromium).

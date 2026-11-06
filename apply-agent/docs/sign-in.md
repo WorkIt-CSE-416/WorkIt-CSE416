@@ -1,4 +1,4 @@
-# Sign-in and Employer accounts
+# Sign-in, Employer accounts and preflight
 
 Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to `apply-agent/`. A change in this area updates this file in the same PR.
 
@@ -159,3 +159,17 @@ Never read a real Keychain password in a test, and never write the real
 clipboard: to try the JXA, pass `MacClipboard("<a pasteboard name>")`. `tests/test_dashboard.py -k
 accounts_tab` clicks the tab in Chromium and checks that the page's HTML
 has no password.
+
+## `apply preflight`: the sign-ins and the plan for a batch (KAN-668)
+
+`uv run apply preflight <links...> [--workers N]` (`src/apply/preflight.py`) says what a batch will
+need before any form opens. **It opens no page and reads no job site.** The job system comes from the
+link and the engine's `jobOf` (Node, with no fetch); `test_preflight.py` fails on any socket.
+
+- A site is what one sign-in covers: a Workday tenant, a wall's domain (`walls.site`), or the host.
+- Each site says Sign-in (`preflight.NEEDS`: yes, maybe, no, can't tell), Keychain (`Keychain.sites`:
+  attributes only, never a password) and Profile (`WorkerBrowsers.signed_in`, with Worker profiles on disk).
+- "Sign-ins to do first" lists only what Lisul must do. A site with a Keychain password, or an account
+  Apply can make with Gmail, goes under "Apply does these itself".
+- The plan puts sites that may need Lisul first, while he is there. Its pacing is turns, one site to a
+  Worker, and later links `--into` the same Worker. It has no timed waits: a delay only imitates a person.
