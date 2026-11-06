@@ -141,6 +141,12 @@ A plain Worker is a Chrome with no CDP, driven by the worker extension
 - **Focus.** Go to question focuses the field. The Worker's window is behind
   Lisul's apps, so `:focus` doesn't match. `document.activeElement` is set,
   and that is what the Watch reads.
+  Nor does the page hear any focus events: `focus()`, `blur()`, a Tab or a
+  click elsewhere fire no `blur` or `focusout`. Workday's text boxes keep a
+  value only as they are left (React's onBlur), so each focus move the
+  extension makes (page/dom.js `leaving`, also the tile's presses) and the
+  Fill engine's `leave` tell the box left by hand when it went unheard
+  (KAN-709, `tests/test_plain_focus.py`).
 - The window's own field-error read (`CdpFrames._read_errors`) needs CDP.
   For a plain Worker, the window reads `stuck.field_error(page)` over the
   port, from its own thread (S3's frames).
