@@ -1814,3 +1814,33 @@ def test_an_answer_that_comes_after_its_step_went_by_is_left_behind_not_looked_f
         browser.close()
     assert all(NATIVE not in asked for asked in driver.fields)
     assert filler.left_behind == [(NATIVE, "English")]
+
+
+# Amazon's Job-specific questions (live, KAN-714): a month box whose only word on its format is its placeholder.
+AMAZON_DATES = """<!doctype html><body>
+<div><label id="grad-label">In what month and year did you (or do you expect to) graduate from your highest degree?</label>
+<input type="text" placeholder="YYYY-MM" aria-label="In what month and year did you (or do you expect to) graduate from your highest degree? Date: Year-Month-Day"></div>
+<div><label for="alias">Please provide your Amazon Login ID (alias)</label><input id="alias" type="text" placeholder="Type here"></div>
+</body>"""
+
+
+def test_a_date_boxs_placeholder_format_is_added_to_its_label():
+    from playwright.sync_api import sync_playwright
+
+    from apply.model import Question
+
+    questions = [
+        Question("q13", "In what month and year did you (or do you expect to) graduate from your highest degree?", "text", True),
+        Question("q14", "Please provide your Amazon Login ID (alias)", "text", True),
+    ]
+    with sync_playwright() as playwright:
+        browser = playwright.chromium.launch()
+        page = browser.new_page()
+        page.set_content(AMAZON_DATES)
+        found = claude_fill._with_formats(page, questions)
+        browser.close()
+
+    assert [q.label for q in found] == [
+        "In what month and year did you (or do you expect to) graduate from your highest degree? (YYYY-MM)",
+        "Please provide your Amazon Login ID (alias)",
+    ]

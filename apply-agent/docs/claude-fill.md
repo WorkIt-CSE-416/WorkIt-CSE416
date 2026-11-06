@@ -62,6 +62,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   read off the very element Playwright clicks (`_comboboxes`), never from a
   page script's own list: the two counted visibility apart on Microsoft's
   profile step, and each question opened its neighbour (KAN-646).
+- A text box whose placeholder is a date format ("YYYY-MM") gets that format after its label,
+  "(YYYY-MM)", as the planner reads a format (`_with_formats`, KAN-714): Amazon's graduation month box
+  says its format only there, and refused "May 2028".
 - On a plain Worker (KAN-612; a PortPage, no CDP), `claude_cli.drive` gives
   `claude -p` Apply's own MCP server under the same name, `playwright`
   (`apply.plain.mcp`, a stdio relay, and `apply.plain.tools`, which runs
