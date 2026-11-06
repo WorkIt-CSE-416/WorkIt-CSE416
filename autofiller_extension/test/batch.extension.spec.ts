@@ -164,9 +164,10 @@ test("a form the job system sends to its job search opens again, once", async ()
   const webappPage = loaded.context.pages()[0] ?? (await loaded.context.newPage());
   await webappPage.goto("http://localhost:3000/auto-apply");
   await sendFromWebapp(webappPage, { type: "run/open" });
-  // The tab is back on the form (its fill then runs, as on any form).
-  await expect.poll(async () => (await tabs(loaded.worker)).some((t) => t.url === form), { timeout: 30_000 }).toBe(true);
-  expect(asked).toBe(2);
+  // The tab is back on the form (its fill then runs, as on any form). The URL alone races the fake
+  // server's own redirect script: chrome.tabs reports it the instant the first response's HTML
+  // commits, before that page's <script> has run location.replace, so wait for the real reopen too.
+  await expect.poll(async () => asked === 2 && (await tabs(loaded.worker)).some((t) => t.url === form), { timeout: 30_000 }).toBe(true);
 });
 
 test("a tab moves to Needs you when a field empties, and back to Ready when it is answered", async () => {
