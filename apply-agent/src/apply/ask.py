@@ -266,8 +266,9 @@ def system_for(profile) -> str:
 
 
 def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, given: str, system: str = SYSTEM,
-        guard: DriveGuard | None = None, opt_ins: dict | None = None) -> Reply:
-    """Claude acts on the open `page` as `message` asks, under the drive guard, and Apply reads it back."""
+        guard: DriveGuard | None = None, opt_ins: dict | None = None, files: list[Path] | None = None) -> Reply:
+    """Claude acts on the open `page` as `message` asks, under the drive guard, and Apply reads it back.
+    `files` are the ones it may attach, as Claude fill's: the profile's resume (KAN-683)."""
     guard = guard or DriveGuard(page, **(opt_ins or {}))
     before = state(page)
     tick = asks_a_tick(message)
@@ -281,7 +282,7 @@ def ask(claude: Claude, page, message: str, thread: list[dict], form: Form, give
         while True:
             now = before if not pressed else state(page)
             drive = claude.drive(page=page, model=MODEL, system=system, prompt=prompt(message, earlier, form, now, given),
-                                 schema=SCHEMA, files=[], max_turns=MAX_TURNS, max_tokens=MAX_TOKENS, hook=hook)
+                                 schema=SCHEMA, files=list(files or []), max_turns=MAX_TURNS, max_tokens=MAX_TOKENS, hook=hook)
             tokens += drive.tokens
             said = _joined(said_before, drive.output or {})
             press = str((drive.output or {}).get("press") or "").strip()
