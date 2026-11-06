@@ -266,9 +266,11 @@ def ticked(shown: object) -> bool:
 
 
 def attestations(questions: QuestionSet) -> set[str]:
-    """The names of `questions` that ask Lisul to attest, certify or sign: the engine's own pattern (asksAttestation)."""
+    """The names of `questions` that ask Lisul to attest, certify or sign: the engine's own pattern (asksAttestation), read
+    from each label, help text and options, in the form's order (a bare "Date" beside a signature is its date)."""
     listed = list(questions)
-    found = call_without_page("asksAttestation", [{"label": q.label, "options": list(q.options)} for q in listed]) if listed else []
+    found = call_without_page("asksAttestation", [{"name": q.name, "label": q.label, "options": list(q.options),
+                                                 "description": q.description, "kind": q.kind} for q in listed]) if listed else []
     return {q.name for q, attests in zip(listed, found) if attests}
 
 
