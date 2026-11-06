@@ -568,10 +568,19 @@ _TEMPLATE = r"""
       || (test(/^(submit|button|reset)$/, typeOf(n)) && !sends(n)));
   };
   // A relay page is only that post (KAN-710): a page that shows a field of its own is a form, whose script may
-  // post the application's hidden copy (TAL.net's submit=1) before any click.
+  // post the application's hidden copy (TAL.net's submit=1) before any click. So a relay is the top page's own,
+  // posted into itself, once the whole page has loaded (a field after the relay's script hasn't parsed yet before),
+  // never a frame's: a frame doesn't know the fields of the page around it.
+  const topGet = gopd(W, 'top').get, readyOf = get(DP, 'readyState');
   const fieldShown = () => any(all(D, 'input, select, textarea'), (n) =>
     !test(/^(hidden|submit|button|reset|image)$/i, typeOf(n)) && seen(n));
-  const relay = (form, by, href) => !touched && posts(form, by) && !postsFinal(form, by, href) && hiddenOnly(form) && !fieldShown();
+  const intoItself = (form, by) => {
+    const target = (submitButton(by) && hasAttr(by, 'formtarget') ? text(attr(by, 'formtarget')) : text(attr(form, 'target')));
+    return target === '' || lower(target) === '_self';
+  };
+  const relayLike = (form, by, href) => !touched && apply(topGet, W, []) === W && posts(form, by) && intoItself(form, by)
+    && !postsFinal(form, by, href) && hiddenOnly(form);
+  const relay = (form, by, href) => relayLike(form, by, href) && readyOf(D) !== 'loading' && !fieldShown();
   // Another site's widget loading itself into its own frame on the page, click or no click: LinkedIn's Apply
   // with LinkedIn on Microsoft's form (live, KAN-711) posts a form of hidden fields (its key, the job's code)
   // to linkedin.com into the iframe it just made, as the form loads. Bound for another site and no final URL,
@@ -595,6 +604,15 @@ _TEMPLATE = r"""
     const form = targetGet(event), by = submitterGet(event);
     if (!isForm(form)) return;
     posting = {form, by, press: fromPress(form, by)};
+    if (readyOf(D) === 'loading' && relayLike(form, by)) {  // a relay's post as the page loads: judged once it has
+      prevent(event);
+      listen(D, 'DOMContentLoaded', () => {
+        if (!relay(form, by)) return note('a form submission');
+        posting = {form, by: null, press: false};
+        apply(submit, form, []);
+      });
+      return;
+    }
     if (relay(form, by) || frameLoad(form, by) || uploadPost(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
@@ -624,6 +642,15 @@ _TEMPLATE = r"""
       const step = fromPress(this, null) && !postsFinal(this, null) && (password(this) || !hadSends(this));
       go = lifted() || step || relay(this, null) || frameLoad(this, null) || uploadPost(this, null) || !posts(this, null);
     } catch (e) {}  // a form the guard can't read is not posted
+    if (!go && readyOf(D) === 'loading' && relayLike(this, null)) {  // judged once the rest of the page is there
+      const form = this;
+      listen(D, 'DOMContentLoaded', () => {
+        if (!relay(form, null)) return note('a form submission');
+        posting = {form, by: null, press: false};
+        apply(submit, form, []);
+      });
+      return;
+    }
     if (!go) return note('a form submission');
     posting = {form: this, by: null, press: fromPress(this, null)};
     return apply(submit, this, []);
