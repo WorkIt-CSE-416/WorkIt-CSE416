@@ -3089,10 +3089,12 @@ student who opened a resume from Experiences landed on another view.
   an entry's or bullet's is a choice. It replaced the bar's up and down buttons,
   which moved one line one step and could not move a section. A phone keeps
   those buttons, since a drag there fights the scroll. The bar's Sections
-  and Format Options (`PanelButton`) keep their words down to `@3xl/main`;
-  below it they are glyphs with a tooltip, shown only while the word is
-  hidden, and a 44px hit area (KAN-574). They lost the words below `@5xl`
-  until then, named only by a `title`, which touch cannot read.
+  and Format Options (`PanelButton`) fold to glyphs with a tooltip, shown
+  only while the word is hidden, as the bar narrows, and then move into More
+  (`[resumeId]/bar-fold.tsx`, `frontend/CLAUDE.md`: one row, never two).
+  They lost the words below `@5xl` until KAN-574, named only by a `title`,
+  which touch cannot read, and below `@3xl/main` until the bar folded by
+  its own width.
 - **The toolbar holds what acts on the line clicked; Format Options holds what
   acts on the whole resume** (`page-format.tsx`, KAN-435). With a line open the
   bar shows Undo, Redo, zoom, **that line's kind of text with its size** (Your

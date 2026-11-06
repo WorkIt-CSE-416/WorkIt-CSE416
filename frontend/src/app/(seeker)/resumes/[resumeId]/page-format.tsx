@@ -2,7 +2,7 @@
 
 import type { Icon as PhosphorIcon } from "@phosphor-icons/react";
 import { MinusIcon, PlusIcon } from "@phosphor-icons/react/ssr";
-import { useRef, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { ChevronDownIcon, CloseIcon } from "@/components/icons";
 import {
@@ -13,13 +13,14 @@ import {
   DropdownMenuTrigger,
 } from "@/components/shadcn/dropdown-menu";
 import { Switch } from "@/components/shadcn/switch";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button } from "@/components/ui/button";
 import { FIELD_CONTROL } from "@/components/ui/text-field";
 import { IconButton } from "@/components/ui/icon-button";
 import { SegmentedToggle } from "@/components/ui/segmented-control";
 import type { FontFamily, PageSettings } from "@/lib/built-resume-actions";
 import { cn } from "@/lib/cn";
+
+import { FoldButton } from "./bar-fold";
 
 /**
  * How the resume looks (KAN-435). **The toolbar holds what acts on the line
@@ -270,59 +271,45 @@ export function SizeStepper({
 
 /** A toolbar button that opens a panel beside the page, tinted while it
  *  is open: Sections, Format Options. `sm`, as every text button on the bar
- *  is (KAN-576): at `xs` it stood 26px with 12px type beside 36px ones. It
- *  keeps its word down to `@3xl`; below that it is the glyph alone, named
- *  by a tooltip, and its hit area reaches past the box, since touch has no
- *  hover to read a `title` (KAN-574). The tooltip opens only while the word
- *  is hidden: over the word it said the same thing twice. */
+ *  is (KAN-576): at `xs` it stood 26px with 12px type beside 36px ones. Its
+ *  word folds away as the bar narrows (`fold`, ./bar-fold.tsx), leaving the
+ *  glyph named by a tooltip; the button's own `hit-area` keeps it 44px on
+ *  touch. */
 export function PanelButton({
   label,
   Icon,
+  fold,
   open,
   disabled,
   onToggle,
 }: {
   label: string;
   Icon: PhosphorIcon;
+  /** The `FOLD` step that hides the word. */
+  fold: string;
   open: boolean;
   disabled: boolean;
   onToggle: () => void;
 }) {
-  const word = useRef<HTMLSpanElement>(null);
-  const [tip, setTip] = useState(false);
   return (
-    <Tooltip
-      open={tip}
-      // sr-only draws the word 1px wide
-      onOpenChange={(next) => setTip(next && (word.current?.offsetWidth ?? 0) <= 1)}
-    >
-      <TooltipTrigger
-        disabled={disabled}
-        render={
-          <Button
-            variant="ghost"
-            size="sm"
-            aria-pressed={open}
-            disabled={disabled}
-            className={cn("shrink-0", NARROW_HIT, open && ON)}
-            onClick={onToggle}
-          />
-        }
-      >
-        <Icon aria-hidden />{" "}
-        <span ref={word} className="@max-3xl/main:sr-only">
-          {label}
-        </span>
-      </TooltipTrigger>
-      <TooltipContent>{label}</TooltipContent>
-    </Tooltip>
+    <FoldButton
+      label={label}
+      icon={<Icon aria-hidden />}
+      fold={fold}
+      disabled={disabled}
+      render={
+        <Button
+          variant="ghost"
+          size="sm"
+          aria-pressed={open}
+          disabled={disabled}
+          className={cn("shrink-0", open && ON)}
+          onClick={onToggle}
+        />
+      }
+    />
   );
 }
-
-/** Below `@3xl`, the `sm` glyph button reaches 10px above and below and
- *  6px each side, so two neighbours 8px apart overlap by 4px at most. */
-const NARROW_HIT =
-  "@max-3xl/main:relative @max-3xl/main:after:absolute @max-3xl/main:after:-inset-x-1.5 @max-3xl/main:after:-inset-y-2.5 @max-3xl/main:after:content-['']";
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
