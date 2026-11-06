@@ -231,6 +231,9 @@ jobs:
       - run: uv run playwright install --with-deps chromium
       - name: Submit guard hostile pages
         run: uv run pytest -q tests/test_submit_guard_hostile.py
+      # The worker extension's page scripts in a window without focus (KAN-709), on Playwright's Chromium.
+      - name: Plain Worker focus
+        run: uv run pytest -q tests/test_plain_focus.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
