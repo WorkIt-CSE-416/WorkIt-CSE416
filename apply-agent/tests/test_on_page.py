@@ -211,6 +211,29 @@ def test_a_field_in_a_section_reads_only_its_own_value_never_the_section_s(page)
     assert read(Question("other", "If your school is not listed, enter it here", "text")).get("value", "") == ""
     page.fill("#alt", "555-0100")
     assert read(Question("alt", "Alternate Phone Number", "text"))["value"] == "555-0100"
+# Microsoft Careers' contact section (live 2026-11-06): a field whose control the page script can't see (a
+# dropdown drawn as a plain div, an input in a shadow root) sits among inputs labelled by divs. Going up from its
+# label reached the whole section: "Alternate Phone Number" read every answer in it joined, then (KAN-693) the
+# first name, another field's.
+CONTACT = """<div class="section">
+  <div class="field"><div class="label">Preferred First Name</div><input id="first" value="Ada"></div>
+  <div class="field"><div class="label">Email</div><input id="email" value="ada@example.com"></div>
+  <div class="field"><div class="label">Alternate Phone Number</div><div class="phone-host"></div></div>
+  <div class="field"><div class="label">Is your legal name the same as your preferred name?</div><div class="dropdown">Select</div></div>
+</div>"""
+
+
+def test_a_field_with_no_control_of_its_own_never_reads_the_sections_other_answers(page):
+    page.set_content(CONTACT)
+    clock = [0.0]
+    watch = on_page.Watch("claude", now=lambda: clock[0])
+    asked = [Question("q9", "Alternate Phone Number", "text"), Question("q5", "Is your legal name the same as your preferred name?", "select")]
+
+    assert [on_page._in_frames(page, q, "read").get("value", "") for q in asked] == ["", ""]
+    assert watch.tick(page, asked) == []
+    page.fill("#email", "ada@example.org")  # another field changed: never an answer to these
+    clock[0] = 1 + on_page.TYPING_S
+    assert watch.tick(page, asked) == []
 
 
 def test_a_field_on_another_workday_step_is_named_and_nothing_moves(page):
