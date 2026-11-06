@@ -371,17 +371,19 @@ def test_the_desk_does_not_trust_a_lock_whose_pid_is_another_program(tmp_path):
     assert Desk(tmp_path / "none").chrome() is None
 
 
-def test_the_desk_knows_the_seeds_own_chrome(tmp_path):
+def test_the_desk_knows_the_seeds_own_chrome(tmp_path, monkeypatch):
     seed = tmp_path / "plain-seed"
     seed.mkdir()
-    process = subprocess.Popen(["python3", "-c", "import time; time.sleep(30)", f"--user-data-dir={seed}"])
-    try:
-        (seed / "SingletonLock").symlink_to(f"this-mac-{process.pid}")
-        assert Desk(seed).chrome() == process.pid
-    finally:
-        process.kill()
-        process.wait()
-    assert Desk(seed).chrome() is None
+    (seed / "SingletonLock").symlink_to(f"this-mac-{os.getpid()}")  # a live PID
+    asked = []
+
+    def ps(argv, **kw):
+        asked.append(argv)
+        return SimpleNamespace(stdout=f"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome --user-data-dir={seed} --no-first-run\n")
+
+    monkeypatch.setattr(subprocess, "run", ps)
+    assert Desk(seed).chrome() == os.getpid()
+    assert asked == [["ps", "-o", "command=", "-p", str(os.getpid())]]
 
 
 def test_setup_needs_branded_chrome(tmp_path, monkeypatch):
