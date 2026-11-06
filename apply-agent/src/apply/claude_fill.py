@@ -604,6 +604,8 @@ class ClaudeFill:
             # the form is filled and unsent, as a Filler leaves it (Roblox's, live: a Handoff after 1.2M tokens).
             self._guard.forget()
             blocked = []
+        if any(b.endswith(captcha.SIGN_IN_CLICK) for b in blocked):  # Claude pressed it: nothing ran the captcha
+            raise Handoff(captcha.SIGN_IN.format(urlsplit(page.url).hostname or "This site"))
         if blocked:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled the form (a click that may send it, sign in, "
                           "pay, withdraw or opt in), so nothing it blocked was sent. Check the form and finish it yourself.")
