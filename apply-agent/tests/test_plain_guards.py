@@ -2,7 +2,7 @@
 system on 127.0.0.1 that records every POST it gets. A guarded rehearsal page never sends, by a
 click, a form, or the page's own script (fetch from another realm, a worker, a beacon, a native
 POST); a press relayed from the tile counts as Lisul's; once lifted, his Submit goes through.
-Skips without Chrome for Testing (CI)."""
+Skips without Chrome for Testing; CI installs it."""
 
 import http.server
 import re

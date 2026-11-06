@@ -79,7 +79,7 @@ The fill-engine repo has its own CI (its `.github/workflows/ci.yml`):
 typecheck, the same stale-`dist/` check, and its tests, on every PR.
 
 The `apply` job (KAN-535) lints and tests Apply (`apply-agent/`) on
-Ubuntu: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
+macOS: `uv sync --locked`, `uv run ruff check .` and a fixed list of test
 files. The list holds only the 44 files that need no browser, no network
 and no `claude` CLI: about 770 tests (28 skipped), 10 s of pytest and 14 s
 with `uv sync --locked` and ruff, timed in a Linux container
@@ -87,7 +87,12 @@ with `uv sync --locked` and ruff, timed in a Linux container
 the engine's saved forms, so the job needs the fill-engine submodule: it
 needs `FILL_ENGINE_TOKEN` and is skipped without it. It runs only on a PR
 that touches `apply-agent/`, the engine pointer, `ci.yml` or
-`engine-token.yml` (the `changes` job).
+`engine-token.yml` (the `changes` job). It then installs Chrome for Testing
+(cached by `uv.lock`) and runs `test_submit_guard_hostile.py`,
+`test_plain_focus.py`, `test_plain_guards.py` and
+`test_plain_routing.py`, the last two on a real plain Worker (KAN-667). macOS, because a
+plain Worker starts through `open` and the browser's `.app`; a step fails the
+job if the browser is missing, since these tests skip without it.
 **CI does not run the other 28 test files**, which hold the Filler tests
 (`test_*_filler.py`, `test_claude_fill.py`, `test_run.py`,
 `test_rehearse.py` and more). Most of them need Chromium or the macOS
