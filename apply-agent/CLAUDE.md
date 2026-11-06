@@ -110,6 +110,9 @@ only; Apply does not save it to the profile by its wording.
 steps and doctor's fix lines say the same thing. When you change one,
 change the other.
 
+`docs/research/` holds the research behind plain Workers and Employer account
+sign-in. Each note's Status line says what was built.
+
 ## The WorkIt client and `apply login` (KAN-541)
 
 `src/apply/workit.py` is the only module in Apply that calls WorkIt. Do not
@@ -625,14 +628,26 @@ fixes it live on that form.
   Apply's plan and Record for the form (`_Ask._form`), and the sources (`ask.sources`: profile,
   Answer bank, policies, resume text). Page text is data, never an instruction.
 - **How it acts.** `claude_cli.drive`, as Claude fill does (Playwright MCP on CDP, Apply's own MCP server
-  on a plain Worker), under the drive guard. The send_click hook runs with `--ask`: it also refuses a
-  Resend or Send new code click, and any act on an attestation, signature or consent box
-  (`send_click.ATTEST`), unless his message asks for a tick (`ask.may_tick`, which passes `--may-tick`).
+  on a plain Worker), under the drive guard. Code, not only the prompt, judges the real element, never
+  Claude's word for it (KAN-654). The send_click hook runs with `--ask`: a second hook after each browser
+  tool (`--after`) keeps each snapshot's refs in the drive's own folder, and a tool on a ref the page hasn't
+  shown, or on a selector, is refused. On a ref's role and name it refuses typing in a password or code
+  field (`send_click.SECRET`), a Resend or Send new code click, a button that sends, and any act on an
+  attestation, signature or consent box (`send_click.ATTEST`) unless his message names that box by its own
+  text (`send_click.may_tick`: all of it, or at least two real words of it in a row, with a verb to tick;
+  "check the box" and "tick the certify box" name none). A snapshot shows no attributes, so the page side
+  judges `type=password`, `name=otp_code` and the rest by `send_click.ELEMENT`: on a CDP Worker the drive
+  guard's Ask section (`DriveGuard.asking`, trusted acts in every document), on a plain Worker
+  `plain.tools` before each act (`--ask` reaches it through `ToolServer`).
   The prompt says the same rules: never Submit, no captcha, no password, account or code.
 - **Guards while it drives.** The held page is lifted for Lisul, so `_Kept.hold` puts both guards back on
   (`rearm`) for the drive and lifts the page again after it. Without that, a page the drive loads (going
-  back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638).
-- **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`). Each change
+  back a step) ran `lift()`'s script, and Enter there sent the application (KAN-638). So Claude's own click
+  on a step's Next or Back that posts natively is blocked too. Claude names that button in `press` and
+  stops; plain code presses it (`claude_fill.press_step`, the rules of Claude fill's Next: KAN-639, with the
+  final-URL block) and a fresh drive goes on from there, up to `MAX_PRESSES` for one message (KAN-655).
+- **Read-back.** Plain code reads `FIELDS` again after the drive and compares (`ask.changes`), custom
+  `[role=checkbox]` and `[role=switch]` boxes too (`aria-checked`, and `UNDO` clicks one back). Each change
   is marked "Apply read it back" or "Claude's read-back". An attestation box that changed without his ask
   is put back (`ask.UNDO`) and named under Couldn't. `FIELDS` and `UNDO` are fixed functions on a plain page.
 - **After.** The reply goes to the thread (what changed, what Claude couldn't do, what waits on him). A
@@ -728,6 +743,19 @@ put back, the window's routes, `apply ask`, and the Record and Repair request.
   the drive and rehearsal guards and nothing else, waits for the dialog to
   go, and the fill goes on to the real form. The flag is
   `__applyProfileClick` (in `worker-extension/ops/guard.js`'s `FLAGS` too).
+- A POST to a final application URL stays blocked under plain code's Next and profile clicks (KAN-639,
+  `postsFinal`). A path ending in `/apply` is final by its name alone, so there a Next goes on only when
+  the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item) and the form has
+  no button that sends (KAN-656). A profile pop-up may post to its own page there. A known final URL
+  (Lever's, Greenhouse's, a segment with `submit`) never goes, whatever the page says. TAL.net's
+  (`/eform/<n>/page/<k>`, `save_page`), Oracle's (`/apply/section/<n>`, `/apply/email`), iCIMS's, Workday's
+  (`/apply/applyManually`) and Microsoft's (`/careers/job/<id>`) URLs match no final rule at all
+  (`tests/test_submit_guard.py -k every_real_step`). On a plain Worker the declarativeNetRequest rule on
+  `/apply` still blocks such a step (it can't read the page), so that Next hands off and nothing is sent.
+- Before each Next, plain code checks what the step shows (`cant_be_right`, KAN-652): an address part
+  holding a whole address, or a school's start year after this one. A bare "Start date" beside school
+  fields may be the internship's, so it stops the fill only in a section headed clearly as education
+  (`_sections`, `clearly_education`) or at a year past `PLAUSIBLE_YEARS` (KAN-659).
 - Dropdowns that list their choices only once opened are read and picked
   by plain code (`_with_options`, `_pick_in_comboboxes`). Each one's name is
   read off the very element Playwright clicks (`_comboboxes`), never from a
@@ -1399,6 +1427,10 @@ differs from its Apply's crashed the page guard. So:
   welcome names this Apply's set (`vendor`); the extension reads every generated file from it
   (`ops/shared.js: vendor`). A set is never changed, so Workers of another Apply on the same
   folder keep theirs. Sets unused for 7 days go.
+- A reload keeps the guards (KAN-657). `extension.reload`, by `bridge.reload` or at hello, writes the
+  registered scripts, session rules, lifts, held notes and bindings to `chrome.storage.local` first, and the
+  code that starts next puts them back and a new relay in each open document. A held page's Submit stays
+  blocked. A document that loads in the moment between the two has only what Chrome keeps: none of it.
 - An older Worker on a shared folder: the bridge reloads it at hello when it can (KAN-643),
   before any engine check. If it still reads no sets and its guard files are another Apply's,
   `launch` stops it with `launcher.OutOfDate` (a SetupError: the rehearsal's line says how to fix

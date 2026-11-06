@@ -6,6 +6,16 @@ CSE 416 Final Project Group
 
 By Xiang, Brian, Andrew, Lisul, Vedant
 
+## Clone
+
+```bash
+git clone --recurse-submodules https://github.com/workitjobs/workit.git
+```
+
+The Fill engine is a private submodule. You need read access to
+`workitjobs/fill-engine`. If you cloned before the rename, read
+[docs/whats-new-2026-11-05.md](docs/whats-new-2026-11-05.md).
+
 ## Requirements
 Frontend:  
 

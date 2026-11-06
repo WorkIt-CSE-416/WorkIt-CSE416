@@ -71,6 +71,9 @@ class _Kind:
         self.opened.append((url, worker))
         yield f"{self.name} page"
 
+    def live(self, worker):
+        return False
+
     def stop(self, worker):
         self.stopped.append(worker)
 

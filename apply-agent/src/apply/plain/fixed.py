@@ -21,7 +21,7 @@ from functools import cache
 @cache
 def functions() -> dict[str, tuple[str, str, str]]:
     # Imported here: these modules import much of Apply, and PortPage imports this one.
-    from apply import ask, email_code, on_page, regenerate, stuck
+    from apply import ask, email_code, on_page, regenerate, send_click, stuck
     from apply.plain import page, tools
 
     statements = lambda code: "() => { " + code + "; }"
@@ -42,6 +42,8 @@ def functions() -> dict[str, tuple[str, str, str]]:
         # Ask Claude (KAN-638): the page's fields read before and after Claude drives, and one put back.
         ask.FIELDS: ("askFields", "ISOLATED", ask.FIELDS),
         ask.UNDO: ("askUndo", "MAIN", ask.UNDO),
+        send_click.ELEMENT: ("askElement", "ISOLATED", send_click.ELEMENT),
+        send_click.FOCUSED: ("askFocused", "ISOLATED", send_click.FOCUSED),
     }
 
 

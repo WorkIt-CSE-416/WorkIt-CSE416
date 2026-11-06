@@ -27,39 +27,119 @@ CLICK = "mcp__playwright__browser_click"
 POSTING = Posting(id="req-1", company="Acme Robotics", title="Software Intern", url="https://jobs.example.com/acme/1")
 
 
-def call(tool: str, element: str) -> dict:
-    return {"tool_name": f"mcp__playwright__browser_{tool}", "tool_input": {"element": element}}
+def call(tool: str, element: str, target: str = "e1", cwd=".") -> dict:
+    return {"tool_name": f"mcp__playwright__browser_{tool}", "tool_input": {"element": element, "target": target},
+            "cwd": str(cwd)}
 
 
-@pytest.mark.parametrize("asked", [call("click", "Resend code"), call("click", "Send new code button"),
-                                   call("click", "Verify email")])
-def test_ask_mode_refuses_asking_for_a_code_again(asked):
-    said = send_click.refusal(asked, ask=True)
-    assert said["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert "verification code" in said["hookSpecificOutput"]["permissionDecisionReason"]
+def page_shows(folder, snapshot: str) -> None:
+    """The after-tool hook kept this snapshot (a tool's answer, as Claude Code hands it over)."""
+    send_click.keep({"cwd": str(folder), "tool_response": [{"type": "text", "text": f"### Snapshot\n```yaml\n{snapshot}\n```"}]})
+
+
+def denied(answer) -> str:
+    assert answer["hookSpecificOutput"]["permissionDecision"] == "deny"
+    return answer["hookSpecificOutput"]["permissionDecisionReason"]
+
+
+@pytest.mark.parametrize("real", ['- button "Resend code" [ref=e1]', '- button "Send new code" [ref=e1]',
+                                  '- link "Verify email" [ref=e1] [cursor=pointer]'])
+def test_ask_mode_refuses_asking_for_a_code_again(tmp_path, real):
+    page_shows(tmp_path, real)
+    assert "verification code" in denied(send_click.refusal(call("click", "Next", cwd=tmp_path), ask=True))
     assert send_click.refusal(call("click", "Resend code")) is None  # Claude fill's own hook is as it was
 
 
-@pytest.mark.parametrize("asked", [call("click", "I certify that my answers are true checkbox"),
-                                   call("click", "I acknowledge the privacy notice"),
-                                   call("type", "Electronic signature (type your full name)")])
-def test_ask_mode_refuses_an_attestation_box_unless_his_message_asked_for_a_tick(asked):
-    assert send_click.refusal(asked, ask=True)["hookSpecificOutput"]["permissionDecision"] == "deny"
-    assert send_click.refusal(asked, ask=True, may_tick=True) is None
+@pytest.mark.parametrize(("real", "tool"), [('- checkbox "I certify that my answers are true" [ref=e1]', "click"),
+                                            ('- checkbox "I acknowledge the privacy notice" [ref=e1]', "click"),
+                                            ('- generic [ref=e0]:\n  - checkbox [ref=e1]\n  - text: I certify that my answers are true', "click"),
+                                            ('- textbox "Electronic signature (type your full name)" [ref=e1]', "type")])
+def test_ask_mode_judges_the_real_box_not_claudes_word_for_it(tmp_path, real, tool):
+    page_shows(tmp_path, real)
+    denied(send_click.refusal(call(tool, "the GPA field", cwd=tmp_path), ask=True))  # Claude's wording says otherwise
+    # "Check the box" names no box: refused still.
+    denied(send_click.refusal(call(tool, "the GPA field", cwd=tmp_path), ask=True, message="check the box"))
 
 
-def test_ask_mode_lets_the_fixes_through():
-    for asked in (call("click", "Back button"), call("click", "Next"), call("select_option", "Preferred locations"),
-                  call("type", "GPA"), call("type", "Certifications you hold")):
-        assert send_click.refusal(asked, ask=True) is None
-    assert send_click.refusal(call("click", "Submit application"), ask=True)  # never the one that sends
+def test_ask_mode_lets_a_box_through_only_when_his_message_names_that_box(tmp_path):
+    page_shows(tmp_path, '- checkbox "I certify that my answers are true" [ref=e1]\n- checkbox "I accept the privacy policy" [ref=e2]')
+    message = "tick the box: I certify that my answers are true"
+    assert send_click.refusal(call("click", "a box", "e1", tmp_path), ask=True, message=message) is None
+    denied(send_click.refusal(call("click", "I certify that my answers are true", "e2", tmp_path), ask=True, message=message))
+
+
+@pytest.mark.parametrize(("message", "box", "named"), [
+    ("tick the box that says I certify that my answers are true", "I certify that my answers are true", True),
+    ("check 'answers are true and complete'", "I certify that my answers are true and complete", True),
+    ("tick I agree", "I agree", True),
+    ("check the box", "I certify that my answers are true", False),
+    ("tick the checkbox for me", "I certify that my answers are true", False),
+    ("sign it", "Electronic signature", False),
+    ("tick the certify box", "I certify that my answers are true", False),
+    ("tick the box I certify that my answers are true", "I accept the privacy policy", False),
+    ("don't tick I certify that my answers are true", "I certify that my answers are true", False),
+    ("do not check I agree", "I agree", False),
+    ("check my GPA on page 2", "I certify that my answers are true", False),
+])
+def test_only_his_message_naming_the_box_s_own_text_lets_a_tick_through(message, box, named):
+    assert ask.may_tick(message, box) is named
+
+
+@pytest.mark.parametrize(("real", "tool"), [('- textbox "Password" [ref=e1]', "type"),
+                                            ('- textbox "Verification code" [ref=e1]', "type"),
+                                            ('- textbox "Enter your one-time passcode" [ref=e1]', "fill_form")])
+def test_ask_mode_refuses_typing_in_a_password_or_code_field(tmp_path, real, tool):
+    page_shows(tmp_path, real)
+    asked = (call(tool, "GPA", cwd=tmp_path) if tool == "type" else
+             {"tool_name": f"mcp__playwright__browser_{tool}", "cwd": str(tmp_path),
+              "tool_input": {"fields": [{"name": "GPA", "target": "e1", "type": "textbox", "value": "3.7"}]}})
+    assert "password or verification-code" in denied(send_click.refusal(asked, ask=True))
+
+
+@pytest.mark.parametrize("facts", [{"role": "textbox", "type": "password", "text": "Your secret", "attrs": ""},
+                                   {"role": "textbox", "type": "text", "text": "", "attrs": "otp_input"},
+                                   {"role": "textbox", "type": "text", "text": "", "attrs": "one-time-code"}])
+def test_a_secret_field_is_known_by_its_attributes(facts):
+    denied(send_click.judged("type", facts))
+    denied(send_click.judged("key", facts))
+    assert send_click.judged("click", facts) is None  # focusing one is no typing
+
+
+@pytest.mark.parametrize("label", ["Zip code", "Country code", "Area code", "Postal code", "Code", "Promo code"])
+def test_an_ordinary_code_field_is_no_secret(label):
+    assert send_click.judged("type", {"role": "textbox", "type": "text", "text": label, "attrs": ""}) is None
+
+
+def test_a_tool_on_what_the_page_has_not_shown_or_on_a_selector_is_refused(tmp_path):
+    page_shows(tmp_path, '- button "Next" [ref=e1]')
+    assert "snapshot" in denied(send_click.refusal(call("click", "Next", "e9", tmp_path), ask=True))
+    assert "snapshot" in denied(send_click.refusal(call("click", "Next", "button.next", tmp_path), ask=True))
+
+
+def test_claudes_next_on_the_real_submit_is_refused_and_its_submit_on_the_real_next_goes(tmp_path):
+    page_shows(tmp_path, '- button "Submit application" [ref=e1]\n- button "Next" [ref=e2]')
+    assert "sends the application" in denied(send_click.refusal(call("click", "Next button", "e1", tmp_path), ask=True))
+    assert send_click.refusal(call("click", "Submit", "e2", tmp_path), ask=True) is None
+
+
+def test_ask_mode_lets_the_fixes_through(tmp_path):
+    page_shows(tmp_path, '- button "Back" [ref=e1]\n- button "Next" [ref=e2]\n- combobox "Preferred locations" [ref=e3]\n'
+                         '- textbox "GPA" [ref=e4]\n- textbox "Certifications you hold" [ref=e5]\n- radio "Complete" [ref=f1e6]')
+    for tool, target in (("click", "e1"), ("click", "e2"), ("select_option", "e3"), ("type", "e4"), ("type", "e5"), ("click", "f1e6")):
+        assert send_click.refusal(call(tool, "x", target, tmp_path), ask=True) is None
 
 
 def test_the_hook_runs_with_its_flags(tmp_path):
-    [hook] = json.loads(send_click.settings(sys.executable, ("--ask",)))["hooks"]["PreToolUse"]
-    out = subprocess.run(hook["hooks"][0]["command"], shell=True, cwd=tmp_path, capture_output=True, text=True,
-                         input=json.dumps(call("click", "Resend code")), check=True).stdout
-    assert json.loads(out)["hookSpecificOutput"]["permissionDecision"] == "deny"
+    hooks = json.loads(send_click.settings(sys.executable, ("--ask", "--message=tick I certify that it's true")))["hooks"]
+    run = lambda command, given: subprocess.run(command, shell=True, cwd=tmp_path, capture_output=True, text=True,
+                                                input=json.dumps(given), check=True).stdout
+    # The after-tool hook keeps what the snapshot showed; the before-tool hook judges by it, with his message.
+    run(hooks["PostToolUse"][0]["hooks"][0]["command"],
+        {"cwd": str(tmp_path), "tool_response": {"content": [{"type": "text", "text":
+            '- button "Resend code" [ref=e1]\n- checkbox "I certify that it\'s true" [ref=e2]'}]}})
+    before = hooks["PreToolUse"][0]["hooks"][0]["command"]
+    assert json.loads(run(before, call("click", "Next", "e1", tmp_path)))["hookSpecificOutput"]["permissionDecision"] == "deny"
+    assert run(before, call("click", "Next", "e2", tmp_path)) == ""
 
 
 class Page:
@@ -92,6 +172,9 @@ class Guard:
     def lift(self):
         self.done.append("lift")
 
+    def asking(self, on, may_tick=False):
+        self.done.append(("asking", on, may_tick))
+
     def blocked(self):
         return list(self._blocked) if "arm" in self.done else []
 
@@ -107,7 +190,7 @@ class Claude:
 
 
 def said(**over) -> dict:
-    return {"blocked": False, "why": "", "reply": "Picked New York and Jersey City.", "changed": [], "couldnt": [],
+    return {"blocked": False, "why": "", "press": "", "reply": "Picked New York and Jersey City.", "changed": [], "couldnt": [],
             "waiting": [], "ticked": [], "remember": [], "apply_bug": []} | over
 
 
@@ -128,7 +211,7 @@ def test_claude_acts_under_the_guard_and_apply_reads_its_change_back():
     reply = ask.ask(claude, page, "you left preferred locations blank, pick New York and Jersey City", [],
                     ask.Form(POSTING), "<profile/>", guard=guard)
 
-    assert guard.done == ["arm", "lift"]
+    assert guard.done == ["arm", ("asking", True, False), ("asking", False, False), "lift"]
     given = claude.calls[0]
     assert given["model"] == "opus" and given["hook"] == ("--ask",)  # he asked for no tick
     assert "<message>you left preferred locations blank" in given["prompt"]
@@ -155,17 +238,22 @@ def test_an_attestation_box_claude_ticked_unasked_is_put_back():
     assert "yours to tick" in reply.couldnt[0]
 
 
-def test_only_a_message_that_asks_for_a_tick_lets_one_through():
-    assert ask.may_tick("tick the I certify box for me") and ask.may_tick("please sign the attestation")
-    assert not ask.may_tick("select New York and Jersey City") and not ask.may_tick("check my GPA on page 2")
+def test_a_box_he_named_stays_ticked():
+    page = Page([dict(f) for f in FORM])
+    message = "tick the box: I certify that the information above is true"
+    claude = Claude(lambda p: p.fields[2].update(checked=True), said(ticked=["the box"]))
+    reply = ask.ask(claude, page, message, [], ask.Form(POSTING), "", guard=Guard())
+    assert page.undone == [] and reply.changed[0]["shown"] == "ticked"
+    assert claude.calls[0]["hook"] == ("--ask", f"--message={message}")
 
 
-def test_a_box_he_said_to_tick_stays_ticked():
+def test_check_the_box_is_not_enough_though_claude_says_it_ticked_that_one():
     page = Page([dict(f) for f in FORM])
     reply = ask.ask(Claude(lambda p: p.fields[2].update(checked=True),
                            said(ticked=["I certify that the information above is true"])),
-                    page, "tick the I certify box for me", [], ask.Form(POSTING), "", guard=Guard())
-    assert page.undone == [] and reply.changed[0]["shown"] == "ticked"
+                    page, "check the box", [], ask.Form(POSTING), "", guard=Guard())
+    assert page.undone == [2] and page.fields[2]["checked"] is False
+    assert "yours to tick" in reply.couldnt[0]
 
 
 def test_what_the_guard_blocked_is_said_and_the_cap_fails_the_message():

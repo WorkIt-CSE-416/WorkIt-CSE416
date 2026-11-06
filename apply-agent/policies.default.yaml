@@ -197,7 +197,7 @@ workday_sign_in: email
 claude_fill:
   max_turns: 80
   max_tokens: 1200000
-  max_steps: 20  # Nexts before a Handoff, a guard against a loop (KAN-649)
+  max_steps: 20  # Nexts and profile pop-ups before a Handoff, a guard against a loop (KAN-649, KAN-658)
 
 # Scheduled runs (`apply schedule install`, launchd): the Daily sweep, `apply
 # run`, once a day at daily_sweep_at, local time; and the Requests check,

@@ -662,3 +662,318 @@ def test_a_profile_pop_ups_click_never_lets_a_post_to_the_final_url_through():
         page.wait_for_timeout(500)
         browser.close()
     assert posts == []
+
+
+ASK_FORM = """<!doctype html><title>Step</title><form>
+  <label>GPA <input id=gpa></label><label>Password <input id=pw type=password></label>
+  <input id=otp name="otp_code" aria-label="Enter it"><label>Zip code <input id=zip></label>
+  <label><input id=native type=checkbox> I certify that my answers are true</label>
+  <label for=forlabel>I agree to the terms of use</label><input id=forlabel type=checkbox>
+  <label><input id=plain type=checkbox> New York</label>
+  <div id=custom style="width:20px;height:20px" role=checkbox aria-checked=false tabindex=0 aria-label="I acknowledge the privacy notice"></div>
+  <div id=wordy role=checkbox aria-checked=false tabindex=0>I certify the above</div>
+  <div id=city role=checkbox aria-checked=false tabindex=0>Boston</div>
+  <button type=button id=resend>Resend code</button>
+</form><script>
+for (const box of document.querySelectorAll('[role=checkbox]')) box.addEventListener('click', () =>
+  box.setAttribute('aria-checked', box.getAttribute('aria-checked') === 'true' ? 'false' : 'true'));
+document.getElementById('resend').addEventListener('click', () => { window.resent = true; });
+</script>"""
+
+
+@contextmanager
+def _ask_page(may_tick=False):
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/**", lambda route: route.fulfill(body=ASK_FORM, content_type="text/html"))
+        page.goto("https://jobs.example.com/step")
+        guard = DriveGuard(page)
+        guard.arm()
+        guard.asking(True, may_tick)
+        yield page, guard
+        browser.close()
+
+
+def test_ask_s_drive_types_in_no_password_or_code_field_by_its_attributes():
+    with _ask_page() as (page, guard):
+        page.locator("#pw").fill("hunter2")
+        page.locator("#otp").press_sequentially("123456")
+        page.locator("#gpa").fill("3.7")
+        page.locator("#zip").fill("11111")
+        assert page.locator("#pw").input_value() == "" and page.locator("#otp").input_value() == ""
+        assert page.locator("#gpa").input_value() == "3.7" and page.locator("#zip").input_value() == "11111"
+        assert guard.blocked().count("typing in a password or code field") >= 2
+
+
+def test_ask_s_drive_ticks_no_attestation_box_of_any_kind_and_asks_for_no_code():
+    with _ask_page() as (page, guard):
+        page.locator("#native").click(force=True)
+        page.get_by_text("I agree to the terms of use").click()
+        page.locator("#custom").click()
+        page.locator("#wordy").click()
+        page.locator("#resend").click()
+        page.locator("#plain").click()
+        page.locator("#city").click()
+        assert not page.locator("#native").is_checked() and not page.locator("#forlabel").is_checked()
+        assert page.locator("#custom").get_attribute("aria-checked") == "false"
+        assert page.locator("#wordy").get_attribute("aria-checked") == "false"
+        assert page.evaluate("window.resent") is None
+        # The ordinary ones go on.
+        assert page.locator("#plain").is_checked() and page.locator("#city").get_attribute("aria-checked") == "true"
+        assert len(guard.blocked()) == 5
+
+
+def test_ask_s_section_is_off_when_ask_claude_is_not_driving_and_holds_in_a_page_loaded_meanwhile():
+    with _ask_page() as (page, guard):
+        page.reload()  # going back a step loads a new document: still judged
+        page.locator("#custom").click()
+        assert page.locator("#custom").get_attribute("aria-checked") == "false"
+        guard.asking(False)
+        page.locator("#custom").click()
+        assert page.locator("#custom").get_attribute("aria-checked") == "true"
+        page.locator("#pw").fill("his own")
+        assert page.locator("#pw").input_value() == "his own"
+
+
+def test_the_read_back_sees_a_custom_box_ticked_and_undo_unticks_it():
+    from apply import ask
+    with _ask_page() as (page, guard):
+        guard.asking(False)
+        before = ask.state(page)
+        page.locator("#custom").click()
+        page.locator("#city").click()
+        found = ask.changes(before, ask.state(page))
+        assert [(c["label"], c["type"], c["now"]) for c in found] == [("I acknowledge the privacy notice", "checkbox", True),
+                                                                      ("Boston", "checkbox", True)]
+        assert ask._attests(found[0]) and not ask._attests(found[1])
+        assert ask.undo(page, found[0]) is True
+        assert page.locator("#custom").get_attribute("aria-checked") == "false"
+        assert ask.changes(before, ask.state(page))[0]["label"] == "Boston"
+
+
+# A form whose steps post natively, as TAL.net's do: each step's button posts to the next document. The guards
+# stop Claude's own click on it (KAN-638), so plain code presses it for Ask Claude (KAN-655).
+STEPS = {
+    "/app/1": '<title>One</title><form method="post" action="/app/2"><label>City <input id=city name=city></label>'
+              '<button>Next</button></form>',
+    "/app/2": '<title>Two</title><form method="post" action="/app/1"><label>GPA <input id=gpa name=gpa></label>'
+              '<button>Back</button></form><form method="post" action="/app/3"><button>Continue</button></form>',
+    "/app/3": '<title>Three</title><form method="post" action="/app/apply"><label>Why <input id=why name=why></label>'
+              '<button>Continue</button></form>',
+    "/app/4": '<title>Four</title><form method="post" action="/app/thanks"><button>Continue</button>'
+              '<button>Submit application</button></form>',
+}
+
+
+@contextmanager
+def _steps(start):
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import rearm
+    posts = []
+
+    def serve(route):
+        path = route.request.url.split("example.com")[1]
+        if route.request.method == "POST":
+            posts.append(path)
+        return route.fulfill(body=STEPS.get(path, "<p>Thank you for applying</p>"), content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/**", serve)
+        page.goto(f"https://jobs.example.com{start}")
+        guard(page)
+        drive = DriveGuard(page)
+        lift(page)  # held for Lisul
+        rearm(page)  # the Ask message: hold() puts both guards back on
+        yield page, drive, posts
+        browser.close()
+
+
+def _asked(page, drive, message, turns):
+    """ask.ask with a fake Claude that acts on the real page and says what each turn gives."""
+    from types import SimpleNamespace
+
+    from apply import ask
+    from apply.adapters import Drive
+    from apply.model import Posting
+
+    turns = iter(turns)
+
+    def act(**given):
+        step, answer = next(turns)
+        step(given["page"])
+        return Drive(answer, 2, 100)
+
+    return ask.ask(SimpleNamespace(drive=act), page, message, [], ask.Form(Posting(id="1", company="A", title="B", url="https://jobs.example.com")),
+                   "", guard=drive)
+
+
+def _said(**over):
+    return {"blocked": False, "why": "", "press": "", "reply": "Done.", "changed": [], "couldnt": [], "waiting": [],
+            "ticked": [], "remember": [], "apply_bug": []} | over
+
+
+def test_claude_s_own_next_on_a_native_post_step_is_blocked_under_ask():
+    with _steps("/app/1") as (page, drive, posts):
+        drive.arm()
+        page.get_by_role("button", name="Next").click()
+        page.wait_for_timeout(300)
+        assert posts == [] and page.title() == "One" and any("form submission" in b for b in drive.blocked())
+
+
+def test_ask_goes_on_and_back_on_native_post_steps_by_plain_code_s_own_click():
+    with _steps("/app/1") as (page, drive, posts):
+        reply = _asked(page, drive, "page 2's GPA is 3.7, then come back", [
+            (lambda p: p.get_by_role("button", name="Next").click(), _said(press="Next", couldnt=["GPA: page 2 didn't open"])),
+            (lambda p: p.locator("#gpa").fill("3.7"), _said(press="Back")),
+            (lambda p: None, _said(reply="Set it and came back.")),
+        ])
+        assert posts == ["/app/2", "/app/1"] and page.title() == "One"
+        assert reply.reply == "Set it and came back." and reply.couldnt == []  # Claude's blocked click isn't his to read
+        assert page.evaluate("window.__applyAccountClick") is not True  # the flag is gone in the step it led to
+
+
+def test_ask_s_press_never_lets_a_post_to_the_final_url_through(monkeypatch):
+    from apply import claude_fill
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 500)
+    with _steps("/app/3") as (page, drive, posts):
+        reply = _asked(page, drive, "go on", [(lambda p: None, _said(press="Continue"))])
+        assert posts == [] and "didn't press 'Continue'" in reply.couldnt[0]
+
+
+@pytest.mark.parametrize("named", ["Submit application", "Continue & Submit", "Finish"])
+def test_ask_s_press_never_presses_what_names_a_send(named):
+    with _steps("/app/4") as (page, drive, posts):
+        reply = _asked(page, drive, "go on", [(lambda p: None, _said(press=named))])
+        assert posts == [] and "didn't press" in reply.couldnt[0]
+
+
+def test_ask_stops_pressing_at_its_cap(monkeypatch):
+    from apply import ask
+    monkeypatch.setattr(ask, "MAX_PRESSES", 1)
+    with _steps("/app/1") as (page, drive, posts):
+        _asked(page, drive, "go on", [(lambda p: None, _said(press="Next")), (lambda p: None, _said(press="Back"))])
+        assert posts == ["/app/2"]
+
+
+# Every step form's URL Apply has met live or saved (KAN-656), and the Next that posts from it. None may be stopped.
+TAL = "https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4"
+REAL_STEPS = {
+    "TAL.net eform page": (f"{TAL}/user-1/candidate/eform/123/page/1", ""),
+    "TAL.net eform's save_page": (f"{TAL}/user-1/candidate/eform/123/page/12", f' action="{TAL}/user-1/candidate/eform/123/save_page"'),
+    "TAL.net's apply page": (f"{TAL}/candidate/so/pm/1/pl/1/opp/123-Intern/apply/en-GB", ""),
+    "Oracle section": ("https://acme.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/123/apply/section/1", ""),
+    "Oracle email": ("https://acme.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/123/apply/email", ""),
+    "iCIMS candidate": ("https://careers-acme.icims.com/jobs/1234/software-intern/candidate?in_iframe=1", ""),
+    "iCIMS questions": ("https://careers-acme.icims.com/jobs/1234/software-intern/questions?in_iframe=1", ""),
+    "Workday manual": ("https://acme.wd1.myworkdayjobs.com/en-US/External/job/Intern_R1/apply/applyManually", ""),
+    "Microsoft job": ("https://apply.careers.microsoft.com/careers/job/1970393556625703", ""),
+    # A path ending in /apply, final by its name alone: a page that says steps remain.
+    "/apply, Step 2 of 5": ("https://jobs.example.com/acme/apply", "", "<p>Step 2 of 5</p>"),
+    "/apply?pid, Step 1 of 3": ("https://acme.eightfold.ai/careers/apply?pid=1", "", "<p>STEP 1 / 3</p>"),
+    "/apply, step list": ("https://jobs.example.com/acme/apply", "",
+                          '<ol><li><a aria-current="step">You</a></li><li>Questions</li></ol>'),
+}
+REAL_SENDS = {
+    "no word of steps": ("https://jobs.example.com/acme/apply", "", ""),
+    "last step": ("https://jobs.example.com/acme/apply", "", "<p>Step 5 of 5</p>"),
+    "the step list's last": ("https://jobs.example.com/acme/apply", "", '<ol><li>You</li><li><a aria-current="step">Questions</a></li></ol>'),
+    "a Submit beside it": ("https://jobs.example.com/acme/apply", "", "<p>Step 2 of 5</p>", "<button>Submit application</button>"),
+    "action to /apply": ("https://jobs.example.com/acme/start", ' action="/acme/apply"', ""),
+    # Known final URLs: what the page says never lets them through. Lever's real form has no action.
+    "Lever's own": ("https://jobs.lever.co/acme/b9b21075-74a4-4b64-8f1b-f0be1fb0b24d/apply", "", "<p>Step 1 of 2</p>"),
+    "Greenhouse's own": ("https://job-boards.greenhouse.io/acme/jobs/123", "", "<p>Step 1 of 2</p>"),
+    "a submit in its path": ("https://jobs.example.com/acme/submitApplication", "", "<p>Step 1 of 2</p>"),
+}
+
+
+def _step_on(url, action="", before="", more=""):
+    return f'{before}<form method="post"{action}><input name="first"><button>Continue</button>{more}</form>'
+
+
+def _press_next(url, html):
+    from playwright.sync_api import sync_playwright
+
+    from apply import claude_fill
+    posts = []
+
+    def serve(route):
+        if route.request.method == "POST":
+            posts.append(route.request.url)
+            return route.fulfill(body="<input name=next>", content_type="text/html")
+        return route.fulfill(body=html, content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(lambda url: True, serve)  # every request: no real site is ever reached
+        page.goto(url)
+        guard(page)
+        drive = DriveGuard(page)
+        try:
+            claude_fill.press_step(page, drive, "Continue")
+        except claude_fill.Handoff:
+            pass
+        page.wait_for_timeout(300)
+        browser.close()
+    return posts
+
+
+@pytest.mark.parametrize("name", list(REAL_STEPS))
+def test_plain_codes_next_goes_on_from_every_real_step_form(monkeypatch, name):
+    from apply import claude_fill
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 2_000)
+    url, *rest = REAL_STEPS[name]
+    assert len(_press_next(url, _step_on(url, *rest))) == 1
+
+
+@pytest.mark.parametrize("name", list(REAL_SENDS))
+def test_plain_codes_next_never_posts_what_may_be_the_last_step(monkeypatch, name):
+    from apply import claude_fill
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+    url, *rest = REAL_SENDS[name]
+    assert _press_next(url, _step_on(url, *rest)) == []
+
+
+@pytest.mark.parametrize("name", [n for n in REAL_STEPS if "/apply" not in n])
+def test_the_plain_rules_stop_no_real_step_url(name):
+    from apply.plain import guards as plain
+    url, action, *_ = REAL_STEPS[name]
+    target = action.split('"')[1] if action else url
+    assert not plain.PATTERN.search(target), target
+
+
+PROFILE = """<div role="dialog" aria-label="Create your profile"><form method="post"{action}><input name="first">
+<button>Submit</button></form></div>"""
+
+
+@pytest.mark.parametrize(("url", "action", "goes"), [
+    ("https://acme.eightfold.ai/careers/apply?pid=1", "", True),
+    ("https://acme.eightfold.ai/careers/apply?pid=1", ' action="/careers/apply"', False),
+    ("https://jobs.lever.co/acme/b9b21075-74a4-4b64-8f1b-f0be1fb0b24d/apply", "", False),
+])
+def test_a_profile_pop_up_posts_to_its_own_page_but_never_to_a_final_url(url, action, goes):
+    from playwright.sync_api import sync_playwright
+    posts = []
+
+    def serve(route):
+        if route.request.method == "POST":
+            posts.append(route.request.url)
+        return route.fulfill(body=PROFILE.format(action=action), content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(lambda url: True, serve)  # every request: no real site is ever reached
+        page.goto(url)
+        guard(page)
+        drive = DriveGuard(page)
+        drive.let_profile_click()
+        page.get_by_role("button", name="Submit").click()
+        page.wait_for_timeout(400)
+        browser.close()
+    assert bool(posts) is goes
