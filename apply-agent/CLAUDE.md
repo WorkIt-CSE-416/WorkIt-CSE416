@@ -1482,6 +1482,13 @@ into it and the window shows "Sample data".
   them, add it to that list. CI never runs the Filler tests
   (`test_*_filler.py`, `test_claude_fill.py` and the other files that open
   Chromium). Run the ones that your change touches on your Mac, with `-k`.
+- **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
+  socket or name lookup to another host raises `NetworkBlocked`, Chrome
+  started by a test resolves other hosts to nothing, and Playwright's own
+  requests are refused. The test then fails, even if it swallowed the error.
+  A test that goes live on purpose names its hosts:
+  `@pytest.mark.live_network("example.com")`. A program that a test starts
+  other than Chrome (`curl`, `gh`) is not covered, so fake those.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live
