@@ -36,7 +36,8 @@ none.
 - `autofiller_extension/` — the ATS autofiller (KAN-164): a Manifest V3
   Chrome extension, no build step, no dependency manifest. It fills through
   the Fill engine, the git submodule `autofiller_extension/fill-engine`
-  pinned to a tag (`git submodule update --init` once per checkout). Batch
+  pinned to a commit on its `main` (`git submodule update --init` once per
+  checkout). Batch
   apply (KAN-369) fills up to five tabs at once and gave it routes of its
   own in `backend/app/routers/auto_apply.py` (a tab's state, its written
   questions and answers, the answer bank, finish), plus the connector its
@@ -149,8 +150,8 @@ The team works on macOS and Windows.
 
 ## Documentation
 
-**Every code change updates the nearest `CLAUDE.md` in the same change**: a
-new command, a changed convention or invariant, a decision made or reversed, a
+**Every code change updates the nearest `CLAUDE.md`, or the doc it points to
+for that area, in the same change**: a new command, a changed convention or invariant, a decision made or reversed, a
 "still open" item closed. Record the rule a folder follows, never a list of its
 files: a directory listing already shows them, and per-file lists conflict on
 every parallel PR. A change that leaves
@@ -162,8 +163,8 @@ with the failure it prevents.
   invariants, rationale, what must not change and why, what is still open.
 - `README.md` — deliberately short. Explanatory prose goes in a `CLAUDE.md`
   or the docs folders below, and stays out of any README once trimmed.
-- `frontend/docs/`, `scraper/docs/` — each half's prose too long for its
-  `CLAUDE.md`, reached through a pointer in it.
+- `frontend/docs/`, `scraper/docs/`, `apply-agent/docs/` — each part's prose
+  too long for its `CLAUDE.md`, reached through a pointer in it.
 - `docs/job_posting.md`, `resume.md`, `avatar.md`, `auth.md` — design
   rationale: the schema notes and the auth flow. Alembic stays the source of
   truth for what the schema is.
