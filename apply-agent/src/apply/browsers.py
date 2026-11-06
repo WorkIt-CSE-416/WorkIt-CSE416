@@ -32,7 +32,7 @@ from pathlib import Path
 
 from playwright.sync_api import BrowserContext, Page, sync_playwright
 
-from apply import trace
+from apply import submit_guard, trace
 from apply.focus import KEEPER
 from apply.home import HOME
 from apply.profile import load_policies
@@ -229,6 +229,7 @@ class WorkerBrowsers:
             try:
                 for tries_left in (2, 1, 0):
                     try:
+                        submit_guard.on_open(page)  # a rehearsal's page: guarded before its first load
                         page.goto(url)
                         break
                     except Exception as error:

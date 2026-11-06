@@ -393,3 +393,16 @@ uv run apply fill-again <application id>  # the form on that tile
 - A port with several held forms is refused, and the error lists their Application IDs. `into.fill_again`
   never guesses. The command then waits for the new fill to stop and prints how it stopped.
 - Tests: `tests/test_into.py` (in CI), `tests/test_rehearse.py -k fill_again` (Chromium).
+
+## A fresh page is guarded before its first load (KAN-682)
+
+Fill again, and each rehearsal's first page, opens the link in a fresh page.
+`_Kept.open` opens it inside `submit_guard.guarding_on_open()`. The Worker
+browsers (`browsers.py`) and plain Workers (`plain/site.py`) then call
+`submit_guard.on_open(page)` before they navigate, so the rehearsal's guard is
+on before the page's own code first runs. `guard()` then needs no reload.
+Before this, the page loaded once with no guard, and a page whose own script
+sent the application as it loaded sent it then. The test fakes don't call
+`on_open`: they are guarded after the load and reloaded, as before. A live
+run's page is not opened inside `guarding_on_open`, so nothing changes there.
+`tests/test_submit_guard_hostile.py` has the case.
