@@ -312,7 +312,8 @@ def rehearse(
 
         def holds() -> dict:
             """What holds Submit on the held page (Rehearsed.holding), with its note, for hold()."""
-            return {"fill_again": lambda: adapters.board.fill_again_asked(n),
+            # A Board of an older shape (a test's, a run's) has no Fill again from outside the page: never asked.
+            return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong())}
 
