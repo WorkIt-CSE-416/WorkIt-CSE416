@@ -712,6 +712,14 @@ def _save_record(rehearsed: Rehearsed, result: Result, filled: Filled, adapters:
         rehearsed.why = "; ".join(filter(None, [rehearsed.why, f"Record not saved: {error}"]))
 
 
+def _step_named(page) -> str:
+    """The step a page shows, as its title names it ("Declaration - Bank of America"), else its link."""
+    try:
+        return page.title() or page.url
+    except Exception:
+        return ""  # a page that went away
+
+
 def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Adapters, profile: ApplicantProfile, n: int,
                  done: Rehearsed, out: Callable[[str], None]) -> None:
     """Lisul's answer in the window to a Missing fact the rehearsed form left
@@ -731,14 +739,19 @@ def _fill_answer(page, question: str, answer: "str | Path | None", adapters: Ada
     if isinstance(answer, Path):  # attached as Lisul named it, from its copy kept with the Application's other files
         day = done.saved.day if done.saved else adapters.clock.now().date()
         answer = keep_sent(sent_folder(done.posting.company, done.posting.id, day), answer)
+    held = _step_named(page)
     try:
-        filled = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
-                        marketing_opt_in=profile.policy("marketing_opt_in") is True).field(
-            page, question, answer, RuntimeError("left blank: the applicant answered it in the Apply window after the form was filled"))
+        rescue = Rescue(adapters.claude, sms_opt_in=profile.policy("sms_opt_in") is True,
+                        marketing_opt_in=profile.policy("marketing_opt_in") is True)
+        blank = RuntimeError("left blank: the applicant answered it in the Apply window after the form was filled")
+        # Not on the step showing: it may be on an earlier one, which a form in steps saved without it (KAN-686).
+        filled = rescue.field(page, question, answer, blank) or rescue.field(page, question, answer, blank, elsewhere=held)
     except Exception as error:
         filled, why = False, f"{type(error).__name__}: {error}"
     else:
-        why = "Claude couldn't find the field or it wouldn't take the answer"
+        why = "Claude couldn't find the field on this step or an earlier one, or it wouldn't take the answer"
+    if held and (now := _step_named(page)) != held:  # Claude went back for it and didn't come all the way again
+        out(f"{name} | the form now shows '{one_line(now)}', not the step it was held on ('{one_line(held)}'): go back to it")
     if filled:
         if isinstance(answer, Path):
             adapters.board.file_given(n)  # Claude's click on the form's Attach asked the window for a file too
