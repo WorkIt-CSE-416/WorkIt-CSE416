@@ -155,6 +155,7 @@ _TEMPLATE = r"""
   const closest = fn(EP, 'closest'), matches = fn(EP, 'matches'), qs = fn(EP, 'querySelector'), qsa = fn(EP, 'querySelectorAll');
   const attr = fn(EP, 'getAttribute'), hasAttr = fn(EP, 'hasAttribute'), removeAttr = fn(EP, 'removeAttribute');
   const nextEl = get(EP, 'nextElementSibling'), contains = fn(NP, 'contains'), textOf = get(NP, 'textContent');
+  const parentEl = get(NP, 'parentElement');
   const docQs = fn(DP, 'querySelector'), docQsa = fn(DP, 'querySelectorAll'), byId = fn(DP, 'getElementById');
   const byName = fn(DP, 'getElementsByName'), bodyOf = get(DP, 'body');
   const innerTextGet = get(HP, 'innerText');
@@ -498,14 +499,47 @@ _TEMPLATE = r"""
   // The page itself says steps remain after this one ("Step 2 of 5", a step list past the current step), and
   // the form has no button that sends. Then a POST to a path ending in /apply is a step, not the last (KAN-656).
   // No page saying so, or "Step 5 of 5", stays blocked: a step's Next there hands off, and nothing is sent.
+  // Only what a person sees says so (KAN-710): text of no size, a list clipped to nothing or off the page says nothing.
   const STEP_OF = /\bstep\s*(\d+)\s*(?:of|\/)\s*(\d+)\b/i;
+  const rectOf = fn(EP, 'getBoundingClientRect'), styleOf = W.getComputedStyle, styleValue = fn(CSSStyleDeclaration.prototype, 'getPropertyValue');
+  const rectGets = {}, RECT = ['left', 'top', 'right', 'bottom', 'width', 'height'];
+  for (let i = 0; i < RECT.length; i++) rectGets[RECT[i]] = get(DOMRectReadOnly.prototype, RECT[i]);
+  const box = (el) => { const r = rectOf(el), out = {}; for (let i = 0; i < RECT.length; i++) out[RECT[i]] = rectGets[RECT[i]](r); return out; };
+  const css = (el, name) => text(styleValue(apply(styleOf, W, [el]), name));
+  const offX = gopd(W, 'pageXOffset').get, offY = gopd(W, 'pageYOffset').get, min = Math.min, max = Math.max;
+  const scrollX = () => apply(offX, W, []), scrollY = () => apply(offY, W, []);
+  const visibly = (el) => {
+    if (!isEl(el) || (checkVis && !checkVis(el, {checkOpacity: true, checkVisibilityCSS: true}))) return false;
+    const r = box(el);
+    if (r.width < 2 || r.height < 6 || r.right + scrollX() <= 0 || r.bottom + scrollY() <= 0) return false;
+    if (Num(slice(css(el, 'font-size'), 0, -2)) < 8) return false;
+    for (let at = parentEl(el); at; at = parentEl(at)) {  // an ancestor that clips it to nothing hides it
+      if (css(at, 'overflow-x') === 'visible' && css(at, 'overflow-y') === 'visible') continue;
+      const c = box(at);
+      if (min(r.right, c.right) - max(r.left, c.left) < 2 || min(r.bottom, c.bottom) - max(r.top, c.top) < 6) return false;
+    }
+    return true;
+  };
+  const childNodesOf = get(NP, 'childNodes'), nodeTypeOf = get(NP, 'nodeType'), nodeValueOf = get(NP, 'nodeValue');
+  const ownText = (el) => {
+    let said = '';
+    const kids = nodes(childNodesOf(el));
+    for (let i = 0; i < kids.length; i++) if (nodeTypeOf(kids[i]) === 3) said += text(nodeValueOf(kids[i]));
+    return said;
+  };
   const moreSteps = (form) => {
     if (formSends(form)) return false;
-    const body = bodyOf(D);
-    const said = match(STEP_OF, body ? innerText(body) : '');
-    if (said) return Num(said[1]) < Num(said[2]);
-    const at = docQs(D, '[aria-current=step]');
-    return !!at && !!nextEl(closest(at, 'li') || at);
+    const body = bodyOf(D), said = match(STEP_OF, body ? innerText(body) : '');
+    if (said) {  // the step said where it shows: in an element of its own text that a person sees
+      const els = all(D, 'body *');
+      for (let i = 0; i < els.length && i < 5000; i++) {
+        const own = match(STEP_OF, ownText(els[i]));
+        if (own && visibly(els[i])) return Num(own[1]) < Num(own[2]);
+      }
+      return false;
+    }
+    const at = docQs(D, '[aria-current=step]'), next = at && nextEl(closest(at, 'li') || at);
+    return !!next && visibly(at) && visibly(next);
   };
   // A step's Next only (KAN-710): the button plain code pressed, never a script's post or a step list's link.
   const postsFinal = (form, by, href) => posts(form, by) && isFinal('POST', href || postTarget(form, by))
@@ -722,7 +756,6 @@ _CONTROLS = r"""
   const BOX = 'input[type=checkbox], [role=checkbox], [role=switch]';
   const PRESSES = BOX + ', button, input[type=submit], input[type=button], [role=button], a';
   const labelsGet = getter(HTMLInputElement, 'labels'), checkedGet = getter(HTMLInputElement, 'checked');
-  const parentEl = get(NP, 'parentElement');
   const boxWords = (el) => {
     let words = '';
     const labels = read([labelsGet], el, null);

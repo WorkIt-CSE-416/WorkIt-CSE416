@@ -213,6 +213,12 @@ PAGES = {
     "an empty formaction on a page at the final URL": {START: f"""<title>Apply</title><script>history.replaceState(null,
         '', '{FINAL}');</script><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
         <button id=b formaction="">Next</button></form>"""},
+    # A page that says steps remain where no one sees it: text of no size, a step list clipped to nothing.
+    "Step 1 of 2 in text of no size": {START: f"""<title>Apply</title><p style="font-size:0">Step 1 of 2</p>
+        <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "a step list clipped to nothing": {START: f"""<title>Apply</title><ul style="height:0;overflow:hidden">
+        <li aria-current=step>a</li><li>b</li></ul>
+        <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
