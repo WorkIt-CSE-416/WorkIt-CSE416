@@ -310,7 +310,8 @@ _TEMPLATE = r"""
     if (!userClick) return;
     const target = targetGet(event);
     press = isEl(target) && (!at || at === true || contains(at, target))
-      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form')} : null;
+      ? {event, target, by: at, form: ownForm(up(target, 'button, input')) || up(target, 'form'), sending: sendingForms()}
+      : null;
   }));
   // Plain code's press is on: armed, and the press came under this same arming.
   const accountClick = () => !!press && !!press.by && press.by === armed();
@@ -321,6 +322,10 @@ _TEMPLATE = r"""
   const pressed = (form, by) => !!press && ((isEl(by) && contains(by, press.target))
     || phaseGet(press.event) !== 0 || (!!form && form === press.form));
   const fromPress = (form, by) => accountClick() && pressed(form, by);
+  // The forms that had a button that sends as the press landed (KAN-710): the press's own handlers may rename or take
+  // away a form's Submit, then post it, but a form that had one is never a step's.
+  const sendingForms = () => { const out = [], forms = all(D, 'form'); for (let i = 0; i < forms.length; i++) if (formSends(forms[i])) push(out, forms[i]); return out; };
+  const hadSends = (form) => formSends(form) || (!!press && any(press.sending, (f) => f === form));
   const password = (form) => !!form && !!one(form, 'input[type=password]');
   // A sign-in or new account's form: one with a password box, which no application's final button is in.
   const accountForm = (el) => password(formOf(el));
@@ -476,8 +481,8 @@ _TEMPLATE = r"""
   // Its target by attribute (a field named "action" shadows form.action), relative to the page as isFinal reads it.
   const postTarget = (form, by) => (isEl(by) && text(attr(by, 'formaction'))) || text(attr(form, 'action')) || pageURL();
   // Any job system's final URL by its name alone (a path ending in /apply, the last of FINAL_URLS), not a known one.
-  const byNameAlone = (form, by) => {
-    const href = resolve(postTarget(form, by), pageURL()) || '';
+  const byNameAlone = (form, by, at) => {
+    const href = at || resolve(postTarget(form, by), pageURL()) || '';
     return !any(KNOWN_FINAL, (r) => test(r, href));
   };
   // The page itself says steps remain after this one ("Step 2 of 5", a step list past the current step), and
@@ -493,10 +498,10 @@ _TEMPLATE = r"""
     return !!at && !!nextEl(closest(at, 'li') || at);
   };
   // A step's Next only (KAN-710): the button plain code pressed, never a script's post or a step list's link.
-  const postsFinal = (form, by) => posts(form, by) && isFinal('POST', postTarget(form, by))
-    && !(byNameAlone(form, by) && isEl(by) && !!press && contains(by, press.target) && moreSteps(form));
+  const postsFinal = (form, by, href) => posts(form, by) && isFinal('POST', href || postTarget(form, by))
+    && !(byNameAlone(form, by, href) && isEl(by) && !!press && contains(by, press.target) && moreSteps(form));
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
-  const profileOwnPage = (form, by) => !(isEl(by) && attr(by, 'formaction')) && !attr(form, 'action') && byNameAlone(form, by);
+  const profileOwnPage = (form, by, href) => !(isEl(by) && attr(by, 'formaction')) && !attr(form, 'action') && byNameAlone(form, by, href);
   // A sign-in relay's own post (an SSO, OIDC or SAML hand-off: Amazon's idp.federate "Signing you in...", live):
   // the page's script posts it before any click or key on the page, its fields are all hidden (a token, a
   // state), no button of it sends, and it is bound for no final URL. Nothing of an application is in it.
@@ -509,22 +514,22 @@ _TEMPLATE = r"""
   // post the application's hidden copy (TAL.net's submit=1) before any click.
   const fieldShown = () => any(all(D, 'input, select, textarea'), (n) =>
     !test(/^(hidden|submit|button|reset|image)$/i, typeOf(n)) && seen(n));
-  const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by) && hiddenOnly(form) && !fieldShown();
+  const relay = (form, by, href) => !touched && posts(form, by) && !postsFinal(form, by, href) && hiddenOnly(form) && !fieldShown();
   // Another site's widget loading itself into its own frame on the page, click or no click: LinkedIn's Apply
   // with LinkedIn on Microsoft's form (live, KAN-711) posts a form of hidden fields (its key, the job's code)
   // to linkedin.com into the iframe it just made, as the form loads. Bound for another site and no final URL,
   // into a frame of this page (its target names an iframe here), with nothing of the application in it.
-  const frameLoad = (form, by) => {
+  const frameLoad = (form, by, href) => {
     const target = (isEl(by) && text(attr(by, 'formtarget'))) || text(attr(form, 'target'));
-    if (!target || startsWith(target, '_') || !posts(form, by) || postsFinal(form, by) || !hiddenOnly(form)) return false;
-    const away = originOf(resolve(postTarget(form, by), pageURL())) !== pageOrigin();
+    if (!target || startsWith(target, '_') || !posts(form, by) || postsFinal(form, by, href) || !hiddenOnly(form)) return false;
+    const away = originOf(href || resolve(postTarget(form, by), pageURL())) !== pageOrigin();
     return away && any(nodes(byName(D, target)), (n) => test(/^I?FRAME$/, tag(n)));
   };
   // Plain code's résumé attach (apply.attach): the page's own script posting the file it was just given, as iCIMS
   // posts its résumé to be parsed by a native submission (KAN-691). Only a form that holds a chosen file, sent by no
   // button that sends, and never to a final URL; outside the attach's window it is blocked as ever.
-  const uploadPost = (form, by) => S.upload && !(isEl(by) && sends(by))
-    && any(all(form, 'input[type=file]'), chosen) && !postsFinal(form, by);
+  const uploadPost = (form, by, href) => S.upload && !(isEl(by) && sends(by))
+    && any(all(form, 'input[type=file]'), chosen) && !postsFinal(form, by, href);
   on('submit', judged((event) => {
     if (lifted()) return;
     const form = targetGet(event), by = submitterGet(event);
@@ -542,7 +547,7 @@ _TEMPLATE = r"""
     if (final) stopNow(event);
     // Plain code's press posts a step: never a form that has a button that sends, whatever its submitter says
     // (another language, Done, a hidden one), nor one bound for the final URL (KAN-710).
-    const step = apply_ && !postsFinal(form, by) && !formSends(form);
+    const step = apply_ && !postsFinal(form, by) && !hadSends(form);
     if (final || (posts(form, by) && !step)) {
       prevent(event);
       note('a form submission');
@@ -555,12 +560,80 @@ _TEMPLATE = r"""
     try {
       // Under plain code's click, a page script may post a step's form, but never one with a button that sends
       // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
-      const step = fromPress(this, null) && !postsFinal(this, null) && (password(this) || !formSends(this));
+      const step = fromPress(this, null) && !postsFinal(this, null) && (password(this) || !hadSends(this));
       go = lifted() || step || relay(this, null) || frameLoad(this, null) || uploadPost(this, null) || !posts(this, null);
     } catch (e) {}  // a form the guard can't read is not posted
     if (!go) return note('a form submission');
     return apply(submit, this, []);
   };
+
+  // The moment of sending (KAN-710): the page's own handlers run after the guard's submit listener, and may set the
+  // form's action, rename or take away its Submit, or add to what it sends (its formdata event). The navigation the
+  // submission makes carries what is really sent, its URL and entries, and the guard judges it again there, as it
+  // leaves: a form post of this page by the same rules, with the URL it goes to; one whose entries the form's own
+  // fields don't make, never; another document's post into this frame (a frame's form bound for the top page, a
+  // widget's into its own frame) only when it is bound for no final URL and its form has no button that sends.
+  const NavP = W.NavigateEvent && NavigateEvent.prototype;
+  const navData = NavP && getter(NavigateEvent, 'formData'), navTo = NavP && getter(NavigateEvent, 'destination');
+  const navFrom = NavP && getter(NavigateEvent, 'sourceElement'), destURL = W.NavigationDestination && getter(NavigationDestination, 'url');
+  const ownerDoc = get(NP, 'ownerDocument');
+  const FD = FormData, fdEntries = fn(FD.prototype, 'entries');
+  const fdNext = (() => { try { const it = fdEntries(new FD()); return fn(Object.getPrototypeOf(it), 'next'); } catch (e) { return null; } })();
+  const fileName = get(File.prototype, 'name');
+  const entriesOf = (data) => {
+    const out = [], it = fdEntries(data);
+    for (let r = fdNext(it); !r.done; r = fdNext(it)) {
+      const value = r.value[1];
+      push(out, r.value[0] + '=' + (typeof value === 'string' ? value : '\u0000' + fileName(value) + ':' + blobSize(value)));
+    }
+    return out;
+  };
+  let reading = false;  // the guard reads a form's entries: no page handler of its formdata event runs meanwhile
+  on('formdata', (event) => { if (reading) stopNow(event); });
+  const ownEntries = (form, by) => {
+    reading = true;
+    try {
+      try { return entriesOf(new FD(form, by || null)); } catch (e) { return entriesOf(new FD(form)); }
+    } finally {
+      reading = false;
+    }
+  };
+  const sameEntries = (form, by, data) => {
+    const sent = entriesOf(data), own = ownEntries(form, by);
+    return sent.length === own.length && every(sent, (e) => any(own, (o) => o === e))
+      && every(own, (o) => any(sent, (e) => e === o));
+  };
+  const leaves = (form, by, href, data) => {  // the form post of this page, as it leaves: may it go?
+    if (!sameEntries(form, by, data)) return false;
+    if (relay(form, by, href) || frameLoad(form, by, href) || uploadPost(form, by, href)) return true;
+    const apply_ = fromPress(form, by);
+    if (apply_ && password(form) && !postsFinal(form, by, href)) return true;
+    if (profileClick() && profileStep(by || form) && (!postsFinal(form, by, href) || profileOwnPage(form, by, href))) return true;
+    const final = isEl(by) ? sends(by) : formSends(form);
+    if (held() && !final && (!by || !formSends(form) || (!!press && contains(by, press.target)))) return true;
+    return !final && apply_ && !postsFinal(form, by, href) && !hadSends(form);
+  };
+  const hist = W.history, replaceState = fn(History.prototype, 'replaceState'), histState = get(History.prototype, 'state');
+  if (navData && navTo && destURL && W.navigation) listen(W.navigation, 'navigate', judged((event) => {
+    const data = navData(event);
+    if (data === null || lifted()) return;  // only a form's post is judged here
+    const href = destURL(navTo(event)), from = navFrom ? navFrom(event) : null;
+    let go;
+    if (isEl(from) && ownerDoc(from) === D) {
+      const form = isForm(from) ? from : formOf(from);
+      go = !!form && leaves(form, form === from ? null : from, href, data);
+    } else if (isEl(from)) {
+      const form = isForm(from) ? from : formOf(from);
+      go = !isFinal('POST', href) && !!form && !formSends(form) && sameEntries(form, form === from ? null : from, data);
+    } else {
+      go = !isFinal('POST', href);
+    }
+    if (go) return;
+    prevent(event);
+    // A navigation cancelled here is one Playwright waits on: a same-page one tells it this one is done.
+    try { replaceState(hist, histState(hist), '', pageURL()); } catch (e) {}
+    note(named('POST', href) + ' as it left');
+  }), true);
 
   // The final application request.
   const fetch = W.fetch, Prom = Promise, then = fn(Prom.prototype, 'then'), reject = (x) => apply(Prom.reject, Prom, [x]);

@@ -192,6 +192,19 @@ PAGES = {
         <input name=first value=Test><button id=b>Next</button></form><script>document.getElementById('b')
         .addEventListener('pointerdown', () => document.getElementById('f').insertAdjacentHTML('beforeend',
         '<input type=hidden name=getAttribute value=x>'));</script>"""},
+    # The page's own handlers, after the guard's submit listener, change what is sent: judged again as it leaves.
+    "a Submit renamed in the Next's handler": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}"><input name=first value=Test>
+        <button id=s name=submit value=1>Submit application</button></form><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () => {{ const s = document.getElementById('s'); s.textContent = 'Go'; document.getElementById('app').requestSubmit(s); }});</script>"""},
+    "a Submit taken away in the Next's handler": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}"><input name=first value=Test>
+        <button id=s name=submit value=1>Submit application</button></form><button id=b type=button>Next</button><script>document.getElementById('b').addEventListener('click', () => {{ const f = document.getElementById('app'); document.getElementById('s').remove(); f.insertAdjacentHTML('beforeend', '<input type=hidden name=submit value=1>'); HTMLFormElement.prototype.submit.call(f); }});</script>"""},
+    "an action the form's own submit handler changes": {
+        START: f"""<title>Apply</title><form id=app method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+            <button id=b>Next</button></form><script>document.getElementById('app').addEventListener('submit',
+            (e) => e.target.setAttribute('action', '{FINAL}'));</script>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    "submit=1 added by the formdata event": {START: f"""<title>Apply</title><form id=app method=post action="{SAVE}">
+        <input name=first value=Test><button id=b>Next</button></form><script>document.getElementById('app')
+        .addEventListener('formdata', (e) => e.formData.append('submit', '1'));</script>"""},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
