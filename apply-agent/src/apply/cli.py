@@ -229,8 +229,10 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     checked = commands.add_parser(
         "preflight", help="before a batch: group the links by job system and site, say which sign-ins to do first, "
                           "and print the order and pacing plan. It opens no page and reads no job site")
-    checked.add_argument("urls", nargs="+", metavar="url")
+    checked.add_argument("urls", nargs="*", metavar="url")
     checked.add_argument("--workers", type=int, default=orchestrator.WORKERS, help="how many Workers fill at once")
+    checked.add_argument("--open", action="store_true", help="the open forms instead (apply reopen): which of their "
+                                                              "sites wait on your sign-in now, and in which Browser")
     data = commands.add_parser("data", help="what the data folder holds, masked: keys and shapes, never a value")
     data_commands = data.add_subparsers(dest="data_command", required=True)
     data_keys = data_commands.add_parser("keys", help="list the data files, or one file's keys, with each one's shape")
@@ -270,7 +272,11 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
             repair_later(adapters.repairs, profile.policy("repair") or {})
     elif args.command == "fill-again":
         sys.exit(_fill_again(args.target))
+    elif args.command == "preflight" and args.open:
+        print(preflight.open_report(batch.forms(), _tiles()))
     elif args.command == "preflight":
+        if not args.urls:
+            parser.error("preflight: give the links, or --open for the open forms")
         _preflight(args.urls, args.workers, adapters)
     elif args.command == "rehearse" and args.into:
         sys.exit(_send_into(args.into, args.urls))
@@ -689,6 +695,17 @@ def _reopening(args, adapters: Adapters | None) -> "rehearsal.Reopening | None":
                                {link: str(by_link[link].get("opened") or "") for link in links})
 
 
+def _tiles() -> list[dict]:
+    """Every tile of every running Apply window of this profiles folder (into.windows), as its /state says."""
+    tiles = []
+    for window in into.windows():
+        try:
+            tiles += into._call(window, "/state", timeout=5).get("tiles") or []
+        except into.NoWindow:
+            continue  # a window going away
+    return tiles
+
+
 def _send_into(target: str, urls: list[str]) -> int:
     """`apply rehearse --into`: send each link into the window `target` names, then wait for each one's
     form to stop being filled and print how it stopped. The window's process fills it; this one opens nothing."""
@@ -722,6 +739,13 @@ def _remembering(bank: AnswerBank) -> Callable[[str, str], str]:
     return remember
 
 
+def _worker_chrome(workers) -> Callable[[int], int | None]:
+    """The PID of the Chrome that has plain Worker k's profile open: its tile films that Chrome only (KAN-717)."""
+    from apply.browsers import chrome_pid
+
+    return lambda worker: chrome_pid(workers.profile(worker))
+
+
 def _frames(site, tiles: int):
     """The window's frame source for `site`'s Workers (worker_mode): CDP Workers' screencast,
     plain Workers' port (S3), or in `protected` mode whichever Worker k runs now."""
@@ -729,9 +753,10 @@ def _frames(site, tiles: int):
     from apply.plain.tile import EitherFrames, PortFrames
 
     if isinstance(site, PlainSite):
-        return PortFrames(tiles, site.workers.bridge.connection)
+        return PortFrames(tiles, site.workers.bridge.connection, chrome=_worker_chrome(site.workers))
     if isinstance(site, RoutedSite):
-        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint), PortFrames(tiles, site.connection), site.plain)
+        return EitherFrames(dashboard.CdpFrames(tiles, site.endpoint),
+                            PortFrames(tiles, site.connection, chrome=_worker_chrome(site.plain_site.workers)), site.plain)
     return dashboard.CdpFrames(tiles, site.endpoint)
 
 

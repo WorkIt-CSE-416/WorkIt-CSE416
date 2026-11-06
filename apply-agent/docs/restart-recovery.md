@@ -122,3 +122,20 @@ it, quits the Worker, and runs `apply reopen`: both forms come back held, in one
 sent into the first's Worker, each guarded, with what Lisul typed before kept, and nothing sent.
 `-k workday` (Chromium): a reopened Workday form at its sign-in types nothing, says "needs
 sign-in", and goes on by itself once Lisul signs in with Google.
+
+## `apply preflight --open`: which reopened sites wait on a sign-in (KAN-721)
+
+```
+uv run apply preflight --open
+```
+
+`preflight.open_report` reads the open-forms list and each running Apply window's tiles (`/state`,
+through `into.windows`). It opens no page and reads no job site.
+
+- **Sign in now:** each form whose tile says "needs sign-in", by site, with its Browser. Sign in on
+  that form's own page; Apply goes on by itself once you are in.
+- **No window shows these yet:** each open form on a site whose job system will probably ask for
+  a sign-in (`preflight.NEEDS`: yes or maybe), for before `apply reopen`.
+- A form on a site that asks no sign-in (Greenhouse, Lever, Ashby) is not listed.
+
+**Tests.** `tests/test_restart.py -k preflight_open` (in CI).

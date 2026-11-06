@@ -20,7 +20,8 @@ let shownWindow = null; // the window whose active tab the tile shows: the one l
 let lastSent = "";
 const menus = new Map(); // tab -> the frame whose <select> the tile shows the options of
 
-chrome.tabs.onActivated.addListener(({ windowId }) => { shownWindow = windowId; });
+let poke = () => {}; // wakes aimLoop at once: a tab switch is told before the window shows the new tab for long
+chrome.tabs.onActivated.addListener(({ windowId }) => { shownWindow = windowId; poke(); });
 chrome.tabs.onCreated.addListener((tab) => { if (tab.active) shownWindow = tab.windowId; });
 chrome.windows.onRemoved.addListener((id) => { if (id === shownWindow) shownWindow = null; });
 
@@ -65,7 +66,8 @@ async function aimLoop(ctx, mine) {
       const tab = await shownTab();
       if (tab) {
         const { left, top, width, height, state } = await chrome.windows.get(tab.windowId);
-        const shown = { tab: tab.id, url: tab.url || "", window: { left, top, width, height, state },
+        // The title lets Apply film this window only if macOS lists it with the tab's title (KAN-717).
+        const shown = { tab: tab.id, url: tab.url || "", title: tab.title || "", window: { left, top, width, height, state },
                         viewport: { width: tab.width, height: tab.height } };
         const text = JSON.stringify(shown);
         if (text !== lastSent && stream?.generation === mine) {
@@ -76,7 +78,7 @@ async function aimLoop(ctx, mine) {
     } catch (error) {
       // A window closing under it: the next turn looks again.
     }
-    await sleep(AIM_EVERY);
+    await Promise.race([sleep(AIM_EVERY), new Promise((woken) => { poke = woken; })]);
   }
 }
 
@@ -87,7 +89,9 @@ async function streamLoop(ctx, mine) {
       const tab = await shownTab();
       if (tab && /^(https?|file|data|about):/.test(tab.url || tab.pendingUrl || "about:")) {
         const frame = await frameOf(tab, stream.settings);
-        if (frame.data !== lastSent && stream?.generation === mine) {
+        // captureVisibleTab takes the window's active tab: a switch during it means the frame shows another tab.
+        const [still] = await chrome.tabs.query({ active: true, windowId: tab.windowId }).catch(() => []);
+        if (still?.id === tab.id && frame.data !== lastSent && stream?.generation === mine) {
           lastSent = frame.data;
           ctx.send("tile.frame", { tab: tab.id, url: tab.url || "", ...frame });
         }

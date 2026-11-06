@@ -152,3 +152,26 @@ def test_a_draft_value_goes_only_to_a_field_that_asks_the_same_question_now():
     draft = {"q9": ("Phone", "555"), "q1": ("Why us?", "His edit")}
     now = [Question("q9", "Will you require sponsorship?", "select"), Question("q1", "Why  us?", "textarea")]
     assert _held(draft, now) == {"q1": "His edit"}
+
+
+# --- apply preflight --open (KAN-721)
+
+
+def test_preflight_open_lists_the_reopened_sites_that_wait_on_a_sign_in_now():
+    from apply import preflight
+
+    forms = [
+        {"link": "https://acme.wd1.myworkdayjobs.com/x/job/1", "posting_url": "https://acme.wd1.myworkdayjobs.com/x/job/1",
+         "application_id": "a1", "job_system": "workday", "company": "Acme", "worker": 0},
+        {"link": "https://job-boards.greenhouse.io/arc/jobs/2", "posting_url": "https://job-boards.greenhouse.io/arc/jobs/2",
+         "application_id": "a2", "job_system": "greenhouse", "company": "Arc", "worker": 1},
+        {"link": "https://beta.wd5.myworkdayjobs.com/y/job/3", "posting_url": "https://beta.wd5.myworkdayjobs.com/y/job/3",
+         "application_id": "a3", "job_system": "workday", "company": "Beta", "worker": 2},
+    ]
+    tiles = [{"posting_url": forms[0]["posting_url"], "status": "needs sign-in"},
+             {"application_id": "a2", "status": "ready to submit"}]
+    said = preflight.open_report(forms, tiles)
+    now, _, later = said.partition("No window shows these yet")
+    assert "Acme (Browser 1)" in now and "Arc" not in said  # Greenhouse asks no sign-in, and its form is held
+    assert "Beta (Browser 3)" in later
+    assert preflight.open_report([], []).startswith("No open form")
