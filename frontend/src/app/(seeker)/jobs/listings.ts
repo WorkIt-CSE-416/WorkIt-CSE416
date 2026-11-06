@@ -1,6 +1,7 @@
 import "server-only";
 
 import { cookies } from "next/headers";
+import { cache } from "react";
 import { connection } from "next/server";
 
 import { apiGet } from "@/lib/api";
@@ -418,3 +419,11 @@ export async function getTailoredJobIds(): Promise<string[]> {
   const { data } = await listBuiltResumes();
   return (data ?? []).flatMap((r) => (r.job_posting_id ? [r.job_posting_id] : []));
 }
+
+/**
+ * When this request drew its list (ms since the epoch), read once per
+ * request and before the seeker's applications are, so a list hands it to
+ * its client side with the stages: the seeker's stage changes made after it
+ * win over the stages drawn (./feed-stages, KAN-217).
+ */
+export const drawnAt = cache(() => Date.now());

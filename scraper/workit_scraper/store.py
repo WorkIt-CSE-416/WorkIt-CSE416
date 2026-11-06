@@ -113,6 +113,11 @@ class Store:
     #: named none (`logos.fetch`). Absent means read before websites were kept,
     #: which `logos.needs_read` reads again for a board with an uploaded logo.
     websites: dict[str, str | None] = field(default_factory=dict)
+    #: Keyed by `Board.key`: the domain the board's own address gave and its home
+    #: page proved (`logos.check_addresses`), or None when it did not, so the board
+    #: is flagged for `checked_websites.csv`. Absent means not checked yet. Never
+    #: checked again: a person's row in the checked list wins over it anyway.
+    addresses: dict[str, str | None] = field(default_factory=dict)
 
     def resting(self, now: str) -> set[str]:
         """The boards not asked for this run, because they kept going unread."""
@@ -359,6 +364,7 @@ def update(
         logos_version=version,
         health=health,
         websites=dict(previous.websites) if previous else {},
+        addresses=dict(previous.addresses) if previous else {},
     )
 
 
@@ -441,6 +447,7 @@ def load(path: Path) -> Store | None:
         logos_version=payload.get("logos_version", 1),
         health={key: _known(BoardHealth, row) for key, row in payload.get("health", {}).items()},
         websites=payload.get("websites", {}),
+        addresses=payload.get("addresses", {}),
     )
 
 
@@ -461,6 +468,7 @@ def save(store: Store, path: Path) -> None:
         "logos": store.logos,
         "logos_version": store.logos_version,
         "websites": store.websites,
+        "addresses": store.addresses,
         "health": {key: asdict(health) for key, health in store.health.items()},
         "jobs": [job.to_row() for job in sorted(store.jobs, key=lambda job: job.key)],
     }

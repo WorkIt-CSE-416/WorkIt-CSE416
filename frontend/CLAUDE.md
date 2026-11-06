@@ -1375,8 +1375,15 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Jobright), or white cards blended into a white page. So a control on the
   page takes `bg-panel`, never `bg-app` or `bg-well` (it vanishes), and a
   sticky bar on the page takes `bg-app`, or it shows as a white strip. Each
-  rail tile is an icon over its name (an item's `short` where the name does
-  not fit), and below md the rail is a sheet of full-name rows. On hover
+  rail tile is an icon over its name, and below md the rail is a sheet of
+  rows with the same names. **Each section has one name in the panel**
+  (Tracker, Resumes, Profile), short enough for a tile: a `short` for the
+  tile beside a longer name in the sheet ("Applications Tracker") read as
+  two sets of names for one app (2026-11-05). **The same names are used
+  everywhere a student reads them**: the bar's title, page titles, Back
+  links, breadcrumbs and any line that sends them there ("on your Profile",
+  "on Resumes"). Never "Applications Tracker", "Resumes & Experiences" or
+  "My Profile" again. On hover
   and press only the fills move; the icon stays still (KAN-426), since a
   2px icon nudge on top of the gliding fill read as the row jumping. The panel
   never moves the page, so there is no pin, no peek and no `--panel-gain`
@@ -1685,7 +1692,18 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   the review names the job the same way under the resume's name; the tailored resume's page has the slim
   `TailorReviewBar` instead (Back to Choose Keywords, `TailorBack`, the
   step, and Finish; the job in an sr-only h1), so the resume starts near the top, under its own name
-  renamed in place (`ResumeTitle`).
+  renamed in place (`ResumeTitle`). **Finish opens Your Resume Is Ready**
+  (`tailor/ready-to-apply.tsx`, KAN-217): the Tracker status line, then
+  Apply Yourself as two numbered steps, Download PDF and Open <Company>'s
+  Application (the employer's form in a new tab, then "Did You Apply?",
+  `DidYouApply` from `jobs/apply-button.tsx`, on the tailored resume),
+  **whose primary button is always the next step** and takes focus
+  (`useResumeDownload().pick` resolves true once the file is saved), and
+  Auto Apply in a block of its own where the form can be filled. It sets
+  `data-backdrop="strong"` on its `DialogContent` for the darker backdrop
+  (`globals.css`). Closing it goes to the page that
+  opened Tailor's route (`useBack`). Finish linked to the job posting's page
+  until then, which showed nothing new and left the student with no file.
   `TailorScreen` holds the step in state, so Back keeps the pick, the
   match and the picked keywords; `?step=keywords&source=<picker key>`
   opens it at Choose Keywords (the review's Back), and a run then
@@ -1695,6 +1713,25 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   claim skills the truth rule then lets a rewording name. A wait is never a
   step: the run is a loader over Choose Keywords (`TailorRunning`), since a
   Tailor step that only waited read as padding to the user.
+- **A saved or applied job is off the Jobs page; the tracker holds it**
+  (KAN-217). `GET /jobs` leaves out every tracked stage (saved, applied and
+  after; `JobFilters.tracked_by`), and a Tailor run saves its job. In the
+  browser one rule says which jobs a list shows, `jobs/feed-stages.ts`
+  (tested): every list (the feed, /search, its fallback snapshot, the rail
+  beside a job) lays the seeker's stage changes made after its render
+  (`rememberStage` in `jobs/shown-list.ts`, kept for the tab with their
+  time) over the stages it was drawn with (`drawnAt` from the page). So a
+  Save takes the card off at once, its toast's Undo puts it back, a Back to
+  a page Next kept shows it gone, and an unsave on the tracker brings it back
+  on the next render. **Every button that changes a stage calls
+  `rememberStage`**: Save and its Undo, Did You Apply?'s Yes, Auto Apply and
+  its dequeue. One that skips it leaves the job on the rail and its other
+  buttons stale. Save says where the job went: "Saved to your Tracker."
+  with View and Undo, two buttons side by side (the toast's
+  `actions`). **A toast is the inverted surface** (`bg-inverse` and
+  `text-on-inverse`, its buttons and cross the `inverse` variants) and stays
+  8 seconds when it has an action, 5 without (`docs/design.md`, toasts). Home's Top Matches leaves saved jobs out on
+  its next read, but a row saved there stays until then.
 - **A seeker page's title is in the top bar, and it has no description**
   (2026-11-02, `(seeker)/bar-title.tsx`). The bar reads the title from the
   address, so it shows before the page streams in; a new section joins `TITLES`
@@ -2309,6 +2346,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   buttons `sm` and icon buttons `icon-lg` (the kit's `icon-sm` is 28px);
   `xs` and `icon-sm` there stood 26 and 28px beside 36px ones. An upload's
   page draws the same box (`SLIM_BAR`, `[resumeId]/slim-bar.ts`).
+  **One row, never two** (`[resumeId]/bar-fold.tsx`): the idle bar is a
+  container (`@container/bar`), so it folds by its own width, which the
+  side panel and Tailor's columns change, never by the window's. Words go
+  first, least needed first (Format Options, Sections, the save status, Add
+  Experiences, Fit to One Page, Download), each button keeping its glyph,
+  its `aria-label` and a tooltip (`FoldButton`); then zoom, the panels and
+  Add Experiences leave the row for More (⋯) at its end, which lists only
+  what the bar hides (each piece in a `data-fold` box, read on open). Undo,
+  Redo, Fit and Download never leave. The steps are measured widths in
+  `FOLD`: a control added to the row, or a longer word, means measuring
+  them again (sweep the bar's width by script and look for a button past
+  its edge). The phone editor's row folds its words the same way
+  (`PHONE_FOLD`). The bar wrapped to a ragged second row at about 800px
+  until then. **Still open:** the bar with a line open still wraps.
 - **A bullet's one wording button is Original** (`LineActions`), shown
   only while the bullet shows another wording (Tailor's, or one typed on
   this resume): it puts the bank's text back, and Undo takes that back.

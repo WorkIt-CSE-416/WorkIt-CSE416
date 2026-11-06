@@ -596,3 +596,30 @@ async def test_a_company_job_saves_when_no_model_answers(recruiter, use_model):
 
     assert res.status_code == 201, res.text
     assert await _stored(res.json()["id"]) is None
+
+
+def test_in_experiences_names_only_missing_keywords_the_bank_shows():
+    # KAN-587: a bullet names prototyping work, a skill names Figma; Go is
+    # nowhere. Whole words only, as `match` reads them: "Go" is not in "Google".
+    from app.schemas.keywords import Keyword
+    from app.services.resume_view import (
+        ResumeView,
+        ViewBullet,
+        ViewEntry,
+        ViewSection,
+        ViewSkill,
+    )
+
+    bullet = ViewBullet(id=uuid.uuid4(), text="Built a Prototype for Google Maps")
+    entry = ViewEntry(id=uuid.uuid4(), section="experience", title="Design Intern", bullets=(bullet,))
+    everything = ResumeView(
+        sections=(ViewSection("experience", (entry,)),),
+        skills=(ViewSkill(uuid.uuid4(), "Figma"),),
+    )
+    missing = [
+        Keyword(keyword="Prototype", kind="required"),
+        Keyword(keyword="Go", kind="required"),
+        Keyword(keyword="Figma", kind="preferred"),
+    ]
+
+    assert keywords.in_experiences(everything, missing) == ["Prototype", "Figma"]

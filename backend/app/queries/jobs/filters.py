@@ -21,11 +21,12 @@ weighed against a dollar threshold without exchange rates. A job that states
 no pay, or no value for a filtered column, is left out by that filter, as one
 with no location is by ?location=.
 
-A signed-in applicant's applied jobs (job_applications, KAN-232) are left
-out by applied_by; auto apply's matches leave out every job the applicant has
-an application for at any stage, queued or skipped too, by
-no_application_by, saved jobs (KAN-261) too: a batch never picks a job the
-applicant saved. The feed keeps a saved job in.
+A signed-in applicant's tracked jobs (job_applications, KAN-232) are left
+out by tracked_by: applied and after, and saved (KAN-261) too, since a saved
+job lives on the Tracker (KAN-217); a job auto apply holds
+stays in. Auto apply's matches leave out every job the applicant has an
+application for at any stage, queued or skipped too, by no_application_by:
+a batch never picks a job the applicant saved.
 """
 
 import datetime
@@ -175,10 +176,10 @@ class JobFilters:
     # the work_style column. Hybrid and onsite are the column alone.
     query_work_style_phrases: Sequence[str] = ()
     query_words: Sequence[str] = ()
-    # The signed-in applicant: the jobs they marked as applied are left out.
-    # A job they only queued for auto apply stays in. None (signed out)
-    # lists them all.
-    applied_by: uuid.UUID | None = None
+    # The signed-in applicant: the jobs on their Tracker (saved,
+    # applied and after) are left out. A job they only queued for auto apply
+    # stays in. None (signed out) lists them all.
+    tracked_by: uuid.UUID | None = None
     # Auto apply's matches (auto_apply/pipeline.py): every job this applicant
     # has an application for, at any stage, is left out, so a new batch
     # never queues a job twice or one they skipped. A saved job is left out
@@ -344,13 +345,13 @@ def matching(filters: JobFilters) -> list[ColumnElement[bool]]:
     clauses.extend(word_matches(word) for word in filters.query_words)
     if filters.visa == "sponsors":
         clauses.append(Job_Post.sponsorship == dto.visa_sponsorship.sponsors)
-    if filters.applied_by is not None:
+    if filters.tracked_by is not None:
         clauses.append(~exists().where(
             Job_Application.job_id == Job_Post.id,
-            Job_Application.applicant_id == filters.applied_by,
-            # Applied, and every stage after it (KAN-413). Named as the
-            # stages before applied, which every database has (dto says why)
-            Job_Application.stage.not_in(dto.BEFORE_APPLIED),
+            Job_Application.applicant_id == filters.tracked_by,
+            # Saved, applied and every stage after it (KAN-413). Named as the
+            # stages that stay, which every database has (dto says why)
+            Job_Application.stage.not_in(dto.ON_THE_JOBS_PAGE),
         ))
     if filters.no_application_by is not None:
         clauses.append(~exists().where(

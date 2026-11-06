@@ -44,6 +44,7 @@ import { FitNotice } from "./fit-notice";
 import { cutLeft as anyCutLeft, lineName, shortPageLabel, type FitCuts, type Line } from "./model";
 import type { HistoryTools } from "./editor";
 import { FormatOptions } from "./page-format";
+import { FoldButton, PHONE_FOLD } from "./bar-fold";
 import { boxKey, kindLabel } from "./pdf-pages";
 import { CutPicker, ExperiencesPicker } from "./experiences-picker";
 
@@ -269,7 +270,8 @@ export function PhoneEditor({
                   : ""}
           </span>
         </div>
-        <div className={cn("flex flex-wrap items-center gap-2", TAP)}>
+        {/* One row at every width: the words fold (`PHONE_FOLD`) */}
+        <div className={cn("@container/bar flex flex-nowrap items-center gap-2", TAP)}>
           <Button
             variant="secondary"
             size="sm"
@@ -288,29 +290,41 @@ export function PhoneEditor({
           >
             <ArrowUUpRightIcon aria-hidden />
           </Button>
-          <div className="ml-auto flex gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
+          <div className="ml-auto flex min-w-0 gap-2">
+            <FoldButton
+              label="Format"
+              icon={<SlidersHorizontalIcon aria-hidden />}
+              fold={PHONE_FOLD.formatWord}
               disabled={!rendered}
-              onClick={() => setFormatOpen(true)}
-            >
-              <SlidersHorizontalIcon aria-hidden /> Format
-            </Button>
-            <DownloadMenu download={download} />
-            <Button
-              variant="secondary"
-              size="sm"
-              aria-pressed={zoom}
-              onClick={() => setZoom(!zoom)}
-            >
-              {zoom ? (
-                <MagnifyingGlassMinusIcon aria-hidden />
-              ) : (
-                <MagnifyingGlassPlusIcon aria-hidden />
-              )}
-              {zoom ? "Fit Width" : "Zoom"}
-            </Button>
+              render={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={!rendered}
+                  onClick={() => setFormatOpen(true)}
+                />
+              }
+            />
+            <DownloadMenu download={download} fold={PHONE_FOLD.downloadWord} />
+            <FoldButton
+              label={zoom ? "Fit Width" : "Zoom"}
+              icon={
+                zoom ? (
+                  <MagnifyingGlassMinusIcon aria-hidden />
+                ) : (
+                  <MagnifyingGlassPlusIcon aria-hidden />
+                )
+              }
+              fold={PHONE_FOLD.zoomWord}
+              render={
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  aria-pressed={zoom}
+                  onClick={() => setZoom(!zoom)}
+                />
+              }
+            />
           </div>
         </div>
         {bar && <div className={cn(TAP, "[&_a]:min-h-11")}>{bar}</div>}

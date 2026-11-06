@@ -24,6 +24,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
+from apply import submit_guard
 from apply.browsers import BUSY, ProfileInUse, WorkerBrowsers, in_use
 from apply.home import HOME
 from apply.plain import guards
@@ -170,6 +171,7 @@ class PlainSite:
             for tab in before:  # the last form's tabs, done with: never a tab another form holds
                 context.page(tab).close()
         try:
+            submit_guard.on_open(page)  # a rehearsal's page: guarded before its first load
             page.goto(url)
             yield page
         finally:

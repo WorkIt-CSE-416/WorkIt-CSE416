@@ -94,8 +94,36 @@ When `APPLY_HOME` has no profile, Apply copies the Test Person sample data
 into it and the window shows "Sample data".
 
 - Never commit a data file. `.gitignore` here lists each data file name.
+- **Agents: never read this folder raw.** Run `uv run apply data keys [FILE]`
+  and `uv run apply data show-key KEY [--file FILE]`. They list the keys and
+  the shape of each value (`<email>`, `<text, 12 chars>`), never a value. A URL
+  keeps only its scheme and the end of its host.
+- Apply's own stdout and stderr go through `apply.masked` (KAN-664): the
+  profile's and Answer bank's values, addresses, phone numbers, and the ids
+  and tokens in a URL are masked. A print that carries a typed answer or a
+  message gives only its size (`masked.sized`). Add new prints the same way.
+  Traces and Records are files on this Mac and keep the real values; `apply
+  trace` prints through the same mask, which can't catch a value that no data
+  file holds.
+- To stop raw reads in Claude Code, install
+  `tools/block-apply-home-reads.sh` as a PreToolUse hook. Nothing installs it
+  for you. In `~/.claude/settings.json`, with the path to your checkout:
+
+  ```json
+  {"hooks": {"PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command",
+    "command": "/path/to/apply-agent/tools/block-apply-home-reads.sh"}]}]}}
+  ```
+
+  It refuses `cat`, `grep`, `sed`, Python and other readers on
+  `~/.config/apply` or `$APPLY_HOME`. It can't see a path that is built at run
+  time.
 - For a test run, set `APPLY_HOME` and `APPLY_PROFILES` to a scratch folder,
   so the run does not write into your real data folder.
+- `apply rehearse`, `apply run` and `approve-pass` refuse an `APPLY_HOME` or
+  profiles folder under a temp path (`/tmp`, `/private/tmp`, `/var/folders`,
+  KAN-665), since a reboot wipes held forms and sign-ins there. Test Person
+  (`sample_data: true`) and tests (`APPLY_TEST_TEMP_OK`, set in `conftest.py`)
+  go on. Use a scratch folder under your home folder for a rehearsal.
 
 ## Testing
 
@@ -116,6 +144,13 @@ into it and the window shows "Sample data".
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
   touches on your Mac, with `-k`.
+- **The submit guard's hostile pages** (`tests/test_submit_guard_hostile.py`,
+  KAN-666) run every click path that presses through the guards (plain
+  code's Next, the profile click, the account click, Ask Claude's press,
+  Fill again) against pages built to trick them. Every pair must send no
+  application request. A new click path joins `PATHS`, and a new trick joins
+  `PAGES`, in the same PR. CI runs its no-browser, CDP and plain Worker
+  cases. A guard PR gets an adversarial review first (root `CLAUDE.md`).
 - **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
   socket or name lookup to another host raises `NetworkBlocked`, Chrome
   started by a test resolves other hosts to nothing, and Playwright's own

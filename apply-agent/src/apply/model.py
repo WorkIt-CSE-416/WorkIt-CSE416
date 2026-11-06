@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlsplit
 
 # A US phone number's format as a form spells it out: "###-###-####", "(###) ###-####".
 
@@ -27,6 +28,25 @@ def is_company(company: str, name: str) -> bool:
     """Whether `company` is the one `name` names: its name starts with that word
     or those words ("Amazon" names "Amazon Web Services", but not "Amazonia")."""
     return bool(re.match(rf"{re.escape(name)}\b", company.strip(), re.IGNORECASE))
+
+
+# Job sites whose links and pages often name no company, by host: the company each is for.
+HOST_COMPANIES = {
+    "amazon.jobs": "Amazon",
+    "jpmc.fa.oraclecloud.com": "JPMorgan Chase",
+    "careers.amd.com": "Advanced Micro Devices",
+    "apply.careers.microsoft.com": "Microsoft",
+    "nvidia.wd5.myworkdayjobs.com": "NVIDIA",
+    "bankcampuscareers.tal.net": "Bank of America",
+}
+
+
+def host_company(url: str) -> str:
+    """The company a known job site's link is for (HOST_COMPANIES; an iCIMS host naming AMD), else ""."""
+    host = (urlsplit(url).hostname or "").casefold().removeprefix("www.")
+    if host.endswith(".icims.com") and "amd" in re.split(r"[.-]", host.removesuffix(".icims.com")):
+        return "Advanced Micro Devices"
+    return next((name for known, name in HOST_COMPANIES.items() if host == known or host.endswith("." + known)), "")
 
 
 # An Eightfold careers site's Posting or form: on eightfold.ai, or on a company's own host (Netflix's).

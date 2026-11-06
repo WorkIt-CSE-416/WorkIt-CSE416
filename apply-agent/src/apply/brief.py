@@ -28,13 +28,15 @@ import re
 import threading
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, wait
+from dataclasses import replace
 from datetime import date, timedelta
+from pathlib import Path
 
 from apply.adapters import Claude, JobSite
 from apply.claude_cli import ClaudeError
 from apply.company import text_of
 from apply.home import HOME
-from apply.model import Posting, Question, one_line
+from apply.model import Posting, Question, host_company, one_line
 
 BRIEFS = HOME / "company-briefs"
 COMPANY = "Company"  # the company section's heading; a team's is "Team: <team>"
@@ -113,6 +115,8 @@ TEAM_SCHEMA = {"type": "object", "properties": {"team": {"type": "string"}}, "re
 HEADING = re.compile(r"^## (.+)$", re.MULTILINE)
 RESEARCHED = re.compile(r"^Researched (\d{4}-\d{2}-\d{2})", re.MULTILINE)
 NOTHING = "(No facts found that their pages confirm.)"
+# What essays get in place of a brief when Apply can't tell the company: never another company's brief.
+NO_COMPANY = "(No company brief: Apply could not tell which company this form is for.)"
 
 _locks: dict[str, threading.Lock] = {}
 _locks_lock = threading.Lock()
@@ -127,13 +131,19 @@ def brief(posting: Posting, site: JobSite, claude: Claude, today: date, posting_
     the old section, if any. A form whose `questions` ask about the
     company's values, what he would build or which team he prefers gets the
     extra research each calls for (ASKS); a kept company section without it
-    is researched again. Two Workers on one company research it once."""
+    is researched again. Two Workers on one company research it once.
+    The company is the one the Posting names, else its link's host
+    (host_company); with neither, no brief is read and essays get NO_COMPANY.
+    A kept brief is read only when its heading names that company."""
+    if not (name := company_name(posting)):
+        return NO_COMPANY
+    posting = replace(posting, company=name)
     team = name_team(claude, posting, posting_text)
     asks = asked(list(questions))
     wanted = [COMPANY] + ([f"Team: {team}"] if team else [])
-    path = BRIEFS / f"{slug(posting.company)}.md"
-    with _lock(path.name):
-        sections = parse(path.read_text() if path.exists() else "")
+    with _lock(_bare(name)):  # its file is found inside: another Worker may be writing it
+        path = brief_path(name)
+        sections = parse(path.read_text() if path and path.exists() else "")
         changed = False
         for heading in wanted:
             kept = _find(sections, heading)
@@ -149,7 +159,7 @@ def brief(posting: Posting, site: JobSite, claude: Claude, today: date, posting_
                     facts = [f for f in facts if one_line(str(f["name"])).casefold() not in known]
                 sections[kept or heading] = section(today, about, facts)
                 changed = True
-        if changed:
+        if changed and path:  # never written over another company's brief
             BRIEFS.mkdir(exist_ok=True)
             path.write_text(as_markdown(posting.company, sections))
     shown, known = [], set()
@@ -159,6 +169,31 @@ def brief(posting: Posting, site: JobSite, claude: Claude, today: date, posting_
             shown.append("\n".join([f"{heading}:", *lines]))
         known |= _names(body)
     return "\n\n".join(shown)[:BRIEF_CHARS]
+
+
+def company_name(posting: Posting) -> str:
+    """The company `posting` is for: the name it carries (from its link, its posting or its open form page),
+    else the one its link's host is known for (host_company); "" when neither names one."""
+    return one_line(posting.company) or host_company(posting.url)
+
+
+def brief_path(company: str) -> Path | None:
+    """The file of `company`'s brief: one whose heading names it (its slug's first), else its slug's file
+    to write anew; None when that file is another company's brief, which is never read nor written."""
+    own = BRIEFS / f"{slug(company)}.md"
+    if own.exists() and about(own, company):
+        return own
+    if found := next((p for p in sorted(BRIEFS.glob("*.md")) if about(p, company)), None):
+        return found
+    return None if own.exists() else own
+
+
+def about(path: Path, company: str) -> bool:
+    """Whether the brief at `path` is `company`'s, by its "# <company>" heading ("Advanced Micro Devices, Inc"
+    is "Advanced Micro Devices"); a brief with no company in its heading is no one's."""
+    heading = path.read_text().partition("\n")[0]
+    name = heading[2:].strip() if heading.startswith("# ") else ""
+    return bool(name) and _bare(name) == _bare(company)
 
 
 def _names(text: str) -> set[str]:

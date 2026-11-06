@@ -43,7 +43,11 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   (`tests/test_submit_guard.py -k every_real_step`). On a plain Worker the declarativeNetRequest rule on
   `/apply` still blocks such a step (it can't read the page), so that Next hands off and nothing is sent.
 - Before each Next, plain code checks what the step shows (`cant_be_right`, KAN-652): an address part
-  holding a whole address, or a school's start year after this one. A bare "Start date" beside school
+  holding a whole address, or a school's start year after this one. It reads every visible box of the
+  step (`_on_step`, `STEP_VALUES`), not only the ones Apply filled, so a value an earlier run saved
+  is checked too; a label that shows twice (a home and a campus address) is numbered, "#7: City/Town".
+  Address line 1 holding a whole address is wrong too when the step asks a part of it (City, State
+  or Zip, KAN-684). A bare "Start date" beside school
   fields may be the internship's, so it stops the fill only in a section headed clearly as education
   (`_sections`, `clearly_education`) or at a year past `PLAUSIBLE_YEARS` (KAN-659).
 - Dropdowns that list their choices only once opened are read and picked
@@ -51,6 +55,9 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   read off the very element Playwright clicks (`_comboboxes`), never from a
   page script's own list: the two counted visibility apart on Microsoft's
   profile step, and each question opened its neighbour (KAN-646).
+- A text box whose placeholder is a date format ("YYYY-MM") gets that format after its label,
+  "(YYYY-MM)", as the planner reads a format (`_with_formats`, KAN-714): Amazon's graduation month box
+  says its format only there, and refused "May 2028".
 - On a plain Worker (KAN-612; a PortPage, no CDP), `claude_cli.drive` gives
   `claude -p` Apply's own MCP server under the same name, `playwright`
   (`apply.plain.mcp`, a stdio relay, and `apply.plain.tools`, which runs

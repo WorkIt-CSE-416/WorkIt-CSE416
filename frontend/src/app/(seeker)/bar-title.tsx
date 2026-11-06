@@ -12,11 +12,11 @@ const TITLES = [
   ["/auto-apply/answers", "Written Answers"],
   ["/auto-apply/info", "Application Info"],
   ["/auto-apply", "Auto Apply"],
-  ["/applications", "Applications Tracker"],
+  ["/applications", "Tracker"],
   ["/resumes", "Resumes"],
   ["/experiences", "Experiences"],
   ["/calendar", "Calendar"],
-  ["/profile", "My Profile"],
+  ["/profile", "Profile"],
   ["/inbox", "Inbox"],
   ["/help", "Help"],
 ] as const;
