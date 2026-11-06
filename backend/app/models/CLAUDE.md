@@ -1048,7 +1048,8 @@ on `stage NOT IN dto.ON_THE_JOBS_PAGE`; KAN-217: a saved job lives on the
 Tracker, and an unsave brings it back to the feed); auto
 apply's matches leave out every stage, `saved` too (`no_application_by`),
 so a batch never picks a saved job. A Tailor run writes `saved` too
-(`keep_saved`, in its own commit). Rules:
+(`keep_saved`, in its own commit), and the data migration `b6d2e8f4a1c7`
+wrote it once for the jobs tailored before that (KAN-217). Rules:
 
 - **A join table, never an array of applicant ids on `job_postings`.**
   Postgres can't foreign-key an array's elements, so deleted applicants

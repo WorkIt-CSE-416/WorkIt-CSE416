@@ -67,7 +67,9 @@ step, Tailor, a view that only waited.
      `saved`, in the same commit (KAN-217, 2026-11-05): a student who
      tailored for a job is preparing to apply, so it leaves the Jobs page
      and waits on the tracker. A job already queued or applied keeps its
-     stage,
+     stage. Jobs tailored before this were saved once by the data
+     migration `b6d2e8f4a1c7` (the listed ones, dated when they were
+     tailored),
    - answers with the tailored resume's id and the **changes**: what each
      change replaced (below).
 

@@ -1200,6 +1200,12 @@ Find files with a directory listing; these are the rules for where code goes.
     (`queries/applications.keep_saved`, the Save button's insert, `ON
     CONFLICT DO NOTHING`), so the job leaves the Jobs page; a job already
     queued or applied keeps its stage, and a failed run saves no job.
+    **Jobs tailored before this were backfilled** by the one-time data
+    migration `b6d2e8f4a1c7` (its `BACKFILL`, tested in
+    `tests/test_tailored_jobs_saved.py`): a `saved` row per tailored resume
+    whose posting is still listed, dated when it was tailored, no other
+    stage moved. Its downgrade does nothing: its rows match saves made
+    after it.
   - **One tailored resume per posting; a second run replaces it in place**
     (2026-10-26). The run keeps the resume's row (its id, the student's
     name for it, its star), and once the model has answered clears what
@@ -1747,6 +1753,13 @@ go then. A change needs to work on Cloudflare only.
   before the deploy that reads them.** It only adds tables, so applying it
   early is safe; deployed first, the connector's get_next_application and
   the writing-samples routes answer 500.
+- **Apply `b6d2e8f4a1c7` (KAN-217's backfill of tailored jobs to saved)
+  right after the deploy that makes a Tailor run save its job**, or just
+  before it: data only, no schema change, so either order is safe. Until
+  it runs, every job tailored before that deploy stays on the Jobs page
+  with a Tailored chip and is missing from the Tracker. It sits on
+  `a1b2c3d4e5f6` (the scraper worker's tables), so `upgrade head` applies
+  that one too where it is not yet applied.
 - **Apply `f2b8d6c4a913` before deploying KAN-217.** It adds
   `bank_bullet_variants` and `built_resume_bullets.variant_id`, which the
   model maps, so Generate's inserts fail on a database without it.
