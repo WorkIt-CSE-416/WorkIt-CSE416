@@ -254,7 +254,9 @@ _TEMPLATE = r"""
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
-    if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
+    // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
+    // account as it applies has a password box too (KAN-681).
+    if (accountClick() && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
     if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
@@ -269,8 +271,8 @@ _TEMPLATE = r"""
   HTMLFormElement.prototype.submit = function () {
     // Under plain code's click, a page script may post a step's form, but never one with a button that sends
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
-    const step = accountClick() && (!!this.querySelector('input[type=password]')
-      || (![...this.querySelectorAll('button, input[type=submit]')].some(sends) && !postsFinal(this)));
+    const step = accountClick() && !postsFinal(this) && (!!this.querySelector('input[type=password]')
+      || ![...this.querySelectorAll('button, input[type=submit]')].some(sends));
     if (!lifted() && !step && posts(this)) return note('a form submission');
     return submit.call(this);
   };

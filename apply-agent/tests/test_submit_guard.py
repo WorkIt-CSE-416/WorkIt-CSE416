@@ -977,3 +977,66 @@ def test_a_profile_pop_up_posts_to_its_own_page_but_never_to_a_final_url(url, ac
         page.wait_for_timeout(400)
         browser.close()
     assert bool(posts) is goes
+
+
+# A one-page application that makes an account as it applies: a password box, and a Continue bound for the
+# final URL (KAN-681). The account click lets a sign-in post; it must never let this one.
+MAKES_AN_ACCOUNT = """<form method="post" action="{action}"><label>Email <input name="email"></label>
+<label>Password <input type="password" name="pw"></label><button>Continue</button></form>"""
+
+
+@pytest.mark.parametrize("action", ["https://jobs.example.com/careers/jobs/123/apply",
+                                    "https://job-boards.greenhouse.io/acme/jobs/123"])
+@pytest.mark.parametrize("by", ["press_step", "the account click", "a script's form.submit()"])
+def test_an_application_with_a_password_box_never_posts_under_the_account_click(monkeypatch, action, by):
+    from playwright.sync_api import sync_playwright
+
+    from apply import claude_fill
+
+    monkeypatch.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/careers/jobs/123/start",
+                   lambda route: route.fulfill(body=MAKES_AN_ACCOUNT.format(action=action), content_type="text/html")
+                   if route.request.method == "GET" else route.fallback())
+        _posts_to(page, posts)
+        page.goto("https://jobs.example.com/careers/jobs/123/start")
+        guard(page)
+        drive = DriveGuard(page)
+        if by == "press_step":
+            try:
+                claude_fill.press_step(page, drive, "Continue")
+            except claude_fill.Handoff:
+                pass
+        else:
+            drive.let_account_click()
+            if by == "the account click":
+                page.get_by_role("button", name="Continue").click()
+            else:
+                page.evaluate("document.querySelector('form').submit()")
+        page.wait_for_timeout(500)
+        browser.close()
+    assert posts == []
+
+
+def test_a_sign_in_with_a_password_box_still_posts_under_the_account_click():
+    from playwright.sync_api import sync_playwright
+
+    posts = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route("https://jobs.example.com/login",
+                   lambda route: route.fulfill(body=MAKES_AN_ACCOUNT.format(action="/session"), content_type="text/html")
+                   if route.request.method == "GET" else route.fallback())
+        _posts_to(page, posts)
+        page.goto("https://jobs.example.com/login")
+        guard(page)
+        drive = DriveGuard(page)
+        drive.let_account_click()
+        page.get_by_role("button", name="Continue").click()
+        page.wait_for_timeout(500)
+        browser.close()
+    assert posts == ["https://jobs.example.com/session"]
