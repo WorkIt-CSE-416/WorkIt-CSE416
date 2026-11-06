@@ -33,6 +33,24 @@ Reference for Apply, reached from `apply-agent/CLAUDE.md`. Paths are relative to
   the drive and rehearsal guards and nothing else, waits for the dialog to
   go, and the fill goes on to the real form. The flag is
   `__applyProfileClick` (in `worker-extension/ops/guard.js`'s `FLAGS` too).
+- A form's Apply button sends, but for a posting's Apply that only opens the application (KAN-725,
+  `opens`): TAL.net's posting posts a form of its anti-forgery token alone to `.../opp/<id>/apply/<lang>`.
+  Claude fill vouches for the page only at its first drive, on the Posting's own URL
+  (`DriveGuard.let_start_click`, the flag `__applyStartClick`, in `worker-extension/ops/guard.js`'s
+  `FLAGS` too), in the top frame alone. Then that button goes through once, while its words name no
+  send, its form holds a hidden token and buttons and nothing else, bound for its own site and no final
+  URL, no field on the page holds an answer, and the page shows no draft, review or saved-profile apply
+  (`DRAFT` in its text, `HEADED` in its title or headings). A key, input or change (in a frame of the
+  site too), a click on anything but that Apply or a cookie banner's button, or the page changing its
+  URL by script takes the word back. Once it went through, only that form's own submission goes, once, still
+  a token alone: the guard sends its own copy of it (the hidden fields and the button's name), so no
+  handler of the page's can add to it, and nothing else is posted to the site (its other subdomains
+  too) from that page. A reopened form's and every
+  later page's Apply stay blocked: the word is gone with the Posting's document. Still open: a site
+  that applies at once from a profile it holds, on the Posting's own page, in words neither list
+  knows, would be sent by that press; and an answer typed in another site's frame on the Posting's
+  page can't take the word back. Without this, Claude's first click on TAL.net's posting was a
+  Handoff with no field filled.
 - A POST to a final application URL stays blocked under plain code's Next and profile clicks (KAN-639,
   `postsFinal`). A path ending in `/apply` is final by its name alone, so there a Next goes on only when
   the page says steps remain ("Step 2 of 5", or a list past its `aria-current=step` item) and the form has

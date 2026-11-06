@@ -732,6 +732,8 @@ class ClaudeFill:
         if self._guard is None:
             self._guard = DriveGuard(page, **self._opt_ins)
         self._guard.arm()
+        if not self._sessions and self._url and _unhashed(page.url) == _unhashed(self._url):
+            self._guard.let_start_click()  # the Posting's own page, untouched yet: its Apply may open the form (KAN-725)
         before = len(self._guard.blocked())  # a block of an earlier drive was its Handoff already (Lisul resumed after)
         try:
             drive = self._claude.drive(
@@ -1457,6 +1459,11 @@ def _page_text(page: Page) -> str:
         except Exception:
             continue  # a frame that went away, or one that refuses scripts
     return "\n".join(said)
+
+
+def _unhashed(url: str) -> str:
+    """The URL without its fragment, which says nothing of which page it is."""
+    return url.split("#", 1)[0].rstrip("/")
 
 
 def _path(url: str) -> str:
