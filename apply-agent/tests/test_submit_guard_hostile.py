@@ -141,6 +141,12 @@ PAGES = {
         <script>document.getElementById('b').addEventListener('click', () => setTimeout(() => {{
           document.getElementById('step').innerHTML = '<label>Last name <input name=last></label>'; }}, 1000));
         setInterval(() => {{ try {{ HTMLFormElement.prototype.submit.call(document.getElementById('f2')); }} catch (e) {{}} }}, 100);</script>"""},
+    # A step list's link on a page that says steps remain posts a form to a URL ending in /apply (KAN-656's moreSteps).
+    "a step list's link to /apply on a page with more steps": {START: f"""<title>Apply</title><p>Step 2 of 5</p>
+        <nav><ul><li><a id=b role=button href="#">Next</a></li><li><a href="#">Help</a></li></ul></nav>
+        <form id=f method=post action="{FINAL}"><input name=first value=Test></form>
+        <script>document.getElementById('b').addEventListener('click', (e) => {{ e.preventDefault();
+          document.getElementById('f').submit(); }});</script>"""},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",

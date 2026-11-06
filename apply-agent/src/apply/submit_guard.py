@@ -329,8 +329,9 @@ _TEMPLATE = r"""
     const at = document.querySelector('[aria-current=step]');
     return !!at && !!(at.closest('li') || at).nextElementSibling;
   };
+  // A step's Next only (KAN-710): the button plain code pressed, never a script's post or a step list's link.
   const postsFinal = (form, by) => posts(form, by) && isFinal('POST', postTarget(form, by))
-    && !(byNameAlone(form, by) && moreSteps(form));
+    && !(byNameAlone(form, by) && !!by && !!press && by.contains(press.target) && moreSteps(form));
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
   const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
     && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
