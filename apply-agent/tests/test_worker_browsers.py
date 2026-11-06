@@ -208,6 +208,17 @@ def test_signing_in_refuses_while_any_worker_profile_is_open_in_another_browser(
     assert (tmp_path / "worker-2" / "Default" / "Cookies").read_text() == "cookies of worker-2"
 
 
+def test_sharing_a_profile_leaves_the_worker_extensions_folder_alone(tmp_path):
+    _profile(tmp_path, "worker-1")
+    _profile(tmp_path, "worker-2")
+    (tmp_path / "worker-extension").mkdir()
+    (tmp_path / "worker-extension" / "manifest.json").write_text("{}")
+    browsers = WorkerBrowsers(tmp_path, headless=True, channel=None)
+
+    assert [p.name for p in browsers.share(tmp_path / "worker-1")] == ["worker-2"]
+    assert [p.name for p in tmp_path.joinpath("worker-extension").iterdir()] == ["manifest.json"]
+
+
 def test_a_worker_never_opens_a_worker_profile_another_browser_has_open(tmp_path):
     # A second run or rehearsal must not break the browser of the one going.
     busy = _profile(tmp_path, "worker-2", "lisul@example.com", lock_pid=os.getpid())

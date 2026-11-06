@@ -124,6 +124,9 @@ export type Application = {
   events: ApplicationEvent[];
   /** A filled button, for the one card whose action cannot wait. */
   cta?: string;
+  /** The student has a resume tailored to its job posting (KAN-217): the
+   *  list's and grid's Tailored chip. */
+  tailored?: boolean;
 };
 
 /** One dated thing with whose it is: a calendar entry, an Up Next row, a

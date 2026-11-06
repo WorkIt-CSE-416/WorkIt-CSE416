@@ -215,7 +215,7 @@ class ClaudeCLI:
             for file in files:
                 shutil.copy(file, Path(folder) / file.name)
             if isinstance(page, PortPage):
-                server = stack.enter_context(ToolServer(page, Path(folder), sys.executable)).mcp_server()
+                server = stack.enter_context(ToolServer(page, Path(folder), sys.executable, hook)).mcp_server()
             else:
                 server = {"command": shutil.which("npx") or "npx", "args": [
                     "-y", PLAYWRIGHT_MCP, "--cdp-endpoint", self._endpoint(page), "--image-responses", "omit"]}

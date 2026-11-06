@@ -160,7 +160,7 @@ const STEPS: { question: ReactNode; line: string }[] = [
         Next, <strong>when you can work</strong>, and a few screening facts.
       </>
     ),
-    line: "All optional. Skip it, and fill the rest in on My Profile later.",
+    line: "All optional. Skip it, and fill the rest in on your Profile later.",
   },
   {
     question: (

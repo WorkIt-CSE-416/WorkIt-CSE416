@@ -11,7 +11,7 @@ import httpx
 import pytest
 from sqlalchemy import text
 
-from app.deps import get_current_account
+from app.deps import get_current_account, get_signed_in_applicant_id
 from app.main import app
 from app.schemas.auth import AccountType, AuthenticatedAccount
 
@@ -91,13 +91,35 @@ async def test_save_keeps_the_job_undated_and_a_second_save_changes_nothing(stud
     assert (stage, applied_at) == ("saved", None)
 
 
-async def test_a_saved_job_stays_on_the_feed(student, database):
-    client, _ = student
-    job = await _seed_posting(database)
-    await client.post(f"/jobs/{job}/saved")
+async def test_a_saved_job_leaves_the_feed_and_unsave_brings_it_back(student, database):
+    # A saved job lives on the Tracker (KAN-217). The feed reads
+    # its viewer through its own dependency (backend/CLAUDE.md, Tests).
+    client, me = student
+    app.dependency_overrides[get_signed_in_applicant_id] = lambda: me
+    try:
+        job, other = await _seed_posting(database), await _seed_posting(database)
+        await client.post(f"/jobs/{job}/saved")
 
-    res = await client.get("/jobs")
-    assert job in [listing["id"] for listing in res.json()]
+        listed = [listing["id"] for listing in (await client.get("/jobs")).json()]
+        assert job not in listed and other in listed
+
+        await client.delete(f"/jobs/{job}/saved")
+        assert job in [listing["id"] for listing in (await client.get("/jobs")).json()]
+    finally:
+        app.dependency_overrides.pop(get_signed_in_applicant_id, None)
+
+
+async def test_a_queued_job_stays_on_the_feed(student, database):
+    # Auto apply's stages stay: the job is still the student's to see there.
+    client, me = student
+    app.dependency_overrides[get_signed_in_applicant_id] = lambda: me
+    try:
+        job = await _seed_posting(database)
+        await client.post(f"/applicants/{me}/applications", json={"job_id": job})
+
+        assert job in [listing["id"] for listing in (await client.get("/jobs")).json()]
+    finally:
+        app.dependency_overrides.pop(get_signed_in_applicant_id, None)
 
 
 async def test_saving_a_closed_job_is_404(student, database):

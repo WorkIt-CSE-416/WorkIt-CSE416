@@ -238,6 +238,19 @@ def apply_to(
     return result
 
 
+class ResumeCheck:
+    """A Filler's checks on a paused page: called, why Resume can't go on now ("" when it can; `resume_blocked`);
+    `signed_in(page)`, whether the page is past its sign-in (the check its own sign-in makes, so a Fill again signs
+    in no more), or None when the Filler has none. A rehearsal paused at a sign-in goes on by itself once it is."""
+
+    def __init__(self, filler):
+        self._blocked = getattr(filler, "resume_blocked", None)
+        self.signed_in = getattr(filler, "signed_in", None)
+
+    def __call__(self, page) -> str:
+        return self._blocked(page) if self._blocked else ""
+
+
 def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fill=lambda: None,
            on_verify=lambda verification: None, on_pause=lambda stopped, blocked: False,
            on_captcha=lambda why, page, company: False, fetched: str | None = None) -> Result:
@@ -256,7 +269,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                     before_fill()
             before_fill()
             before_fill = lambda: None
-        blocked = getattr(filler, "resume_blocked", lambda page: "")
+        blocked = ResumeCheck(filler)
 
         def go_on(page) -> None:
             """Lisul pressed Resume while Apply filled (apply.stuck): what he put on the page is his answer."""

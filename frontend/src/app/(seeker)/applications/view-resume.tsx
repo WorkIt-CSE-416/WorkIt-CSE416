@@ -168,7 +168,7 @@ function useResumeViewer(resume: Viewed) {
         {word ? (
           <div className="flex flex-col items-start gap-3">
             <p className="text-body text-ink-muted">
-              A Word file cannot be shown here. Open it from Resumes &amp; Experiences.
+              A Word file cannot be shown here. Open it from Resumes.
             </p>
             <ButtonLink href="/resumes" variant="secondary">
               Go to Resumes

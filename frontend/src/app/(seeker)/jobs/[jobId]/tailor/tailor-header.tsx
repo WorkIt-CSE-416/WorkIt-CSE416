@@ -2,11 +2,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { CompanyLogo } from "@/components/company-logo";
-import { CheckIcon } from "@/components/icons";
-import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/cn";
 
 import type { JobListing } from "../../listings";
+import { TailorFinish, type ApplyState } from "./ready-to-apply";
 import { TailorBack } from "./tailor-back";
 import { TAILOR_STEPS, type TailorStep } from "./tailor-steps";
 import { jobLogo } from "@/lib/job-logo";
@@ -63,8 +62,10 @@ export function TailorJobLine({ job, className }: { job: JobListing; className?:
  * The review step's whole header (./page.tsx), one slim row so the resume
  * starts near the top, in three parts: Back (to Choose Keywords,
  * `TailorBack`),
- * the step in the middle on one line ("Review Changes · Step 3 of 3"), and Finish at the right, which leaves for the job
- * posting's page, where the student applies. Download sat beside Finish
+ * the step in the middle on one line ("Review Changes · Step 3 of 3"), and Finish at the right, which opens Ready to
+ * Apply (./ready-to-apply.tsx, KAN-217): download the PDF, open the
+ * application or Auto Apply, then back to where Tailor started. Finish went
+ * to the job posting's page until then, which showed nothing new. Download sat beside Finish
  * for a day; it is back on the editor's toolbar, with the page's tools. Every change is saved as it is made, so
  * Finish saves nothing; suggestions not yet handled stay as the run made
  * them. The page's h1 names the job for screen readers only; on screen the
@@ -77,7 +78,15 @@ export function TailorJobLine({ job, className }: { job: JobListing; className?:
  * It sat bare on the page until it took the brand tint, which the user
  * wanted so the row stands out against the content under it.
  */
-export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: string }) {
+export function TailorReviewBar({
+  job,
+  resumeId,
+  apply,
+}: {
+  job: JobListing;
+  resumeId: string;
+  apply: ApplyState;
+}) {
   return (
     <>
       <h1 className="sr-only">
@@ -86,19 +95,9 @@ export function TailorReviewBar({ job, resumeId }: { job: JobListing; resumeId: 
       <TailorBar
         step="review"
         back={<TailorBack jobId={job.id} resumeId={resumeId} />}
-        next={<TailorFinish jobId={job.id} />}
+        next={<TailorFinish job={job} resumeId={resumeId} apply={apply} />}
       />
     </>
-  );
-}
-
-/** The review's one primary action, on this row and in the phone
- *  editor's header (`TailorReview`'s `phoneBar`), which covers this row. */
-export function TailorFinish({ jobId }: { jobId: string }) {
-  return (
-    <ButtonLink href={`/jobs/${encodeURIComponent(jobId)}`} size="sm">
-      <CheckIcon aria-hidden className="size-4" /> Finish
-    </ButtonLink>
   );
 }
 

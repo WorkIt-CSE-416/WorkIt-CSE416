@@ -77,7 +77,7 @@ from collections.abc import Callable
 
 from playwright.sync_api import Page, Route
 
-from apply import captcha
+from apply import captcha, send_click
 
 # The final requests the route stops, from the page or a worker: a path segment that names a
 # submit (Jobvite's .../submitApplication among them), Ashby's ApiSubmit, BambooHR's and Workable's.
@@ -228,13 +228,34 @@ _TEMPLATE = r"""
   // A POST to a job system's final application URL (a CDP Worker routes none of those page URLs): never let
   // through by plain code's account, step or profile click (KAN-639, KAN-647), as a fetch to it never is.
   // Its target by attribute (a field named "action" shadows form.action), relative to the page as isFinal reads it.
-  const postsFinal = (form, by) => posts(form, by) && isFinal('POST', (by && by.getAttribute && by.getAttribute('formaction'))
-    || HTMLFormElement.prototype.getAttribute.call(form, 'action') || location.href);
+  const postTarget = (form, by) => (by && by.getAttribute && by.getAttribute('formaction'))
+    || HTMLFormElement.prototype.getAttribute.call(form, 'action') || location.href;
+  // Any job system's final URL by its name alone (a path ending in /apply, the last of FINAL_URLS), not a known one.
+  const byNameAlone = (form, by) => {
+    let href = String(postTarget(form, by));
+    try { href = new URL(href, location.href).href; } catch (e) {}
+    return !FINAL_URLS.slice(0, -1).some(r => r.test(href));
+  };
+  // The page itself says steps remain after this one ("Step 2 of 5", a step list past the current step), and
+  // the form has no button that sends. Then a POST to a path ending in /apply is a step, not the last (KAN-656).
+  // No page saying so, or "Step 5 of 5", stays blocked: a step's Next there hands off, and nothing is sent.
+  const moreSteps = (form) => {
+    if ([...form.querySelectorAll('button, input[type=submit]')].some(sends)) return false;
+    const said = String((document.body && document.body.innerText) || '').match(/\bstep\s*(\d+)\s*(?:of|\/)\s*(\d+)\b/i);
+    if (said) return Number(said[1]) < Number(said[2]);
+    const at = document.querySelector('[aria-current=step]');
+    return !!at && !!(at.closest('li') || at).nextElementSibling;
+  };
+  const postsFinal = (form, by) => posts(form, by) && isFinal('POST', postTarget(form, by))
+    && !(byNameAlone(form, by) && moreSteps(form));
+  // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
+  const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
+    && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
     if (accountClick() && form.querySelector('input[type=password]')) return;  // plain code's sign-in, as above
-    if (profileClick() && profileStep(by || form) && !postsFinal(form, by)) return;  // plain code's profile step, as above
+    if (profileClick() && profileStep(by || form) && (!postsFinal(form, by) || profileOwnPage(form, by))) return;  // plain code's profile step, as above
     const final = by ? sends(by)
       : [...form.querySelectorAll('button, input[type=submit]')].some(sends);
     if (held() && !final) return;  // a held page is Lisul's but for its Submit: a Next goes on
@@ -342,6 +363,32 @@ _CONTROLS = r"""
     event.stopImmediatePropagation();
     note('a sign-in');
   }, true);
+  // Ask Claude's drive (DriveGuard.asking): each trusted act judged on the real element, its text and attributes,
+  // by send_click's words. The hook sees a snapshot's role and name only; this sees type=password and the rest.
+  const askFacts = @ASK_ELEMENT@;
+  const SECRET = new RegExp(@ASK_SECRET@, 'i'), ATTESTS = new RegExp(@ASK_ATTEST@, 'i'), RESEND = new RegExp(@ASK_RESEND@, 'i');
+  const asking = (event) => window.__applyAsking === true && event.isTrusted && !lifted();
+  const refuse = (event, what) => {
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    note(what);
+  };
+  window.addEventListener('beforeinput', (event) => {
+    if (!asking(event)) return;
+    const facts = askFacts(event.target);
+    if (facts.type === 'password' || SECRET.test((facts.text + ' ' + facts.attrs).replace(/[-_]+/g, ' '))) refuse(event, 'typing in a password or code field');
+    else if (ATTESTS.test(facts.text) && window.__applyAskTick !== true) refuse(event, 'typing in "' + facts.text.slice(0, 40) + '"');
+  }, true);
+  window.addEventListener('click', (event) => {
+    if (!asking(event) || !event.target || !event.target.closest) return;
+    const el = event.target.closest(BOX + ', button, input[type=submit], input[type=button], [role=button], a');
+    if (!el) return;
+    const words = askFacts(el).text;
+    if (el.matches(BOX)) {
+      const ticks = el.type === 'checkbox' ? el.checked : el.getAttribute('aria-checked') !== 'true';
+      if (ticks && ATTESTS.test(words) && window.__applyAskTick !== true) refuse(event, 'the "' + words.slice(0, 40) + '" tick');
+    } else if (RESEND.test(words)) refuse(event, 'the "' + words.slice(0, 40) + '" click');
+  }, true);
 """
 
 
@@ -415,6 +462,9 @@ def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port:
     """The drive guard's script, letting through ticking an opt-in to texts or
     marketing that Lisul's policy says yes to (`port`: a plain Worker's copy)."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
+    for name, value in {"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
+                        "@ASK_ATTEST@": json.dumps(send_click.ATTEST.pattern), "@ASK_RESEND@": json.dumps(send_click.RESEND.pattern)}.items():
+        controls = controls.replace(name, value)
     return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,
                    in_captcha=_IN_CAPTCHA.replace("@TRY@", CAPTCHA_TRY), port=port)
 
@@ -741,6 +791,17 @@ class DriveGuard:
         self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false; "
                         "window.__applyProfileClick = false")
         self._set_driving(True)
+
+    def asking(self, on: bool, may_tick: bool = False) -> None:
+        """Ask Claude drives now, or not: the Ask section judges each trusted act on the real element, in each
+        document loaded meanwhile too. `may_tick`: his message could name a box, so a tick isn't stopped here;
+        the hook and the read-back hold it to that box's own text."""
+        script = f"window.__applyAsking = {_js(on)}; window.__applyAskTick = {_js(may_tick)}"
+        try:
+            self._page.context.add_init_script(script)
+        except Exception:
+            pass  # a context closing: nothing more loads in it
+        self._in_frames(script)
 
     def _set_driving(self, driving: bool) -> None:
         """Claude drives now, or not: so a captcha's frame refuses every click

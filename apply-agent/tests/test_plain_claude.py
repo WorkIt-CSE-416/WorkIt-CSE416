@@ -89,7 +89,7 @@ def site():
     class Pages(http.server.BaseHTTPRequestHandler):
         def do_GET(self):
             body = {"/tools": TOOLS_FORM, "/posting": POSTING, "/rescue": RESCUE_FORM, "/captcha": CAPTCHA_FORM,
-                    "/recaptcha/api2/anchor": ANCHOR}.get(self.path.split("?")[0], "<p>no")
+                    "/recaptcha/api2/anchor": ANCHOR, "/ask": ASK_FORM}.get(self.path.split("?")[0], "<p>no")
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.end_headers()
@@ -152,8 +152,8 @@ class Client:
 
 
 @contextmanager
-def tools_on(page, folder: Path):
-    with ToolServer(page, folder, sys.executable) as server:
+def tools_on(page, folder: Path, hook: tuple[str, ...] = ()):
+    with ToolServer(page, folder, sys.executable, hook) as server:
         client = Client(server.mcp_server())
         try:
             yield client
@@ -354,3 +354,40 @@ def test_a_rescue_fills_on_a_plain_worker_the_field_the_filler_could_not(worker,
     assert done and page.evaluate("() => window.picked") == "they/them"
     assert page.input_value("#name") == "Testy McTestface" and not page.evaluate("() => window.next")
     assert helped.notes and not site.posted
+
+
+ASK_FORM = """<!doctype html><title>Step</title>
+<label>GPA <input id=gpa></label><label>Secret <input id=pw type=password></label><input id=otp name=otp_code aria-label="Enter it">
+<label><input id=native type=checkbox> I certify that my answers are true</label>
+<div id=custom style="width:20px;height:20px" role=checkbox aria-checked=false tabindex=0 aria-label="I acknowledge the privacy notice"
+  onclick="this.setAttribute('aria-checked', 'true')"></div>
+<button type=button onclick="window.resent = true">Resend code</button><button type=button onclick="window.sent = true">Submit application</button>"""
+
+
+@needs_chrome
+def test_on_a_plain_worker_asks_tools_judge_the_real_element(page, site, tmp_path):
+    page.goto(f"{site.url}/ask")
+    with tools_on(page, tmp_path, ("--ask",)) as tools:
+        shot, _ = tools.tool("browser_snapshot")
+        for line, tool, given in (('textbox "Secret', "browser_type", {"text": "hunter2"}), ("Enter it", "browser_type", {"text": "123456"}),
+                                  ('checkbox "I certify', "browser_click", {}), ("I acknowledge", "browser_click", {}),
+                                  ("Resend code", "browser_click", {}), ("Submit application", "browser_click", {})):
+            said, error = tools.tool(tool, target=ref(shot, line), element="GPA", **given)  # Claude's wording says GPA
+            assert error, line
+        said, error = tools.tool("browser_type", target=ref(shot, 'textbox "GPA'), text="3.7", element="GPA")
+        assert not error, said
+        page.evaluate("() => otp.focus()")  # focus on it: its key is refused too
+        said, error = tools.tool("browser_press_key", key="1")
+        assert error and "password or verification-code" in said
+    assert page.evaluate("() => [gpa.value, pw.value, otp.value, native.checked, custom.getAttribute('aria-checked'), !!window.resent, !!window.sent]") == [
+        "3.7", "", "", False, "false", False, False]
+
+
+@needs_chrome
+def test_on_a_plain_worker_a_box_his_message_names_goes_on(page, site, tmp_path):
+    page.goto(f"{site.url}/ask")
+    with tools_on(page, tmp_path, ("--ask", "--message=tick the box: I certify that my answers are true")) as tools:
+        shot, _ = tools.tool("browser_snapshot")
+        assert not tools.tool("browser_click", target=ref(shot, 'checkbox "I certify'))[1]
+        assert tools.tool("browser_click", target=ref(shot, "I acknowledge"))[1]
+    assert page.evaluate("() => [native.checked, custom.getAttribute('aria-checked')]") == [True, "false"]

@@ -22,6 +22,8 @@ export function useVendor(root) {
   return vendorRoot;
 }
 
+export const vendorSet = () => vendorRoot;
+
 // `vendor/<path>` in the vendor set in use.
 export const vendor = (path) => (path.startsWith("vendor/") ? `${vendorRoot}/${path.slice("vendor/".length)}` : path);
 

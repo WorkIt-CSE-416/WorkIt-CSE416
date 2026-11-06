@@ -90,6 +90,8 @@ NOTED = re.compile(r"\s*\((selected|attached|checked|ticked)\)$", re.IGNORECASE)
 # A form in steps: the button that goes on (never one that sends), how many steps
 # at most, and how long a step may take to show once it's clicked.
 NEXT = re.compile(r"\b(next|continue|proceed|review)\b", re.IGNORECASE)
+BACK = re.compile(r"\b(back|previous|prev)\b", re.IGNORECASE)
+REVIEW_WORDS = "on the form's review page"
 MAX_STEPS = 20  # a guard against a loop: Bank of America's TAL.net form has more than 8 (KAN-649)
 # A button that names the application: never a profile step's, whatever pop-up it is in (KAN-647).
 APPLIES = re.compile(r"\bappl(?:y|ying|ication)\b", re.IGNORECASE)
@@ -264,7 +266,7 @@ class ClaudeFill:
                  sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
                  accounts: Accounts | None = None, account_facts: dict | None = None,
-                 page_gates: bool | str = False):
+                 page_gates: bool | str = False, signed_in: Callable[[Page], bool] | None = None):
         """`sign_in` takes the open posting to its form by plain code first,
         on a job system whose sign-in needs no Claude (Oracle's emailed code).
         `resume` is for a pop-up that asks for it before the form can be used.
@@ -276,12 +278,14 @@ class ClaudeFill:
         an attestation, consent, self-ID, legal or criminal-history field, or an answer Claude
         isn't sure of, pauses for his check before the form goes on, and Claude never ticks or
         signs his boxes. "note" pauses nothing: each such field goes on `checks`, his list to
-        check before he submits, and the form goes on."""
+        check before he submits, and the form goes on. `signed_in(page)` says whether a page is
+        past `sign_in`'s sign-in, with `sign_in`'s own check."""
         self._claude = claude
         self._account_pages = AccountPages(accounts, account_facts or {})
         self._url = ""  # the Posting's, to go back to once a mailed link is opened
         self._resume = resume
         self._sign_in = sign_in
+        self.signed_in = signed_in  # whether a page is past `sign_in`'s sign-in (Oracle's), for a paused rehearsal
         self._opt_ins = {"sms_opt_in": sms_opt_in, "marketing_opt_in": marketing_opt_in}
         self._max_turns = max_turns
         self._max_steps = max_steps
@@ -421,7 +425,7 @@ class ClaudeFill:
                 raise MoreQuestions(_with_options(page, self._questions(unlisted)))
             # What this step shows, checked by plain code before Next saves it (KAN-652).
             shown = {labels[name]: self._readback.get(name) for name in todo if name in labels}
-            if wrong := cant_be_right(shown):
+            if wrong := cant_be_right(shown, sections=_sections(page, shown)):
                 raise Handoff(f"Page {self._steps + 1} shows what can't be right, so Apply didn't go on: {'; '.join(wrong)}. "
                               "Fix it on the page, then press Resume.")
             asks = [one for one in (str(a).strip() for a in done.get("for_lisul") or []) if one]
@@ -460,34 +464,17 @@ class ClaudeFill:
         if self._steps >= self._max_steps:
             raise Handoff(f"Claude fill went through {self._max_steps} steps without reaching the form's last. "
                           "Fill it in yourself.")
-        before = _fields_shown(page)
         # A step that posts natively (TAL.net's "Save and Continue") goes through the guards on plain code's own
-        # click alone: a form with a button that sends, and the final application URLs, stay blocked (KAN-639).
-        button = _the_next(page, name)
-        if words := _sends_or_reviews(page, button):  # plain code's own check: never Claude's word for it
-            raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
-        if self._guard:
-            self._guard.let_account_click()
-        try:
-            button.click()
-            waited = 0
-            while _fields_shown(page) == before:
-                if waited >= STEP_SHOWS_MS:
-                    raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
-                                  "missing or wrong on the step it stayed on. Fill it in yourself.")
-                page.wait_for_timeout(250)
-                waited += 250
-        finally:
-            if self._guard:
-                self._guard.arm()  # the account click's flag off again, in the step it led to
-                self._guard.rest()
+        # click alone (press_step, KAN-639).
+        press_step(page, self._guard, name)
 
     def _through_profile_step(self, page: Page, button: Locator, name: str) -> None:
         """Press a profile pop-up's button (one plain-code click the guards let through), and wait for
         the application form to show behind it."""
         self._steps += 1
-        if self._steps >= MAX_STEPS:
-            raise Handoff(f"Claude fill went through {MAX_STEPS} steps without reaching the form's last. Fill it in yourself.")
+        if self._steps >= self._max_steps:
+            raise Handoff(f"Claude fill went through {self._max_steps} steps without reaching the form's last. "
+                          "Fill it in yourself.")
         before = _fields_shown(page)
         if self._guard is not None:
             self._guard.let_profile_click()
@@ -669,6 +656,43 @@ def _profile_step(page: Page, name: str) -> Locator | None:
     return None
 
 
+def press_step(page: Page, guard, name: str, back: bool = False) -> None:
+    """Plain code's own click on a step's Next (or `back`: its Back), which goes through the guards where it posts
+    natively: a button that sends, a form that has one and the final application URLs stay blocked (KAN-639).
+    Waits for the step it leads to; a Handoff says why it didn't."""
+    before = _fields_shown(page)
+    button = _the_back(page, name) if back else _the_next(page, name)
+    # Plain code's own check: never Claude's word for it. A Back leaves the review page, so only its words count.
+    words = _sends_or_reviews(page, button)
+    if words and not (back and words == REVIEW_WORDS):
+        raise Handoff(f"Claude fill's Next ({name!r}) is {words}, which may send the form. Fill it in yourself.")
+    if guard:
+        guard.let_account_click()
+    try:
+        button.click()
+        waited = 0
+        while _fields_shown(page) == before:
+            if waited >= STEP_SHOWS_MS:
+                raise Handoff(f"The form's {name!r} didn't go on to its next step: a required answer may be "
+                              "missing or wrong on the step it stayed on. Fill it in yourself.")
+            page.wait_for_timeout(250)
+            waited += 250
+    finally:
+        if guard:
+            guard.arm()  # the account click's flag off again, in the step it led to
+            guard.rest()
+
+
+def _the_back(page: Page, name: str):
+    """The one button of exactly the name Claude gave a step's Back, which says nothing that sends. None, or two, is a Handoff."""
+    if SENDS.search(name) or not BACK.search(name):
+        raise Handoff(f"Claude named {name!r} as the form's Back, which may send it. Fill it in yourself.")
+    found = [b for b in page.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
+    if len(found) != 1:
+        raise Handoff(f"The form shows {len(found)} buttons named {name!r}, so Apply didn't press one. Do it yourself.")
+    return found[0]
+
+
 def _the_next(page: Page, name: str):
     """The one button that is the step's Next Claude named: the button of
     exactly that name, else the one whose whole name is a Next's ("Continue"
@@ -763,7 +787,7 @@ def _sends_or_reviews(page: Page, button) -> str:
     except Exception:
         headings = ""
     if REVIEW_PAGE.search(headings):
-        return "on the form's review page"
+        return REVIEW_WORDS
     return ""
 
 
@@ -889,9 +913,54 @@ NOT_SCHOOLS = re.compile(r"earliest|desired|preferred|availab|\bif hired\b|\bwhe
                          r"co-?op|employ|\bjob\b|position|\brole\b|offer|\bwork", re.IGNORECASE)
 
 
-def cant_be_right(shown: dict[str, object], this_year: int | None = None) -> list[str]:
+# A label of just "Start date": it may be the internship's, whatever fields stand beside it (KAN-659).
+BARE_START = re.compile(r"^start date\s*[*:]*$", re.IGNORECASE)
+PLAUSIBLE_YEARS = 2  # how far ahead an internship's start can be
+# The heading over each of `labels` in the page, nearest first: a fieldset's legend or a heading before it.
+SECTIONS = r"""(labels) => {
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').replace(/[\s*:]+$/, '').trim().toLowerCase();
+  const heading = 'h1, h2, h3, h4, h5, h6, legend, [role=heading]';
+  const over = (el) => {
+    for (let at = el; at && at !== document.documentElement; at = at.parentElement) {
+      for (let before = at.previousElementSibling; before; before = before.previousElementSibling) {
+        const found = before.matches(heading) ? before : [...before.querySelectorAll(heading)].pop();
+        if (found) return found.innerText;
+      }
+    }
+    return '';
+  };
+  const out = {};
+  for (const el of document.querySelectorAll('label, legend, [aria-label], span, div, p')) {
+    const words = clean(el.getAttribute('aria-label') || (el.children.length ? '' : el.textContent));
+    const label = labels.find((l) => clean(l) === words);
+    if (label && !(label in out)) out[label] = clean(over(el));
+  }
+  return out;
+}"""
+
+
+def clearly_education(section: str) -> bool:
+    """Whether a section's heading says education, and nothing else that has a start of its own."""
+    return bool(SCHOOL_STEP.search(section)) and not NOT_SCHOOLS.search(section)
+
+
+def _sections(page: Page, shown: dict[str, object]) -> dict[str, str]:
+    """The section each bare "Start date" of a step stands in, as the page heads it ("" when it can't be read)."""
+    bare = [label for label in shown if BARE_START.match(label.strip())]
+    found: dict[str, str] = {}
+    for frame in page.frames if bare else ():
+        try:
+            found |= {k: v for k, v in frame.evaluate(SECTIONS, bare).items() if v or k not in found}
+        except Exception:
+            continue  # a frame that went away, or one that refuses scripts
+    return found
+
+
+def cant_be_right(shown: dict[str, object], this_year: int | None = None, sections: dict[str, str] | None = None) -> list[str]:
     """What a step's fields show (label: value) that can't be right, whatever the plan said (KAN-652): an address
-    part that holds a whole address, or, on an education step, a start year after this one."""
+    part that holds a whole address, or, on an education step, a start year after this one. A bare "Start date"
+    beside school fields may be the internship's: it stops the fill only in a section `sections` heads as clearly
+    education, or at a year no internship starts in (KAN-659)."""
     this_year = this_year or time.localtime().tm_year
     school = any(SCHOOL_STEP.search(label) for label in shown)
     wrong = []
@@ -901,6 +970,9 @@ def cant_be_right(shown: dict[str, object], this_year: int | None = None) -> lis
             wrong.append(f"{label!r} holds a whole address")
         years = [int(y) for y in re.findall(r"\b(19\d\d|20\d\d)\b", text)]
         if school and START_YEAR.search(label) and not NOT_SCHOOLS.search(label) and years and max(years) > this_year:
+            if (BARE_START.match(label.strip()) and max(years) <= this_year + PLAUSIBLE_YEARS
+                    and not clearly_education((sections or {}).get(label, ""))):
+                continue
             wrong.append(f"{label!r} says {max(years)}, a start after this year")
     return wrong
 

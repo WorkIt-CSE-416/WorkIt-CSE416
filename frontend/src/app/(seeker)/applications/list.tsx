@@ -49,6 +49,7 @@ import { Reflow } from "@/components/reflow";
 import { useShallowPush } from "@/components/shallow-routing";
 import { Card } from "@/components/ui/card";
 import { Fact } from "@/components/ui/fact";
+import { TailoredChip } from "@/components/tailored-chip";
 import { cn } from "@/lib/cn";
 
 import { STAGE_ORDER } from "../stage-colors";
@@ -209,9 +210,13 @@ const CELL: Record<ColumnId, (app: Application) => ReactNode> = {
         >
           {app.role}
         </Link>
-        <p className="text-note text-ink-meta truncate" title={app.company}>
-          {app.company}
-        </p>
+        <div className="flex min-w-0 items-center gap-1.5">
+          <p className="text-note text-ink-meta truncate" title={app.company}>
+            {app.company}
+          </p>
+          {/* A resume made for this job, ready to send (KAN-217). */}
+          {app.tailored && <TailoredChip />}
+        </div>
       </div>
     </div>
   ),

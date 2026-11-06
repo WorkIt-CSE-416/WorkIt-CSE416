@@ -95,6 +95,23 @@ def send(target: str, url: str, folder: Path | None = None) -> tuple[dict, dict]
     return window, _call(window, "/rehearse", {"url": url, **more})
 
 
+def fill_again(target: str, folder: Path | None = None) -> tuple[dict, int, dict]:
+    """Fill again on the form `target` names: an Application ID on a tile, or a port whose window holds one
+    form. Returns the window, the tile and the window's answer. `outcome` then waits for the new fill."""
+    window, more = find(target, folder)
+    if "worker" in more:
+        raise NoWindow(f"{target}: name the window's port, or the form's Application ID")
+    tiles = _call(window, "/state").get("tiles") or []
+    held = [k for k, t in enumerate(tiles) if t.get("askable")
+            and more.get("application") in (None, t.get("application_id"))]
+    if len(held) > 1:
+        named = ", ".join(str(tiles[k].get("application_id")) for k in held)
+        raise NoWindow(f"that window holds {len(held)} forms; name one by its Application ID: {named}")
+    if not held:
+        raise NoWindow(f"{target}: no form is held for you there now")
+    return window, held[0], _call(window, "/fill-again", {"id": f"tile-{held[0]}"})
+
+
 def outcome(window: dict, tile: int, every: float = 2.0, since: float | None = None) -> dict:
     """Tile `tile`'s caption once its form stopped being filled (held, paused, handed off, failed)."""
     since = since or time.monotonic()

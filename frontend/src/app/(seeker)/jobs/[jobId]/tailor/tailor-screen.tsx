@@ -296,7 +296,7 @@ export function TailorScreen({
                   <ResumeLists
                     name="tailor-from"
                     choices={choices}
-                    empty="None yet. Upload one, or generate one on Resumes & Experiences."
+                    empty="None yet. Upload one, or generate one on Resumes."
                     picked={selected}
                     onPick={(key) => {
                       setSelected(key);
@@ -399,7 +399,12 @@ function KeywordCard({
       )}
       <Card as="section" aria-label="Missing Keywords" padding="lg" className={PICK_CARD}>
         {match.missing.length > 0 ? (
-          <MissingKeywords missing={match.missing} picked={picked} onToggle={onToggle} />
+          <MissingKeywords
+            missing={match.missing}
+            shown={match.in_experiences ?? []}
+            picked={picked}
+            onToggle={onToggle}
+          />
         ) : (
           <div className="flex flex-col items-center py-8 text-center">
             <span className="bg-positive-tint text-positive-ink flex size-10 items-center justify-center rounded-full">
@@ -577,18 +582,39 @@ function MatchWaiting() {
  * asking first did not stop a student taking the one click to a higher score
  * (`KeywordCard`).
  */
+/**
+ * The missing keywords to pick, in groups. **In Your Experiences comes first**
+ * (KAN-587, 2026-11-05): keywords the student's Experiences already show
+ * (an entry, a bullet or a skill), though this resume leaves them out, so a
+ * pick there claims nothing new. The rest follow as Required, then Preferred.
+ * KAN-587 asked for an Add All button back; the user chose to show which
+ * skills the student has instead, so every keyword still takes its own click
+ * ("nothing picks in bulk", above). A required keyword in the first group
+ * comes first there and carries a visible "Required" tag: KAN-408 found a
+ * "(required)" that only a screen reader heard.
+ */
 function MissingKeywords({
   missing,
+  shown,
   picked,
   onToggle,
 }: {
   missing: Keyword[];
+  /** The missing keywords the student's Experiences show (`in_experiences`). */
+  shown: string[];
   picked: Set<string>;
   onToggle: (keyword: string) => void;
 }) {
+  const had = new Set(shown);
+  const rest = missing.filter((k) => !had.has(k.keyword));
   const groups = [
-    { label: "Required", keywords: missing.filter((k) => k.kind === "required") },
-    { label: "Preferred", keywords: missing.filter((k) => k.kind !== "required") },
+    {
+      label: "In Your Experiences",
+      note: "You've shown these in your Experiences, but this resume leaves them out.",
+      keywords: missing.filter((k) => had.has(k.keyword)),
+    },
+    { label: "Required", keywords: rest.filter((k) => k.kind === "required") },
+    { label: "Preferred", keywords: rest.filter((k) => k.kind !== "required") },
   ].filter((group) => group.keywords.length > 0);
 
   return (
@@ -600,6 +626,7 @@ function MissingKeywords({
       {groups.map((group) => (
         <div key={group.label}>
           <h3 className="text-label text-ink">{group.label}</h3>
+          {group.note && <p className="text-note text-ink-meta mt-1">{group.note}</p>}
           <ul role="list" aria-label={group.label} className="mt-2.5 flex flex-wrap gap-2">
             {group.keywords.map((k, i) => {
               const on = picked.has(k.keyword);
@@ -612,6 +639,9 @@ function MissingKeywords({
                   <Chip size="lg" pressed={on} onClick={() => onToggle(k.keyword)}>
                     {on ? <CheckIcon className="animate-pop" /> : <PlusIcon />}
                     {k.keyword}
+                    {group.note && k.kind === "required" && (
+                      <span className="text-meta text-ink-meta font-normal">Required</span>
+                    )}
                   </Chip>
                 </li>
               );

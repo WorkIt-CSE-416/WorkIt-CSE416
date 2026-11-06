@@ -11,6 +11,7 @@ import { ApplicationTile } from "./application-tile";
 import { ClosedSavedControl } from "./closed-saved";
 import { applicationHref } from "./query";
 import { StageSteps } from "./stage-steps";
+import { TailoredChip } from "@/components/tailored-chip";
 import { ViewResumeButton } from "./view-resume";
 
 /**
@@ -96,6 +97,12 @@ function ApplicationCard({
                 <PinIcon className="size-3.5 shrink-0" />
                 <span className="truncate">{where}</span>
               </p>
+            )}
+            {/* A resume made for this job, ready to send (KAN-217). */}
+            {item.tailored && (
+              <div className="mt-1.5">
+                <TailoredChip />
+              </div>
             )}
           </div>
         </div>
