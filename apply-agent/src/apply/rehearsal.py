@@ -1133,7 +1133,10 @@ class _Kept:
         self.close()  # a fresh, guarded page for Fill again: the browser of one Worker profile at a time
         stack = ExitStack()
         self._stack = stack
-        with submit_guard.guarding_on_open():  # guarded before its first load, where the site can (KAN-682)
+        from apply.plain.site import telling
+
+        # Guarded before its first load, where the site can (KAN-682); its tab told to the tile before that load too.
+        with submit_guard.guarding_on_open(), telling(self._shown):
             self._page = stack.enter_context(self._site.open(url, worker=self._worker))
         tab = getattr(self._page, "tab", None)
         self._shown(tab if isinstance(tab, int) else None)

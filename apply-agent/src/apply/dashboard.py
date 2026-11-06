@@ -628,6 +628,13 @@ class Dashboard:
         """The tab of its plain Worker that tile `tile`'s form is on, once `showing` said."""
         return self._tile_tabs.get(tile)
 
+    def blind(self, tile: int) -> bool:
+        """Whether tile `tile` shares its Worker with another tile (`--into`) and doesn't know its form's tab yet (its
+        page still opening): it shows nothing and takes no input, since the Worker's shown tab may be another form's."""
+        with self._lock:
+            worker = self.worker_of(tile)
+            return tile not in self._tile_tabs and sum(shown == worker for shown in self._shown) > 1
+
     def taking(self, into: Callable[[str, int], dict]) -> None:
         """`into(url, worker)` starts a new link in Worker `worker`'s running browser, with a tile of its own
         (add_tile), and says which: `apply rehearse --into` sends it through POST /rehearse."""
@@ -1740,7 +1747,8 @@ class _Handler(BaseHTTPRequestHandler):
 
 class _Shown:
     """The window's frame source by tile: tile k is Worker worker_of(k)'s frames and input, and, once the
-    tile's form has a tab of its own in that Worker (tab_of, a plain Worker's), that tab's only (KAN-717)."""
+    tile's form has a tab of its own in that Worker (tab_of, a plain Worker's), that tab's only (KAN-717).
+    A tile that shares its Worker and has no tab yet (Dashboard.blind) gets nothing and sends nothing."""
 
     def __init__(self, frames: Frames, dashboard: Dashboard):
         self._frames, self._dashboard = frames, dashboard
@@ -1750,23 +1758,32 @@ class _Shown:
         return self._dashboard.worker_of(tile), ({} if tab is None else {"tab": tab})
 
     def frame(self, tile: int) -> bytes | None:
+        if self._dashboard.blind(tile):
+            return None
         worker, tab = self._at(tile)
         return self._frames.frame(worker, **tab)
 
     def wait(self, tile: int, after: int, timeout: float) -> tuple[bytes | None, int]:
+        if self._dashboard.blind(tile):
+            time.sleep(timeout)
+            return None, after
         worker, tab = self._at(tile)
         return self._frames.wait(worker, after, timeout, **tab)
 
     def input(self, tile: int, event: dict) -> dict | None:
+        if self._dashboard.blind(tile):
+            return None
         worker, tab = self._at(tile)
         return self._frames.input(worker, event, **tab)
 
     def chooser(self, tile: int) -> str | None:
+        if self._dashboard.blind(tile):
+            return None
         worker, tab = self._at(tile)
         return self._frames.chooser(worker, **tab)
 
     def forget_chooser(self, tile: int) -> None:
-        if forget := getattr(self._frames, "forget_chooser", None):
+        if (forget := getattr(self._frames, "forget_chooser", None)) and not self._dashboard.blind(tile):
             worker, tab = self._at(tile)
             forget(worker, **tab)
 

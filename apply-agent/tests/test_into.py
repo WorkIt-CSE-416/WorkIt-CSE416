@@ -12,7 +12,7 @@ from apply.dashboard import Dashboard, NoFrames
 
 
 class Frames(NoFrames):
-    def frame(self, worker: int) -> bytes | None:
+    def frame(self, worker: int, tab: int | None = None) -> bytes | None:
         return f"worker {worker}".encode()
 
 
@@ -41,6 +41,8 @@ def test_a_link_sent_by_port_gets_a_tile_of_its_own_on_that_worker(window):
     _, answer = into.send(f"{port}:2", "https://jobs.example/two", folder)
     assert answer == {"tile": 2, "worker": 1} and taken == [("https://jobs.example/two", 1, 2)]
     assert len(board.state()["tiles"]) == 3
+    assert board._frames.frame(2) is None  # its form's tab not known yet: it might show another form's (KAN-717)
+    board.showing(2, 7)
     assert board._frames.frame(2) == b"worker 1"  # its tile shows that Worker's window
     assert "Browser 2" in board.page().split('data-k="2"')[1].split("</div>")[1]
 
@@ -211,3 +213,23 @@ def test_two_links_sent_into_one_worker_at_once_never_reset_the_others_guards():
         thread.join(10)
 
     assert connection.resets == [set()]  # one reset, with no other form open
+
+
+def test_a_forms_tab_is_told_to_its_tile_before_its_page_loads():
+    # `--into`: the new tile must know its own tab while its form still loads, else it would show and press
+    # whichever tab the Worker shows then, maybe another form's held Submit (KAN-717).
+    from apply.plain.site import PlainSite, telling
+
+    workers = _Workers()
+    site = PlainSite(workers, fetcher=object())
+    connection, said = _Connection(site), []
+    workers.running[0] = workers.SimpleNamespace(connection=connection)
+    call = connection.call
+    connection.call = lambda name, **given: said.append(name) or call(name, **given)
+    with telling(lambda tab: said.append(("shown", tab))), site.open("https://jobs.example.com/a", worker=0) as page:
+        pass
+
+    assert ("shown", page.tab) in said
+    told = said.index(("shown", page.tab))
+    assert not [name for name in said[:told] if name == "tabs.goto"]
+    assert [name for name in said[told:] if name == "tabs.goto"]

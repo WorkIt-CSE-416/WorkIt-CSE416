@@ -182,6 +182,43 @@ def test_a_hostile_tab_cant_press_the_held_forms_submit_through_the_tile_server(
 B64 = __import__("base64").b64encode(JPEG).decode()
 
 
+def test_a_tile_whose_form_is_still_loading_sends_nothing_to_another_forms_tab(monkeypatch):
+    """`--into`: _Kept.open says `showing` only after site.open returns, and that is after page.goto's load. Until
+    then the new tile is the Worker's shown tab, whichever: here form A, held, whose Submit counts as his."""
+    from apply import rehearsal
+
+    monkeypatch.setattr(rehearsal, "guard", lambda page: None)
+    worker, loaded, opened = Worker(), threading.Event(), threading.Event()
+
+    class Site_:
+        @contextmanager
+        def open(self, url, worker=0):
+            loaded.wait(10)  # page.goto(url): a hostile page holds its load as long as it likes
+            yield type("Page", (), {"tab": 2, "is_closed": lambda self: False, "close": lambda self: None})()
+
+    with PortFrames(1, lambda k: worker, capture="extension") as frames, Dashboard(1, frames) as board:
+        started(frames, worker)
+        board.showing(0, 1)  # tile 0: form A on tab 1, held
+        worker.send("tile.frame", tab=1, data=B64)
+        tile = board.add_tile(0)
+        kept = rehearsal._Kept(Site_(), 0, shown=lambda tab: board.showing(tile, tab))
+
+        def go():
+            with kept.open("https://x.example/"):
+                opened.set()
+
+        thread = threading.Thread(target=go, daemon=True)
+        thread.start()
+        time.sleep(0.2)
+        shown = board._frames.frame(tile)
+        for kind in ("down", "up"):
+            post(f"{board.url}/input/{tile}", {"type": kind, **CLICK}, **window(board))
+        loaded.set()
+        thread.join(3)
+    assert shown is None  # it shows form A's picture
+    assert [i["tab"] for i in worker.inputs] == []  # and its press lands on form A
+
+
 def test_after_showing_a_press_never_lands_on_the_new_active_tab():
     """The other side, which HOLDS: once `showing` said, a tab switch at the moment of the press changes nothing."""
     worker = Worker()
@@ -283,5 +320,35 @@ def test_a_public_guarded_page_that_knows_the_port_cant_press_the_held_forms_sub
                       "w": inner[0], "h": inner[1], "button": "left", "clicks": 1}
                 hostile.evaluate(FORGE, [board.url + "/input/0", at])
                 time.sleep(1)
+            time.sleep(1)
+    assert [p for p in site.sent if FINAL in p] == []
+
+
+def test_a_hostile_tab_that_closes_itself_cant_put_a_loading_tiles_press_on_the_held_submit():
+    site = Site({FORM: HELD_FORM, HOSTILE: "<title>Evil</title><p>x</p>"})
+    with real_worker(site) as context:
+        held = context.new_page()
+        held.goto(HOST + FORM)
+        guard(held)
+        lift(held)
+        held.bring_to_front()
+        box = held.get_by_role("button", name="Submit application").bounding_box()
+        inner = held.evaluate("() => [innerWidth, innerHeight]")
+        with PortFrames(1, lambda k: context.worker, capture="extension") as frames, Dashboard(1, frames) as board:
+            board.showing(0, held.tab)
+            assert _frame_of(frames, held.tab)
+            tile = board.add_tile(0)  # `--into`: no `showing` until its page has loaded
+            hostile = context.new_page()
+            guard(hostile)
+            hostile.goto(HOST + HOSTILE)
+            hostile.evaluate("() => { setTimeout(() => window.close(), 100); }")
+            until = time.monotonic() + 6
+            while frames._tabs.get(0) != held.tab and time.monotonic() < until:
+                time.sleep(0.05)
+            print("shown tab now the held one:", frames._tabs.get(0) == held.tab)
+            for kind in ("down", "up"):
+                post(f"{board.url}/input/{tile}", {"type": kind, "x": box["x"] + box["width"] / 2,
+                                                   "y": box["y"] + box["height"] / 2, "w": inner[0], "h": inner[1],
+                                                   "button": "left", "clicks": 1}, **window(board))
             time.sleep(1)
     assert [p for p in site.sent if FINAL in p] == []
