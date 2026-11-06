@@ -5,11 +5,11 @@
 //   window-capture --pid <chrome pid> [--fps 30] [--quality 0.85]
 //       reads targets on stdin, one a line: "<left> <top> <width> <height> <viewport w> <viewport h> <title>",
 //       the shown Chrome window's bounds, its tab's viewport, in points, and the tab's title. It streams
-//       that window of <pid>: one whose title is the tab's (KAN-717), the nearest those bounds if more
-//       than one is, cropped to the viewport (the bottom of the window, under Chrome's toolbar), at the
-//       screen's pixel scale. With no such window it stops and says "mismatch": never another window.
-//       Each frame goes to stdout as a 4-byte big-endian length, then a JPEG. Status lines (JSON) go
-//       to stderr, each with the pid, and the window's ID and title once it streams one.
+//       that window of <pid>: the only one whose title is the tab's (KAN-717), cropped to the viewport
+//       (the bottom of the window, under Chrome's toolbar), at the screen's pixel scale. With no such
+//       window, or more than one, it stops and says "mismatch": never another window. Each frame goes
+//       to stdout as a 4-byte big-endian length, then a JPEG. Status lines (JSON) go to stderr, each
+//       with the pid, and the window's ID and title once it streams one.
 //
 // The window is captured by its ID, wherever it is and whatever covers it: nothing is focused,
 // raised or moved. A minimized window sends nothing.
@@ -53,21 +53,25 @@ struct Target: Equatable {
     var title: String
 }
 
-// Whether a window's title (as macOS lists it) is the tab's: macOS may add " - Google Chrome…" and cut
-// a long title in the middle with "…". The same rule as window_capture.title_matches.
+// Whether a window's title (as macOS lists it) is the tab's: macOS may add " - Google Chrome…" at the end and cut
+// a long title in the middle with "…", keeping at least `ends` characters of each end. The same rule as
+// window_capture.title_matches.
+let ends = 8
 func titleMatches(_ window: String?, _ tab: String) -> Bool {
     func squeeze(_ text: String) -> String { text.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ") }
     var shown = squeeze(window ?? "")
-    if let cut = shown.range(of: " - Google Chrome") { shown = String(shown[..<cut.lowerBound]) }
-    shown = shown.trimmingCharacters(in: .whitespaces)
     let wanted = squeeze(tab)
     if shown.isEmpty || wanted.isEmpty { return false }
     if shown == wanted { return true }
-    guard let dots = shown.range(of: "…") else { return false }
-    let head = shown[..<dots.lowerBound].trimmingCharacters(in: .whitespaces)
-    let tail = shown[dots.upperBound...].trimmingCharacters(in: .whitespaces)
-    return !(head.isEmpty && tail.isEmpty) && wanted.hasPrefix(head) && wanted.hasSuffix(tail)
-        && wanted.count >= head.count + tail.count
+    if let suffix = shown.range(of: #" - Google Chrome(?: for Testing)?(?: - [^…]{1,60})?$"#, options: .regularExpression) {
+        shown = String(shown[..<suffix.lowerBound]).trimmingCharacters(in: .whitespaces)
+    }
+    if shown == wanted { return true }
+    let parts = shown.components(separatedBy: "…")
+    guard parts.count == 2 else { return false }
+    let head = parts[0].trimmingCharacters(in: .whitespaces), tail = parts[1].trimmingCharacters(in: .whitespaces)
+    return head.count >= ends && tail.count >= ends && wanted.count > head.count + tail.count
+        && wanted.hasPrefix(head) && wanted.hasSuffix(tail)
 }
 
 final class Output: NSObject, SCStreamOutput, SCStreamDelegate {
@@ -112,17 +116,15 @@ final class Capturer {
         lock.lock(); stream = nil; window = 0; _sending = false; lock.unlock()
     }
 
-    // The window of <pid> titled as the tab, nearest its bounds; a few looks, as macOS lists a new title a moment late.
+    // The one window of <pid> titled as the tab; a few looks, as macOS lists a new title a moment late. A page sets
+    // its own title, so two windows titled alike are no proof of either: nil, and the tile takes the extension's frames.
     func find(_ wanted: Target) async throws -> SCWindow? {
         for look in 0..<8 {
             let content = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: false)
             let mine = content.windows.filter { $0.owningApplication?.processID == pid && $0.windowLayer == 0
                 && titleMatches($0.title, wanted.title) }
-            func distance(_ w: SCWindow) -> CGFloat {
-                abs(w.frame.minX - wanted.bounds.minX) + abs(w.frame.minY - wanted.bounds.minY)
-                    + abs(w.frame.width - wanted.bounds.width) + abs(w.frame.height - wanted.bounds.height)
-            }
-            if let found = mine.min(by: { distance($0) < distance($1) }) { return found }
+            if mine.count == 1 { return mine[0] }
+            if mine.count > 1 { return nil }
             if look < 7 { try await Task.sleep(nanoseconds: 150_000_000) }
         }
         return nil
@@ -134,7 +136,7 @@ final class Capturer {
                 sending = false
                 if let old = stream { try? await old.stopCapture() }
                 stopped()
-                say(["mismatch": "no window of pid \(pid) titled as its tab", "pid": Int(pid), "title": wanted.title])
+                say(["mismatch": "no one window of pid \(pid) titled as its tab", "pid": Int(pid), "title": wanted.title])
                 return
             }
             let filter = SCContentFilter(desktopIndependentWindow: found)

@@ -13,6 +13,7 @@ from pathlib import Path
 import pytest
 
 from apply.dashboard import Dashboard
+from apply.plain import window_capture
 from apply.plain.tile import PortFrames
 from apply.submit_guard import guard, lift
 
@@ -193,6 +194,17 @@ def test_after_showing_a_press_never_lands_on_the_new_active_tab():
         worker.send("tile.frame", tab=3, data=B64)
         post(f"{board.url}/input/0", {"type": "up", **CLICK}, **window(board))
     assert [i["tab"] for i in worker.inputs] == [1, 1]
+
+
+# --- 4. the title check
+
+@pytest.mark.parametrize(("window", "tab"), [
+    ("S…", "Submit application for Software Engineering"),  # a page's own title with a "…" in it: any tab starting S
+    ("…g", "Submit application for Software Engineering"),
+    ("Submit application - Google Chrome anything the page likes", "Submit application"),
+])
+def test_a_page_chosen_window_title_doesnt_pass_for_another_tabs(window, tab):
+    assert window_capture.title_matches(window, tab) is False
 
 
 # --- 7. on a real plain Worker: what a page at a PUBLIC address can do (Chrome's Local Network Access applies)

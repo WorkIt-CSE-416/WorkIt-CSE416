@@ -17,6 +17,7 @@ or changes it: without it, `allowed()` is False, the tile keeps the captureVisib
 import hashlib
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -92,19 +93,30 @@ def chrome_of(host_pid: int | None) -> int | None:
     return int(found) if found.isdigit() and int(found) > 1 else None
 
 
+# What Chrome may add after a tab's title in its window's title: " - Google Chrome", then " - <profile>". Only at the end,
+# so a page that puts " - Google Chrome" in the middle of its own title gains nothing.
+CHROME_SUFFIX = re.compile(r" - Google Chrome(?: for Testing)?(?: - [^…]{1,60})?$")
+ENDS = 8  # characters an elided title must keep at each end of the tab's (KAN-717)
+
+
 def title_matches(window: str, tab: str) -> bool:
     """Whether a Chrome window's title (`window`, as macOS lists it) is the title of `tab`, its shown tab
-    (KAN-717). macOS may add " - Google Chrome…" and cut a long title in the middle with "…"."""
+    (KAN-717). macOS may add " - Google Chrome…" and cut a long title in the middle with "…". A page sets its own
+    title, so this is no proof on its own: an elided title must keep ENDS characters of each end, and the helper
+    films a window only when exactly one of its Chrome's windows matches."""
     window, tab = " ".join((window or "").split()), " ".join((tab or "").split())
-    window = window.split(" - Google Chrome")[0].strip()
     if not window or not tab:
         return False
     if window == tab:
         return True
-    if "…" not in window:
+    window = CHROME_SUFFIX.sub("", window).strip()
+    if window == tab:
+        return True
+    if window.count("…") != 1:
         return False
-    head, tail = (part.strip() for part in window.split("…", 1))
-    return bool(head or tail) and tab.startswith(head) and tab.endswith(tail) and len(tab) >= len(head) + len(tail)
+    head, tail = (part.strip() for part in window.split("…"))
+    return len(head) >= ENDS and len(tail) >= ENDS and len(tab) > len(head) + len(tail) \
+        and tab.startswith(head) and tab.endswith(tail)
 
 
 class WindowStream:
