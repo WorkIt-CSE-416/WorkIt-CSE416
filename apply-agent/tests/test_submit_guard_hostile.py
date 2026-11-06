@@ -147,6 +147,33 @@ PAGES = {
         <form id=f method=post action="{FINAL}"><input name=first value=Test></form>
         <script>document.getElementById('b').addEventListener('click', (e) => {{ e.preventDefault();
           document.getElementById('f').submit(); }});</script>"""},
+    # PR 477's review (KAN-710): a page that sets the guards' own state. The guard keeps it in its closure, set
+    # only by Apply's control event, so a page's window.__apply* is nothing to it.
+    "a page that lifts the guards itself": {START: f"""<title>Apply</title>
+        <script>window.__applyRehearsalLifted = window.__applyDriveLifted = true;</script>
+        <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    # Arms plain code's press itself, for good, so a form its timer posts after the Next counts as the press's.
+    "a page that arms the account click itself": {START: f"""<title>Apply</title><script>window.__applyAccountClick = true;
+        Object.defineProperty(window, '__applyAccountClick', {{get: () => true, set() {{}}}});</script>
+        <label>First <input name=first value=Test></label><button id=b type=button>Next</button>
+        <form id=f2 method=post action="{SAVE}"><input type=hidden name=submit value=1></form>
+        <script>document.getElementById('b').addEventListener('click', () => setTimeout(() =>
+          HTMLFormElement.prototype.submit.call(document.getElementById('f2')), 1200));</script>"""},
+    # A frame inside the Next that arms its own guard, so the press that lands in it posts its form to the top page.
+    "an inner frame that arms itself": {
+        START: f"""<title>Apply</title><form method=post action="/acme/jobs/123/step2"><input name=first value=Test>
+            <button id=b style="width:320px;height:140px;padding:0">Next<iframe style="border:0;width:300px;height:120px"
+            srcdoc="<script>window.__applyAccountClick = true</script><form method=post action='{SAVE}' target=_top
+            style='margin:0'><input type=hidden name=submit value=1><button style='width:300px;height:120px'>Next</button>
+            </form>"></iframe></button></form>""",
+        "/acme/jobs/123/step2": "<title>Two</title><input name=next>"},
+    # A frame that sends the worker extension's touch itself, then clicks its own form's button: on a plain Worker
+    # the touch counted that untrusted click as Apply's press while the account click was armed in every frame.
+    "a frame that forges the extension's touch": {START: f"""<title>Apply</title><label>First <input name=first
+        value=Test></label><button id=b type=button>Next</button><iframe srcdoc="<form id=f method=post action='{SAVE}'
+        target=_top><input name=last value=P><input type=hidden name=submit value=1><button id=g>Go</button></form>
+        <script>setInterval(() => {{ dispatchEvent(new Event('__apply_touch')); document.getElementById('g').click(); }},
+        100)</script>"></iframe>"""},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",

@@ -36,7 +36,7 @@ from playwright.sync_api import Error as PlaywrightError
 from test_claude_fill import LUNAR_FORM, LUNAR_URL
 from test_workday_filler import CACI_FORM, CACI_URL, NOW, ONE_PAGER, fill_all
 
-from apply import captcha
+from apply import captcha, submit_guard
 from apply.accounts import Accounts
 from apply.ashby import AshbyFiller
 from apply.claude_fill import OnePage
@@ -45,6 +45,12 @@ from apply.keychain import InMemoryKeychain
 from apply.lever import LeverFiller
 from apply.submit_guard import CAPTCHA_TRY, DriveGuard, guard, lift, renote
 from apply.workday import WorkdayFiller
+
+
+def _armed(page) -> bool:
+    """Whether plain code's account click is armed in any frame of the page (the guards' own state, KAN-710)."""
+    return submit_guard.control(page, {"query": "account"}) == "heard"
+
 
 SKYDIO_JOB = "79fdda46-4ff5-42c7-b208-55f2084cdb8c"
 
@@ -490,7 +496,7 @@ def test_plain_codes_click_on_a_sign_in_button_named_submit_goes_through_a_rehea
         page.get_by_role("button", name="Submit").click()  # not plain code's: blocked
         page.wait_for_timeout(500)
         assert server.sign_ins == []
-        page.evaluate("window.__applyAccountClick = true")
+        submit_guard.let_account_click(page)  # Apply's own, by the guards' control (KAN-710)
         page.get_by_role("button", name="Submit").click()
         page.wait_for_load_state()
         page.wait_for_timeout(500)
@@ -605,7 +611,7 @@ def test_a_next_that_is_a_submit_or_on_a_review_page_is_never_clicked_or_let_thr
         with pytest.raises(Handoff, match="may send the form"):
             filler._next_step(page, "Next")
         page.wait_for_timeout(300)
-        assert posts == [] and page.evaluate("window.__applyAccountClick") is not True
+        assert posts == [] and not _armed(page)
         browser.close()
 
 
@@ -884,7 +890,7 @@ def test_ask_goes_on_and_back_on_native_post_steps_by_plain_code_s_own_click():
         ])
         assert posts == ["/app/2", "/app/1"] and page.title() == "One"
         assert reply.reply == "Set it and came back." and reply.couldnt == []  # Claude's blocked click isn't his to read
-        assert page.evaluate("window.__applyAccountClick") is not True  # the flag is gone in the step it led to
+        assert not _armed(page)  # the account click is off again in the step it led to
 
 
 def test_ask_s_press_never_lets_a_post_to_the_final_url_through(monkeypatch):

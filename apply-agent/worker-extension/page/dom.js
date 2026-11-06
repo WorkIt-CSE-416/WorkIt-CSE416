@@ -379,7 +379,8 @@
       if (!fn) return { err: { name: "BadOp", message: `no dom method ${method}` } };
       // A press of Apply's counts as a touch for the page's guard (apply.plain.guards), as a
       // trusted click of Playwright's does: the guard then shows what it blocked.
-      if (TOUCHES.has(method)) window.dispatchEvent(new CustomEvent("__apply_touch", { detail: "apply" }));
+      // The touch is named with this run's tokens (ops/guard.js), which no page knows, so no page can send one.
+      if (TOUCHES.has(method)) for (const type of globalThis.__applyTouchTypes || []) window.dispatchEvent(new CustomEvent(type));
       try {
         const value = fn(...args);
         return { ok: value === undefined ? null : value };

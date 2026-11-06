@@ -50,24 +50,9 @@ def _sha(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
-def _lifted_file() -> str:
-    """LIFTED as window.__applyLift({again, warning, wrong, held}), run in each frame of a lifted tab."""
-    body = submit_guard.LIFTED.replace("AGAIN", "note.again === true").replace("WRONG", "note.wrong !== false")
-    body = body.replace("HELD", "String(note.held || '')").replace("WARNING", "String(note.warning || '')")
-    return "window.__applyLift = (note) => {\n" + body.strip().removesuffix(";") + ";\n};\n"
-
-
-def _applied_file() -> str:
-    """APPLIED_NOTE as window.__applyAppliedNote(day), run in the top frame of a tab that shows it (KAN-621)."""
-    body = submit_guard.APPLIED_NOTE.replace("const day = DAY;", "const day = String(noteDay);")
-    assert "DAY" not in body
-    return "window.__applyAppliedNote = (noteDay) => {\n" + body.strip().removesuffix(";") + ";\n};\n"
-
-
 def files() -> dict[str, str]:
     """Each guard file's name in vendor/guards/ and its text."""
-    out = {"rehearsal.js": submit_guard.rehearsal_script(port=True),
-           "lifted.js": _lifted_file(), "rearmed.js": submit_guard.REARMED, "applied.js": _applied_file()}
+    out = {"rehearsal.js": submit_guard.rehearsal_script(port=True)}
     for sms in (False, True):
         for marketing in (False, True):
             out[f"drive-{int(sms)}{int(marketing)}.js"] = submit_guard.drive_script(sms, marketing, port=True)
@@ -76,7 +61,7 @@ def files() -> dict[str, str]:
 
 # The CDP script each plain file stands for, by sha256: what add_init_script recognizes.
 def _prepared() -> dict[str, str]:
-    known = {_sha(submit_guard.SCRIPT): "rehearsal.js", _sha(submit_guard.REARMED): "rearmed.js"}
+    known = {_sha(submit_guard.SCRIPT): "rehearsal.js"}
     for sms in (False, True):
         for marketing in (False, True):
             known[_sha(submit_guard.drive_script(sms, marketing))] = f"drive-{int(sms)}{int(marketing)}.js"
@@ -133,9 +118,30 @@ def alternatives(pattern: str) -> list[str]:
 
 # --- submit_guard on a plain page
 
+def tokens(worker) -> None:
+    """Tell the worker extension this run's guard events once (KAN-710): the touch it sends before each press,
+    the guards' control events and the rehearsal guard's tells, which its relay hears. No page sees them."""
+    if worker.__dict__.get("_apply_tokens"):
+        return
+    worker.call("guard.tokens", touch=[submit_guard.touch_type(k) for k in submit_guard.BOTH],
+                tell=submit_guard.TELL_TYPE, tells=list(submit_guard.TELLS))
+    worker.__dict__["_apply_tokens"] = True
+
+
+def control(page, events: list, mark: str | None = None) -> str:
+    """submit_guard.control: the events in every frame of the tab, from the extension's isolated world."""
+    try:
+        tokens(page.worker)
+        said = page.worker.call("guard.control", tab=page.tab, events=events, mark=mark) or []
+    except Exception:
+        return "unheard"  # a page that went away, as _in_frames
+    return "frame" if "frame" in said else "heard" if "heard" in said else "unheard"
+
+
 def guard(page, reload: bool = True) -> None:
     """submit_guard.guard: the rules on this tab, the guard on every page from now, then a reload
     (none from submit_guard.on_open, before the tab's first load)."""
+    tokens(page.worker)
     page.route(PATTERN, submit_guard._refuse)
     page.context.add_init_script(submit_guard.SCRIPT)
     if reload:
@@ -146,7 +152,8 @@ def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, 
          held: str = "", dismiss=None) -> None:
     """submit_guard.lift: the page and every page Lisul loads in its tab are his, but for a `held`
     Submit (KAN-629): the guard script still blocks the button that sends, and the red note's Dismiss
-    calls `dismiss`. The rules come off either way: the in-page guard alone holds a held Submit."""
+    calls `dismiss`. The rules come off either way: the in-page guard alone holds a held Submit. What hears his
+    presses are bindings the extension calls only on the guard's own tell, never on the page's call."""
     if bound:
         pressed = again = dismiss = None
     if pressed:
@@ -156,18 +163,19 @@ def lift(page, pressed=None, again=None, warning: str = "", wrong: bool = True, 
     if dismiss:
         page.expose_binding("__applyDismissHold", lambda source: dismiss())
     page.unroute(PATTERN, submit_guard._refuse)
-    _note(page, bool(again or bound), warning, wrong, held)
+    _note(page, submit_guard._events({"lift": submit_guard.note(bool(again or bound), warning, wrong, held)}))
 
 
 def renote(page, warning: str = "", wrong: bool = True, held: str = "") -> bool:
     """submit_guard.renote: the lifted page's note anew (`held`: what holds Submit still). A page
     still guarded (one Lisul already applied to, KAN-621) stays guarded: False."""
-    return _note(page, True, warning, wrong, held, only_lifted=True) is not False
+    events = submit_guard._events({"lift": submit_guard.note(True, warning, wrong, held)})
+    return _note(page, events, only_lifted=True) is not False
 
 
-def _note(page, again: bool, warning: str, wrong: bool, held: str = "", only_lifted: bool = False):
-    return page.worker.call("guard.lift", tab=page.tab, again=again, warning=warning, wrong=wrong, held=held,
-                            onlyLifted=only_lifted, sha256=_sha(FILES["lifted.js"]))
+def _note(page, events: list, only_lifted: bool = False):
+    tokens(page.worker)
+    return page.worker.call("guard.lift", tab=page.tab, events=events, onlyLifted=only_lifted)
 
 
 def warn_applied(page, day: str, dismissed=None) -> None:
@@ -175,23 +183,29 @@ def warn_applied(page, day: str, dismissed=None) -> None:
     its tab loads; the guard stays on. `dismissed` hears his second press of Dismiss."""
     if dismissed:
         page.expose_binding("__applyDismissApplied", lambda source: dismissed())
-    page.worker.call("guard.applied", tab=page.tab, day=day, sha256=_sha(FILES["applied.js"]))
+    tokens(page.worker)
+    page.worker.call("guard.applied", tab=page.tab,
+                     events=submit_guard._events({"applied": day}, (submit_guard.REHEARSAL,)))
 
 
 def applied_dismissed(page) -> None:
     """submit_guard.applied_dismissed: no page of the tab shows the note again."""
-    page.worker.call("guard.applied", tab=page.tab, day=None, sha256=_sha(FILES["applied.js"]))
+    tokens(page.worker)
+    page.worker.call("guard.applied", tab=page.tab, events=None,
+                     dismissed=submit_guard._events({"appliedDismissed": True}, (submit_guard.REHEARSAL,)))
 
 
 def rearm(page) -> None:
     """submit_guard.rearm: the rules back on and the page Apply's again, with no reload."""
     page.route(PATTERN, submit_guard._refuse)
-    page.worker.call("guard.rearm", tab=page.tab, sha256=_sha(FILES["rearmed.js"]))
+    tokens(page.worker)
+    page.worker.call("guard.rearm", tab=page.tab, events=submit_guard._events({"lift": None}))
 
 
 def touch(page, by: str = "lisul", frame: int = 0) -> None:
     """Count a press about to be made in `frame` as Lisul's (or Apply's) touch: what S3's tile
     replay does in the extension before each press of his."""
+    tokens(page.worker)
     page.worker.call("guard.touch", tab=page.tab, frame=frame, by=by)
 
 
@@ -200,6 +214,7 @@ def reset(worker) -> None:
     rules, lifts and bindings all go. Its open pages keep what already ran in them."""
     worker.call("guard.reset")
     worker.__dict__.pop("_bindings", None)
+    worker.__dict__.pop("_apply_tokens", None)
 
 
 class PlainDriveGuard(DriveGuard):
@@ -211,6 +226,7 @@ class PlainDriveGuard(DriveGuard):
         self._blocked: list[str] = []
         self._driving = False
         script = submit_guard.drive_script(sms_opt_in, marketing_opt_in)
+        tokens(page.worker)
         page.worker.on("guard.said", self._said)
         page.context.add_init_script(script)
         page.worker.call("guard.inject", tab=page.tab, **file_params(PREPARED[_sha(script)]))
@@ -230,23 +246,10 @@ class PlainDriveGuard(DriveGuard):
             pass  # a page that went away has said all it will
         return list(self._blocked)
 
-    def lift(self) -> None:
-        self._flags(__applyDriveLifted=True)
-
-    def let_account_click(self, element=None) -> None:
-        """In every frame: the guard there lets only a press the extension makes in that frame (its __apply_touch)."""
-        self._flags(__applyAccountClick=True)
-
-    def let_profile_click(self, let: bool = True) -> None:
-        self._flags(__applyProfileClick=let)
-
-    def let_upload_post(self, let: bool = True) -> None:
-        self._flags(__applyUploadPost=let)
-
-    def arm(self) -> None:
-        self._flags(__applyDriveLifted=False, __applyAccountClick=False, __applyProfileClick=False,
-                    __applyUploadPost=False)
-        self._set_driving(True)
+    def let_account_click(self, element=None) -> bool:
+        """In every frame: the guard there lets only a press the extension makes in that frame (its touch)."""
+        submit_guard.control(self._page, {"account": True})
+        return True
 
     def asking(self, on: bool, may_tick: bool = False) -> None:
         """Nothing on the page: every press here comes through plain.tools, which judges it on the real element."""
@@ -255,9 +258,3 @@ class PlainDriveGuard(DriveGuard):
         """Only keeps the state. A captcha's frame refuses trusted presses alone, and every press on a plain
         Worker is synthetic: there the plain tools refuse each action on a captcha (KAN-617)."""
         self._driving = driving
-
-    def _flags(self, **flags) -> None:
-        try:
-            self._page.worker.call("guard.flags", tab=self._page.tab, set=flags)
-        except Exception:
-            pass  # a page that went away, as _in_frames

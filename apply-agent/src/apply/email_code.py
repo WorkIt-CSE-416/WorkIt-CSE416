@@ -30,7 +30,7 @@ from collections.abc import Callable
 from datetime import datetime, timedelta
 from urllib.parse import urlsplit
 
-from apply import account_pages, greenhouse, workday
+from apply import account_pages, greenhouse, submit_guard, workday
 from apply.adapters import Clock, Mailbox
 from apply.gmail import MailedCode
 
@@ -44,9 +44,6 @@ FIELDS = f"{greenhouse.SECURITY_BOXES}, {greenhouse.SECURITY_BOX}, {account_page
 NOT_A_CODE = re.compile(r"zip|postal|post_code|country|area|promo|coupon|discount|referr|invite|dial", re.IGNORECASE)
 # The words of a box, read in the page: its id, name, label, placeholder and autocomplete.
 WORDS = "b => [b.id, b.name, b.getAttribute('aria-label'), b.placeholder, b.autocomplete].join(' ')"
-# The submit guards on (typing) and off (the page is Lisul's again), in every frame.
-ARM = "window.__applyRehearsalLifted = false; window.__applyDriveLifted = false"
-DISARM = "window.__applyRehearsalLifted = true; window.__applyDriveLifted = true"
 SETTLE_MS = 1000  # how long the guard stays on after the code is in, for a page that sends itself
 
 FILLED = "Code filled from an email from {sender}. Check it and press Submit yourself"
@@ -205,19 +202,8 @@ def _type(page, boxes: list, code: str) -> bool:
         limit = boxes[0].get_attribute("maxlength")
         if limit and limit.isdigit() and 0 < int(limit) < len(code):
             return False
-    _in_frames(page, ARM)
-    try:
+    with submit_guard.paused(page):  # both guards on while it types, in every frame (KAN-710: Apply's alone)
         for box, part in zip(boxes, list(code) if len(boxes) > 1 else [code]):
             box.fill(part)
         page.wait_for_timeout(SETTLE_MS)
-    finally:
-        _in_frames(page, DISARM)
     return True
-
-
-def _in_frames(page, script: str) -> None:
-    for frame in page.frames:
-        try:
-            frame.evaluate(script)
-        except Exception:
-            continue

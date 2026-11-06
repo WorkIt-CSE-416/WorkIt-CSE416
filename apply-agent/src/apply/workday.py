@@ -62,7 +62,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import Locator, Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
-from apply import feed, fill_engine, trace
+from apply import feed, fill_engine, submit_guard, trace
 from apply.accounts import NEEDS_SIGN_IN, Accounts
 from apply.adapters import JobSite
 from apply.confirmation import wait_for_confirmation
@@ -627,10 +627,7 @@ def _let_account_click(page: Page, let: bool = True) -> None:
     guard (apply.submit_guard), which would take Workday's "Submit" (its
     label in the Sign in with email view, Sonos's, live) for the application's;
     `let=False` puts the guard back."""
-    try:
-        page.evaluate(f"window.__applyAccountClick = {'true' if let else 'false'}")
-    except Exception:
-        pass  # the page navigating: its next document has no guard state to set yet
+    submit_guard.let_account_click(page, let)  # KAN-710: by the guards' own control, which no page can send
 
 
 def _by_email(page: Page) -> None:

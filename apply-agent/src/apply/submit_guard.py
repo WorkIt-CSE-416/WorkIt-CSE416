@@ -80,6 +80,7 @@ rearm(), without a reload, so his fixes stay, before Apply drives it again."""
 
 import json
 import re
+import secrets
 import threading
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -118,36 +119,79 @@ PROFILE_DIALOG = r"""(dialog) => {
 
 _TEMPLATE = r"""
 (() => {
-  if (window.__@KEY@Guard) return;
+  // The guard's own state (KAN-710): in this closure, never on window, so no page script reads or sets it. Apply
+  // changes it only by @CONTROL@, an event named with a token of this run that only Apply's own scripts know: sent
+  // from an isolated world (a CDP isolated world, or the worker extension's), or by an init script before any page
+  // code. The guard hears it first, at the window, and stops it there.
+  const own = Object.prototype.hasOwnProperty, apply = Reflect.apply, parse = JSON.parse, toJSON = JSON.stringify;
+  const debug = console.debug, dispatch = EventTarget.prototype.dispatchEvent, Custom = CustomEvent;
+  const has = (o, k) => o !== null && typeof o === 'object' && apply(own, o, [k]);
+  const S = {lifted: false, held: false, paused: false, note: null, account: null, profile: false, upload: false,
+             asking: false, askTick: false, driving: false, touchUntil: 0, applied: null, appliedDismissed: false};
+  const MARK = '__@KEY@Guard@TOKEN@';
+  if (apply(own, window, [MARK])) return;
+  Object.defineProperty(window, MARK, {value: true});
+  const onControl = [];  // what else hears a control: the note, below
+  addEventListener('@CONTROL@', (event) => {
+    event.stopImmediatePropagation();
+    let cmd = null;
+    try { cmd = parse(event.detail); } catch (e) { return; }
+    if (cmd === null || typeof cmd !== 'object') return;
+    if (has(cmd, 'query')) {  // Apply's tests ask: is this state on? The answer is the event's ack
+      if (S[String(cmd.query)] === true || (cmd.query === 'account' && S.account !== null)) event.preventDefault();
+      return;
+    }
+    if (has(cmd, 'lift')) {
+      const n = cmd.lift;
+      S.lifted = n !== null && typeof n === 'object';
+      S.held = S.lifted && has(n, 'held') && !!n.held;
+      S.note = S.lifted ? n : null;
+    }
+    if (has(cmd, 'renote') && S.lifted && cmd.renote !== null && typeof cmd.renote === 'object') {
+      S.held = has(cmd.renote, 'held') && !!cmd.renote.held;
+      S.note = cmd.renote;
+    }
+    if (has(cmd, 'pause')) S.paused = cmd.pause === true;
+    if (has(cmd, 'account')) {
+      const at = event.target;
+      S.account = cmd.account === true ? true : cmd.account === 'element' && at instanceof Element ? at : null;
+    }
+    for (const k of ['profile', 'upload', 'asking', 'askTick', 'driving', 'appliedDismissed']) if (has(cmd, k)) S[k] = cmd[k] === true;
+    if (has(cmd, 'applied')) S.applied = typeof cmd.applied === 'string' ? cmd.applied : null;
+    for (const f of onControl) { try { f(cmd); } catch (e) {} }
+    event.preventDefault();  // heard
+  }, true);
+  // What the guard tells Apply (Lisul's press of a Submit, his Fill again, his Dismiss): in its own voice, which a
+  // page can neither forge nor hear.
+  const tell = (name, ...args) => {@TELL@
+  };
   // A captcha's own frame is Lisul's to do (apply.captcha): nothing in it is the application.
   const host = location.hostname, path = location.pathname;
   if (@CAPTCHA_HOSTS@.some((h) => host === h || host.endsWith('.' + h)) || @CAPTCHA_PATHS@.some((p) => path.startsWith(p))) {
 @CAPTCHA@
     return;
   }
-  window.__@KEY@Guard = true;
   // Lifted, Lisul's page lets everything through, unless Apply holds its Submit (a legal answer the review
-  // found wrong): then a button or request that sends is blocked still, and the held note says why.
+  // found wrong): then a button or request that sends is blocked still, and the held note says why. Paused: Apply
+  // types an emailed code on his page (apply.email_code), with the guard on meanwhile.
   const held = () => @HELD@;
-  const lifted = () => @LIFTED@ && !held();
-  // Plain code's own press (KAN-710): it arms window.__applyAccountClick (true, or on a CDP Worker the element it
+  const lifted = () => S.lifted && !S.paused && !held();
+  // Plain code's own press (KAN-710): Apply arms the account click (true, or on a CDP Worker the element it
   // presses, in that element's frame alone), then presses. Only a press that lands in this frame on that element
   // counts: a trusted click, or on a plain Worker an untrusted one right after the worker extension marks its press.
   // A frame inside the pressed element, a page's own click, or a click before the arming never counts.
-  const armed = () => {
-    const by = window.__applyAccountClick;
-    return by === true || (by instanceof Element) ? by : null;
-  };
+  const armed = () => S.account;
   let press = null;  // {event, target, by, form}: the last press of Apply's (or, on a held page, Lisul's)
-  let pressNext = 0;  // a plain Worker's press mark (PORT_TOUCH): the click right after it is a press, till this time
+  let userClick = null;  // the click in dispatch that is Apply's or Lisul's own
+  const user = (event) => event.isTrusted || event === userClick;
   addEventListener('click', (event) => {
-    const user = event.isTrusted || performance.now() < pressNext;
-    pressNext = 0;
-    const by = armed();
-    if (!user) return;
+    userClick = event.isTrusted || performance.now() < S.touchUntil ? event : null;
+    S.touchUntil = 0;
+    const at = armed();
+    if (!userClick) return;
     const target = event.target instanceof Element ? event.target : null;
-    press = target && (!by || by === true || by.contains(target))
-      ? {event, target, by, form: (target.closest('button, input') || {}).form || target.closest('form')} : null;
+    press = target && (!at || at === true || at.contains(target))
+      ? {event, target, by: at, form: (target.closest('button, input') || {}).form || target.closest('form')} : null;
   }, true);
   // Plain code's press is on: armed, and the press came under this same arming.
   const accountClick = () => !!press && !!press.by && press.by === armed();
@@ -170,7 +214,7 @@ _TEMPLATE = r"""
   };
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).
-  const profileClick = () => window.__applyProfileClick === true;
+  const profileClick = () => S.profile;
   // Only a button that names no application, in a pop-up that is a profile step and no more.
   const profileStep = (el) => {
     const dialog = el && el.closest && el.closest('[role=dialog], [aria-modal=true], dialog[open]');
@@ -196,11 +240,12 @@ _TEMPLATE = r"""
   const blocked = window.__@KEY@Blocked = [];
   let touched = false;  // a real click or key on the page: Apply's or Lisul's
   for (const kind of ['pointerdown', 'keydown']) addEventListener(kind, (event) => { if (event.isTrusted) touched = true; }, true);@PORT_TOUCH@
+@NOTE@
   const note = (what) => {
     blocked.push(what);
     if (held()) {  // Lisul's own Submit on a held page: the held note says why, with its Dismiss button
       console.warn('@NAME@ held ' + what);
-      if (window.__applyHeldBlocked) window.__applyHeldBlocked();
+      showNote();
       return;
     }
     console.warn('@NAME@ blocked ' + what);@PORT_SAID@
@@ -243,8 +288,9 @@ _TEMPLATE = r"""
     if (!target) return;
     if (lifted()) {  // Lisul's page: his click goes through, and Apply hears of one that sends
       // Saying whether it was a sign-in, account or code form's (Workday's Sign in with email names its button
-      // Submit): that press sends no application, so Resume still goes on after it.
-      if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80),
+      // Submit): that press sends no application, so Resume still goes on after it. Only his own press: a trusted
+      // click, or a plain Worker's press from the tile.
+      if (sends(target) && user(event)) tell('__applyLisulPressed', wordsOf(target).trim().slice(0, 80),
         accountForm(target) || codeForm(target));
       return;
     }
@@ -361,7 +407,7 @@ _TEMPLATE = r"""
   // Plain code's résumé attach (apply.attach): the page's own script posting the file it was just given, as iCIMS
   // posts its résumé to be parsed by a native submission (KAN-691). Only a form that holds a chosen file, sent by no
   // button that sends, and never to a final URL; outside the attach's window it is blocked as ever.
-  const uploadPost = (form, by) => window.__applyUploadPost === true && !(by && sends(by))
+  const uploadPost = (form, by) => S.upload && !(by && sends(by))
     && [...form.querySelectorAll('input[type=file]')].some((input) => input.files && input.files.length > 0)
     && !postsFinal(form, by);
   window.addEventListener('submit', (event) => {
@@ -521,7 +567,7 @@ _CONTROLS = r"""
   // by send_click's words. The hook sees a snapshot's role and name only; this sees type=password and the rest.
   const askFacts = @ASK_ELEMENT@;
   const SECRET = new RegExp(@ASK_SECRET@, 'i'), ATTESTS = new RegExp(@ASK_ATTEST@, 'i'), RESEND = new RegExp(@ASK_RESEND@, 'i');
-  const asking = (event) => window.__applyAsking === true && event.isTrusted && !lifted();
+  const asking = (event) => S.asking && event.isTrusted && !lifted();
   const refuse = (event, what) => {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -531,7 +577,7 @@ _CONTROLS = r"""
     if (!asking(event)) return;
     const facts = askFacts(event.target);
     if (facts.type === 'password' || SECRET.test((facts.text + ' ' + facts.attrs).replace(/[-_]+/g, ' '))) refuse(event, 'typing in a password or code field');
-    else if (ATTESTS.test(facts.text) && window.__applyAskTick !== true) refuse(event, 'typing in "' + facts.text.slice(0, 40) + '"');
+    else if (ATTESTS.test(facts.text) && !S.askTick) refuse(event, 'typing in "' + facts.text.slice(0, 40) + '"');
   }, true);
   window.addEventListener('click', (event) => {
     if (!asking(event) || !event.target || !event.target.closest) return;
@@ -540,7 +586,7 @@ _CONTROLS = r"""
     const words = askFacts(el).text;
     if (el.matches(BOX)) {
       const ticks = el.type === 'checkbox' ? el.checked : el.getAttribute('aria-checked') !== 'true';
-      if (ticks && ATTESTS.test(words) && window.__applyAskTick !== true) refuse(event, 'the "' + words.slice(0, 40) + '" tick');
+      if (ticks && ATTESTS.test(words) && !S.askTick) refuse(event, 'the "' + words.slice(0, 40) + '" tick');
     } else if (RESEND.test(words)) refuse(event, 'the "' + words.slice(0, 40) + '" click');
   }, true);
 """
@@ -551,10 +597,8 @@ _CONTROLS = r"""
 # Lisul's own clicks go through once Claude stops (DriveGuard.rest), for the captcha wait.
 CAPTCHA_TRY = "a click or key in a captcha"
 _IN_CAPTCHA = r"""
-    if (window.__applyDriveCaptchaGuard) return;
-    window.__applyDriveCaptchaGuard = true;
     const refuse = (event) => {
-      if (window.__applyDriveLifted === true || window.__applyDriving !== true || !event.isTrusted) return;
+      if (S.lifted || !S.driving || !event.isTrusted) return;
       event.preventDefault();
       event.stopImmediatePropagation();
       if (event.type === 'pointerdown' || event.type === 'keydown') console.warn('Apply drive guard blocked @TRY@');
@@ -566,31 +610,134 @@ _IN_CAPTCHA = r"""
 """
 
 
-def _script(key: str, name: str, lifted: str = "false", extra: str = "", in_captcha: str = "", held: str = "false",
+def _script(key: str, name: str, extra: str = "", in_captcha: str = "", held: str = "false", note: str = "",
             port: bool = False) -> str:
-    """The guard's script under its own `window.__<key>Guard`, so two guards
-    can share a page, naming itself `name` in the note on what it blocked:
-    off while the JS `lifted` is true, and blocking `extra`'s controls too;
-    `in_captcha` runs in a captcha's own frame, which the guard leaves alone.
-    `port`: a plain Worker's copy (apply.plain.guards), whose page events are
-    all untrusted: it also counts a press the worker extension marks
-    (Apply's own, or Lisul's from the tile) as a touch, and tells the
-    extension what it blocked, since no console reaches Apply there."""
+    """The guard's script under its own key, so two guards can share a page, naming itself `name` in the note on
+    what it blocked: off while lifted, and blocking `extra`'s controls too; `in_captcha` runs in a captcha's own
+    frame, which the guard leaves alone; `note` is Lisul's note on a lifted page. Its state is set only by its
+    control event (CONTROL), named with this run's token for `key`. `port`: a plain Worker's copy
+    (apply.plain.guards), whose page events are all untrusted: it also counts a press the worker extension marks
+    (Apply's own, or Lisul's from the tile) as a touch, and tells the extension what it blocked and what Lisul
+    pressed, since no console reaches Apply there."""
     box = name.lower().replace(" ", "-") + "-blocked"
     script = _TEMPLATE
     for placeholder, value in {"@PORT_TOUCH@": PORT_TOUCH if port else "", "@PORT_SAID@": PORT_SAID if port else "",
-                               "@KEY@": key, "@NAME@": name, "@BOX@": box, "@LIFTED@": lifted, "@HELD@": held,
-                               "@EXTRA@": extra, "@PROFILE_DIALOG@": PROFILE_DIALOG,
-                               "@CAPTCHA@": in_captcha, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
-                               "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS)}.items():
+                               "@TELL@": TELL_PORT if port else TELL_CDP, "@NOTE@": note or NO_NOTE,
+                               "@EXTRA@": extra, "@CAPTCHA@": in_captcha, "@HELD@": held,
+                               "@PROFILE_DIALOG@": PROFILE_DIALOG, "@CAPTCHA_HOSTS@": json.dumps(captcha.HOSTS),
+                               "@CAPTCHA_PATHS@": json.dumps(captcha.PATHS), "@CONTROL@": control_type(key),
+                               "@TELL_TYPE@": TELL_TYPE, "@TELL_PREFIX@": TELL_PREFIX, "@TOUCH@": touch_type(key),
+                               "@KEY@": key, "@NAME@": name, "@BOX@": box, "@TOKEN@": TOKENS[key]}.items():
         script = script.replace(placeholder, value)
     return script
 
 
-# A plain Worker's additions (port=True): the worker extension dispatches `__apply_touch` on the
-# page before each press it makes (Apply's own, and Lisul's from the tile), and hears `__apply_said`.
-PORT_TOUCH = "\n  addEventListener('__apply_touch', () => { touched = true; pressNext = performance.now() + 1000; }, true);"
+# This run's tokens, one for each guard: they name its control event, so only Apply's own scripts can set its state.
+# The drive guard's has its own: its copy evaluated into a page already open goes through that page's own eval.
+TOKENS = {"applyRehearsal": secrets.token_hex(16), "applyDrive": secrets.token_hex(16)}
+REHEARSAL, DRIVE = "applyRehearsal", "applyDrive"
+BOTH = (REHEARSAL, DRIVE)
+
+
+def control_type(key: str) -> str:
+    """The event that sets guard `key`'s state."""
+    return f"__{key}Control{TOKENS[key]}"
+
+
+def touch_type(key: str) -> str:
+    """The event a plain Worker's extension sends before each press it makes (PORT_TOUCH)."""
+    return f"__apply_touch{TOKENS[key]}"
+
+
+# What the rehearsal's guard tells Apply: on a CDP Worker a console line with this prefix, on a plain Worker an event
+# of this name, which the worker extension's relay hears (both carry the token). The guard alone says them.
+TELL_PREFIX = f"__apply:{TOKENS[REHEARSAL]}:"
+TELL_TYPE = f"__apply_tell{TOKENS[REHEARSAL]}"
+TELL_CDP = "\n    apply(debug, console, ['@TELL_PREFIX@' + toJSON([name, args])]);"
+TELL_PORT = "\n    apply(dispatch, document, [new Custom('@TELL_TYPE@', {detail: toJSON([name, args])})]);"
+TELLS = ("__applyLisulPressed", "__applyFillAgain", "__applyDismissHold", "__applyDismissApplied")
+
+# A plain Worker's additions (port=True): the worker extension sends its touch (the token's) on the page before each
+# press it makes (Apply's own, and Lisul's from the tile), and hears `__apply_said`.
+PORT_TOUCH = ("\n  addEventListener('@TOUCH@', (event) => { event.stopImmediatePropagation(); touched = true; "
+              "S.touchUntil = performance.now() + 1000; }, true);")
 PORT_SAID = "\n    document.dispatchEvent(new CustomEvent('__apply_said', {detail: '@NAME@ blocked ' + what}));"
+
+NO_NOTE = "  const showNote = () => {};"
+# Lisul's note on a lifted page (lift): what Apply found wrong, its Fill again, a held Submit's Dismiss and a × that
+# hides it; and on a held page of a Posting he applied to already (KAN-621) the red "You already applied" note,
+# whose second press of Dismiss tells Apply. Only his own press of a button counts.
+NOTE = r"""
+  const onBody = (f) => { if (document.body) f(); else document.addEventListener('DOMContentLoaded', f); };
+  const button = (words, act, css) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = words;
+    b.style.cssText = css || 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif';
+    b.addEventListener('click', (event) => {
+      event.stopPropagation();
+      if (user(event)) act(b);
+    });
+    return b;
+  };
+  const showNote = () => onBody(() => {
+    const n = S.note;
+    if (!S.lifted || !n) return;
+    const warning = String(n.warning || ''), wrong = n.wrong !== false, holding = String(n.held || '');
+    const box = document.getElementById('@BOX@') || document.createElement('div');
+    box.id = '@BOX@';
+    // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
+    box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;max-width:480px;'
+      + 'background:' + (holding || (warning && wrong) ? '#b00020' : warning ? '#8a5a00' : '#1b5e20')
+      + ';color:#fff;font:13px sans-serif;border-radius:4px;pointer-events:none';
+    box.textContent = holding
+      ? 'Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: ' + holding
+      : warning
+      ? 'Apply rehearsal: ' + (wrong ? 'fix this before you submit. ' : 'check before you submit. ') + warning
+      : 'Apply rehearsal: Apply is done with this page. Check it; Submit is yours to press.';
+    if (holding) box.appendChild(button('Dismiss', () => tell('__applyDismissHold')));  // his say that it is fixed
+    if (n.again === true) box.appendChild(button('Fill again', () => tell('__applyFillAgain')));
+    const close = button('×', () => { box.style.display = 'none'; },  // hides the note on this page only
+      'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif;background:none;border:none;color:#fff;padding:0 2px');
+    close.setAttribute('aria-label', 'Hide this note');
+    box.appendChild(close);
+    if (!box.parentNode) (document.body || document.documentElement).appendChild(box);
+    box.style.display = '';
+  });
+  const dropNote = () => onBody(() => { const box = document.getElementById('@BOX@'); if (box) box.remove(); });
+  const showApplied = () => {
+    const run = () => {
+      if (window !== window.top || S.applied === null || S.appliedDismissed || document.getElementById('apply-already-applied')) return;
+      const box = document.createElement('div');
+      box.id = 'apply-already-applied';
+      box.setAttribute('role', 'alert');
+      box.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1999999999;'
+        + 'padding:10px 14px;max-width:560px;background:#b00020;color:#fff;font:bold 15px sans-serif;'
+        + 'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
+      const words = document.createElement('span');
+      words.textContent = 'You already applied on ' + S.applied + ', don’t submit. Apply keeps Submit blocked on this page.';
+      box.appendChild(words);
+      let asked = false;
+      box.appendChild(button('Dismiss', (b) => {
+        if (!asked) {
+          asked = true;
+          b.textContent = 'Yes, I’m sure: unblock this page';  // no word the guard blocks (submit, send...)
+          return;
+        }
+        S.appliedDismissed = true;
+        box.remove();
+        tell('__applyDismissApplied');
+      }, 'margin-left:10px;cursor:pointer;font:13px sans-serif'));
+      (document.body || document.documentElement).appendChild(box);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', run); else run();
+  };
+  onControl.push((cmd) => {
+    if (has(cmd, 'lift') || has(cmd, 'renote')) S.lifted ? showNote() : dropNote();
+    if (has(cmd, 'applied')) showApplied();
+    if (S.appliedDismissed) { const box = document.getElementById('apply-already-applied'); if (box) box.remove(); }
+  });
+"""
 
 
 # Lever's Apply with LinkedIn button never loads in a Worker's Chrome and spins on
@@ -607,8 +754,7 @@ HIDE_LINKEDIN_BUTTON = r"""
 
 def rehearsal_script(port: bool = False) -> str:
     """SCRIPT, or with `port` a plain Worker's copy of it."""
-    return _script("applyRehearsal", "Apply rehearsal", lifted="window.__applyRehearsalLifted === true",
-                   held="window.__applyRehearsalLifted === true && window.__applySubmitHeld === true", port=port) \
+    return _script(REHEARSAL, "Apply rehearsal", held="S.lifted && !S.paused && S.held", note=NOTE, port=port) \
         + HIDE_LINKEDIN_BUTTON
 
 
@@ -619,7 +765,7 @@ def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port:
     for name, value in {"@CAPTCHA_CARRIED@": json.dumps(captcha.CARRIED), "@SIGN_IN_CLICK@": json.dumps(captcha.SIGN_IN_CLICK),"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
                         "@ASK_ATTEST@": json.dumps(send_click.ATTEST.pattern), "@ASK_RESEND@": json.dumps(send_click.RESEND.pattern)}.items():
         controls = controls.replace(name, value)
-    return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,
+    return _script(DRIVE, "Apply drive guard", extra=controls,
                    in_captcha=_IN_CAPTCHA.replace("@TRY@", CAPTCHA_TRY), port=port)
 
 
@@ -682,77 +828,149 @@ def guard(page: Page) -> None:
     page.reload(wait_until="domcontentloaded")
 
 
-# Marks a page Lisul's: the guard script above lets everything through on it,
-# and a note says so, with a button to fill the form again when `again` is set
-# and a × that hides the note on that page.
-LIFTED = r"""
-(() => {
-  window.__applyRehearsalLifted = true;
-  window.__applyDriveLifted = true;  // Claude fill's guard too, if it drove the page
-  const again = AGAIN;
-  const warning = WARNING;  // what Apply found wrong on the form, for Lisul to fix before he submits
-  const wrong = WRONG;  // red when an answer is wrong; amber when only a field is left blank
-  const held = HELD;  // a legal answer the review found wrong: Submit stays blocked till it is fixed or dismissed
-  window.__applySubmitHeld = !!held;
-  const show = () => {
-    const box = document.getElementById('apply-rehearsal-blocked') || document.createElement('div');
-    box.id = 'apply-rehearsal-blocked';
-    // Under a captcha's challenge (reCAPTCHA's is z-index 2000000000), so its Verify stays pressable.
-    box.style.cssText = 'position:fixed;bottom:8px;right:8px;z-index:1999999999;padding:6px 10px;max-width:480px;'
-      + 'background:' + (held || (warning && wrong) ? '#b00020' : warning ? '#8a5a00' : '#1b5e20') + ';color:#fff;font:13px sans-serif;border-radius:4px;'
-      + 'pointer-events:none';
-    box.textContent = held
-      ? 'Apply rehearsal: Submit is held. Fix this answer, then press Dismiss: ' + held
-      : warning
-      ? 'Apply rehearsal: ' + (wrong ? 'fix this before you submit. ' : 'check before you submit. ') + warning
-      : 'Apply rehearsal: Apply is done with this page. Check it; Submit is yours to press.';
-    if (held) {  // his say that it is fixed, or that it holds no more: Submit goes through after it
-      const dismiss = document.createElement('button');
-      dismiss.type = 'button';
-      dismiss.textContent = 'Dismiss';
-      dismiss.style.cssText = 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif';
-      dismiss.addEventListener('click', (event) => {
-        event.stopPropagation();
-        if (window.__applyDismissHold) window.__applyDismissHold();
-      });
-      box.appendChild(dismiss);
-    }
-    if (again) {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = 'Fill again';
-      button.style.cssText = 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif';
-      button.addEventListener('click', (event) => {
-        event.stopPropagation();
-        if (window.__applyFillAgain) window.__applyFillAgain();
-      });
-      box.appendChild(button);
-    }
-    const close = document.createElement('button');  // hides the note on this page; a page loaded next shows it
-    close.type = 'button';
-    close.textContent = '\u00d7';
-    close.setAttribute('aria-label', 'Hide this note');
-    close.style.cssText = 'margin-left:8px;pointer-events:auto;cursor:pointer;font:13px sans-serif;'
-      + 'background:none;border:none;color:#fff;padding:0 2px';
-    close.addEventListener('click', (event) => {
-      event.stopPropagation();
-      box.style.display = 'none';
-    });
-    box.appendChild(close);
-    if (!box.parentNode) (document.body || document.documentElement).appendChild(box);
-    box.style.display = '';
-  };
-  window.__applyHeldBlocked = show;  // a Submit blocked while held shows the held note again
-  if (document.body) show(); else document.addEventListener('DOMContentLoaded', show);
-})();
-"""
+# --- the guards' control (KAN-710): their state, set only by Apply
+
+# Sends each [type, detail] event in a frame, from an isolated world, so no page script sees it: on the window, or
+# with a mark on the one element that has it (the element plain code presses). A frame inside that element, where its
+# press could land, refuses it. Says "heard" when a guard took one, "none" when the frame has no such element.
+DISPATCH = r"""(events, mark) => {
+  let at = window;
+  if (mark) {
+    at = document.querySelector('[data-apply-press="' + mark + '"]');
+    if (!at) return 'none';
+    at.removeAttribute('data-apply-press');
+    if (at.querySelector('iframe, frame, object, embed, fencedframe, portal')) return 'frame';
+  }
+  let heard = false;
+  for (const [type, detail] of events) {
+    const event = new CustomEvent(type, {detail, cancelable: true});
+    at.dispatchEvent(event);
+    heard = heard || event.defaultPrevented;
+  }
+  return heard ? 'heard' : 'unheard';
+}"""
+WORLD = "apply-guard"  # the CDP isolated world DISPATCH runs in
 
 
-def _lifted(again: bool, warning: str, wrong: bool, held: str) -> str:
-    """LIFTED for one note: its Fill again button, its warning (red when `wrong`), and what holds Submit."""
-    script = LIFTED.replace("AGAIN", _js(again)).replace("WRONG", _js(wrong))
-    # Last: their own words stay as they are.
-    return script.replace("HELD", json.dumps(held)).replace("WARNING", json.dumps(warning))
+def _events(cmd: dict, keys=BOTH) -> list[list[str]]:
+    return [[control_type(key), json.dumps(cmd)] for key in keys]
+
+
+def control(page, cmd: dict, keys=BOTH, element=None) -> str:
+    """Set the guards' state in every frame of `page` now (`element`: only in the frame that holds it, as the target
+    the press must land on). "heard" when a guard took it, "frame" when a frame inside `element` refuses it, else
+    "unheard" (no guard: a page going away, or one never guarded)."""
+    mark = None
+    if element is not None:
+        mark = secrets.token_hex(8)
+        try:
+            element.evaluate("(el, mark) => el.setAttribute('data-apply-press', mark)", mark)
+        except Exception:
+            return "unheard"
+    if _plain(page):
+        return _plain(page).control(page, _events(cmd, keys), mark)
+    said = []
+    for session, frame in _cdp_frames(page):
+        said.append(_in_world(session, frame, f"({DISPATCH})({json.dumps(_events(cmd, keys))}, {json.dumps(mark)})"))
+    return "frame" if "frame" in said else "heard" if "heard" in said else "unheard"
+
+
+def _init(page, cmd: dict, keys=BOTH) -> None:
+    """The same state at the start of each document the page's context loads from now (before any page code, after
+    the guards' own init scripts), so a page loaded from it starts so."""
+    events = json.dumps(_events(cmd, keys))
+    try:
+        page.context.add_init_script(f"for (const [t, d] of {events}) dispatchEvent(new CustomEvent(t, {{detail: d}}));")
+    except Exception:
+        pass  # a context closing: nothing more loads in it
+
+
+def _cdp_frames(page) -> list:
+    """(CDP session, frame id) of every frame of a CDP Worker's page: its own session's, and each out-of-process
+    frame's."""
+    sessions = page.__dict__.setdefault("_apply_cdp", {})
+    found, seen = [], set()
+    try:
+        frames = list(page.frames)
+    except Exception:
+        return []
+    for frame in frames:
+        if frame not in sessions:
+            try:
+                sessions[frame] = page.context.new_cdp_session(page if frame == page.main_frame else frame)
+            except Exception:
+                sessions[frame] = None  # part of its parent's session
+        session = sessions[frame]
+        if session is None:
+            continue
+        try:
+            tree = session.send("Page.getFrameTree")["frameTree"]
+        except Exception:
+            continue
+        stack = [tree]
+        while stack:
+            node = stack.pop()
+            stack.extend(node.get("childFrames") or [])
+            if node["frame"]["id"] not in seen:
+                seen.add(node["frame"]["id"])
+                found.append((session, node["frame"]["id"]))
+    return found
+
+
+def _in_world(session, frame: str, expression: str) -> str:
+    """`expression` in the frame's isolated world (the same world while its document stays), "" if it can't run."""
+    worlds = session.__dict__.setdefault("_apply_worlds", {})
+    for _ in range(2):
+        try:
+            if frame not in worlds:
+                worlds[frame] = session.send("Page.createIsolatedWorld", {"frameId": frame, "worldName": WORLD})[
+                    "executionContextId"]
+            answer = session.send("Runtime.evaluate", {"expression": expression, "contextId": worlds[frame],
+                                                       "returnByValue": True})
+            if "exceptionDetails" not in answer:
+                return str(answer.get("result", {}).get("value", ""))
+        except Exception:
+            pass
+        worlds.pop(frame, None)  # its document went: a new one has a world of its own
+    return ""
+
+
+def _tells(page) -> dict:
+    """What hears the rehearsal guard's tells on a CDP Worker's page, by name (TELLS): its console lines with this
+    run's prefix, which no page script can write."""
+    hears = page.__dict__.get("_apply_tells")
+    if hears is None:
+        hears = page.__dict__["_apply_tells"] = {}
+
+        def heard(message) -> None:
+            text = message.text
+            if not text.startswith(TELL_PREFIX):
+                return
+            try:
+                name, args = json.loads(text.removeprefix(TELL_PREFIX))
+            except ValueError:
+                return
+            if name in hears and isinstance(args, list):
+                hears[name](*args)
+
+        page.on("console", heard)
+    return hears
+
+
+def let_account_click(page, let: bool = True) -> None:
+    """Let Apply's own next click on an account form's button through both guards (Workday's "Submit" in its Sign
+    in with email view, Sonos's, live), in every frame; `let=False` puts the guards back."""
+    control(page, {"account": let})
+
+
+@contextmanager
+def paused(page):
+    """Both guards on, though the page is Lisul's (lifted), while Apply types an emailed code (apply.email_code)."""
+    control(page, {"pause": True})
+    try:
+        yield
+    finally:
+        control(page, {"pause": False})
 
 
 def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callable[[], None] | None = None,
@@ -763,42 +981,29 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     through, on this page and every page he loads from it. `pressed` hears
     the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
     or verification code form's (it sends no application); `again`, when he presses
-    the note's Fill again. Both are called on the page's own thread. A
-    `warning` goes on the note, red when an answer is `wrong`, amber when
+    the note's Fill again. Both are called on the page's own thread, and only for his own press (the guard tells
+    Apply; a page script can't). A `warning` goes on the note, red when an answer is `wrong`, amber when
     it only names fields left blank. `bound`: the page was lifted before
-    (a paused rehearsal, resumed), so its bindings are there already, and
+    (a paused rehearsal, resumed), so what hears his presses is there already, and
     its note keeps the Fill again button. A `held` reason (a legal answer the
     Pre-submit review found wrong) keeps his Submit blocked, with a red note
     and a Dismiss button that calls `dismiss`, until renote() says it holds no more."""
     if _plain(page):
         return _plain(page).lift(page, pressed, again, warning, wrong, bound, held, dismiss)
-    if bound:
-        pressed = again = dismiss = None
-    if pressed:
-        page.expose_binding("__applyLisulPressed", lambda source, words, account=False: pressed(words, account=account))
-    if again:
-        page.expose_binding("__applyFillAgain", lambda source: again())
-    if dismiss:
-        page.expose_binding("__applyDismissHold", lambda source: dismiss())
+    hears = _tells(page)
+    for name, heard in (("__applyLisulPressed", pressed and (lambda words, account=False: pressed(words, account=account))),
+                        ("__applyFillAgain", again), ("__applyDismissHold", dismiss)):
+        if heard:
+            hears[name] = heard
     page.context.unroute(ROUTED, _refuse)
-    script = _lifted(bool(again or bound), warning, wrong, held)
-    page.context.add_init_script(script)
-    for frame in page.frames:
-        try:
-            frame.evaluate(script)
-        except Exception:
-            pass  # a frame gone or going: one loaded later gets the init script
+    cmd = {"lift": note(bool(again or bound), warning, wrong, held)}
+    _init(page, cmd)
+    control(page, cmd)
 
 
-# Undoes LIFTED on a page that Apply drives again (Resume): the guards are on, and the note is gone.
-REARMED = r"""
-(() => {
-  window.__applyRehearsalLifted = false;
-  window.__applyDriveLifted = false;
-  const drop = () => { const box = document.getElementById('apply-rehearsal-blocked'); if (box) box.remove(); };
-  if (document.body) drop(); else document.addEventListener('DOMContentLoaded', drop);
-})();
-"""
+def note(again: bool, warning: str, wrong: bool, held: str) -> dict:
+    """The note on a lifted page: its Fill again button, its warning (red when `wrong`), and what holds Submit."""
+    return {"again": again, "warning": warning, "wrong": wrong, "held": held}
 
 
 def rearm(page: Page) -> None:
@@ -808,12 +1013,8 @@ def rearm(page: Page) -> None:
     if _plain(page):
         return _plain(page).rearm(page)
     page.context.route(ROUTED, _refuse)
-    page.context.add_init_script(REARMED)
-    for frame in page.frames:
-        try:
-            frame.evaluate(REARMED)
-        except Exception:
-            pass  # a frame gone or going: one loaded later gets the init script
+    _init(page, {"lift": None})
+    control(page, {"lift": None})
 
 
 def renote(page: Page, warning: str = "", wrong: bool = True, held: str = "") -> None:
@@ -823,13 +1024,9 @@ def renote(page: Page, warning: str = "", wrong: bool = True, held: str = "") ->
     (one Lisul already applied to, KAN-621) stays guarded."""
     if _plain(page):
         return _plain(page).renote(page, warning, wrong, held)
-    script = f"if (window.__applyRehearsalLifted === true) {_lifted(True, warning, wrong, held)}"
-    page.context.add_init_script(script)  # after lift's: a page loaded from it says the same
-    for frame in page.frames:
-        try:
-            frame.evaluate(script)
-        except Exception:
-            pass
+    cmd = {"renote": note(True, warning, wrong, held)}
+    _init(page, cmd, (REHEARSAL,))  # after lift's: a page loaded from it says the same
+    control(page, cmd, (REHEARSAL,))
 
 
 def _plain(page):
@@ -840,73 +1037,24 @@ def _plain(page):
     return guards
 
 
-# The note on a held page of a Posting Lisul already applied to (`apply rehearse --force`, KAN-621). The guard
-# stays on under it, so Submit is blocked, until he dismisses it with two presses: the first asks, the second
-# calls __applyDismissApplied, and hold() then lifts the guard. A page loaded after that shows no note.
-APPLIED_NOTE = r"""
-(() => {
-  const day = DAY;
-  const show = () => {
-    if (window !== window.top || window.__applyAppliedDismissed || document.getElementById('apply-already-applied')) return;
-    const box = document.createElement('div');
-    box.id = 'apply-already-applied';
-    box.setAttribute('role', 'alert');
-    box.style.cssText = 'position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:1999999999;'
-      + 'padding:10px 14px;max-width:560px;background:#b00020;color:#fff;font:bold 15px sans-serif;'
-      + 'border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.4)';
-    const words = document.createElement('span');
-    words.textContent = 'You already applied on ' + day + ', don’t submit. Apply keeps Submit blocked on this page.';
-    box.appendChild(words);
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.textContent = 'Dismiss';
-    button.style.cssText = 'margin-left:10px;cursor:pointer;font:13px sans-serif';
-    let asked = false;
-    button.addEventListener('click', (event) => {
-      event.stopPropagation();
-      if (!asked) {
-        asked = true;
-        button.textContent = 'Yes, I\u2019m sure: unblock this page';  // no word the guard blocks (submit, send...)
-        return;
-      }
-      window.__applyAppliedDismissed = true;
-      box.remove();
-      if (window.__applyDismissApplied) window.__applyDismissApplied();
-    });
-    box.appendChild(button);
-    (document.body || document.documentElement).appendChild(box);
-  };
-  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show); else show();
-})();
-"""
-
-
 def warn_applied(page: Page, day: str, dismissed: Callable[[], None] | None = None) -> None:
     """Show the red "You already applied on <day>, don't submit" note on a held page, this one and every page
-    loaded from it. The guard stays on: Submit is blocked. `dismissed` hears his second press of Dismiss (None:
-    the page has the binding already)."""
+    loaded from it (in its top frame). The guard stays on: Submit is blocked. `dismissed` hears his second press of
+    Dismiss (None: the page has it already)."""
     if _plain(page):
         return _plain(page).warn_applied(page, day, dismissed)
     if dismissed:
-        page.expose_binding("__applyDismissApplied", lambda source: dismissed())
-    script = APPLIED_NOTE.replace("DAY", json.dumps(day))
-    page.context.add_init_script(script)
-    try:
-        page.evaluate(script)  # the top frame only: the script shows nothing in a form's frame
-    except Exception:
-        pass
+        _tells(page)["__applyDismissApplied"] = dismissed
+    _init(page, {"applied": day}, (REHEARSAL,))
+    control(page, {"applied": day}, (REHEARSAL,))
 
 
 def applied_dismissed(page: Page) -> None:
     """Lisul dismissed the note: no page loaded from now on shows it (lift() then takes the guard off)."""
     if _plain(page):
         return _plain(page).applied_dismissed(page)
-    script = "window.__applyAppliedDismissed = true"
-    page.context.add_init_script(script)
-    try:
-        page.evaluate(script)
-    except Exception:
-        pass
+    _init(page, {"appliedDismissed": True}, (REHEARSAL,))
+    control(page, {"appliedDismissed": True}, (REHEARSAL,))
 
 
 def _refuse(route: Route) -> None:
@@ -957,7 +1105,7 @@ class DriveGuard:
         self._blocked.clear()
 
     def lift(self) -> None:
-        self._in_frames("window.__applyDriveLifted = true")
+        control(self._page, {"lift": {}}, (DRIVE,))
         self.rest()
 
     def rest(self) -> None:
@@ -965,46 +1113,41 @@ class DriveGuard:
         again, for the captcha wait. The rest of the guard stays on."""
         self._set_driving(False)
 
-    def let_account_click(self, element=None) -> None:
+    def let_account_click(self, element=None) -> bool:
         """Let plain code's next click sign in or make an account: its button,
         and its POST form, go through this guard and a rehearsal's. A button
         that sends the form, a form that has one, and the application request
         are blocked still. Given the `element` it presses, only in that
         element's frame and only for a press on it (KAN-710): a frame inside
-        it, or another form a script posts meanwhile, is blocked still."""
+        it, or another form a script posts meanwhile, is blocked still. False when
+        the element holds a frame, where the press could land: it must not be pressed."""
         if element is None:
-            self._in_frames("window.__applyAccountClick = true")
-            return
-        try:
-            element.evaluate("el => { window.__applyAccountClick = el; }")
-        except Exception:
-            pass  # not armed: the press is blocked as any other, and the step hands off
+            control(self._page, {"account": True})
+            return True
+        return control(self._page, {"account": "element"}, element=element) != "frame"
 
     def let_profile_click(self, let: bool = True) -> None:
         """Let plain code's next click send a profile step's pop-up, one before the application
         (Microsoft's "Create your profile", KAN-647): its button only, never the application request."""
-        self._in_frames(f"window.__applyProfileClick = {_js(let)}")
+        control(self._page, {"profile": let})
 
     def let_upload_post(self, let: bool = True) -> None:
         """Let the page's own script post the file plain code just attached (iCIMS's résumé parse, KAN-691):
         a form holding a chosen file, by no button that sends, never to a final URL, until let off again."""
-        self._in_frames(f"window.__applyUploadPost = {_js(let)}")
+        control(self._page, {"upload": let})
 
     def arm(self) -> None:
-        self._in_frames("window.__applyDriveLifted = false; window.__applyAccountClick = false; "
-                        "window.__applyProfileClick = false; window.__applyUploadPost = false")
+        control(self._page, {"lift": None, "account": False, "profile": False, "upload": False}, (DRIVE,))
+        control(self._page, {"account": False, "profile": False, "upload": False}, (REHEARSAL,))
         self._set_driving(True)
 
     def asking(self, on: bool, may_tick: bool = False) -> None:
         """Ask Claude drives now, or not: the Ask section judges each trusted act on the real element, in each
         document loaded meanwhile too. `may_tick`: his message could name a box, so a tick isn't stopped here;
         the hook and the read-back hold it to that box's own text."""
-        script = f"window.__applyAsking = {_js(on)}; window.__applyAskTick = {_js(may_tick)}"
-        try:
-            self._page.context.add_init_script(script)
-        except Exception:
-            pass  # a context closing: nothing more loads in it
-        self._in_frames(script)
+        cmd = {"asking": on, "askTick": may_tick}
+        _init(self._page, cmd, (DRIVE,))
+        control(self._page, cmd, (DRIVE,))
 
     def _set_driving(self, driving: bool) -> None:
         """Claude drives now, or not: so a captcha's frame refuses every click
@@ -1013,12 +1156,8 @@ class DriveGuard:
         if driving == self._driving:
             return
         self._driving = driving
-        script = f"window.__applyDriving = {_js(driving)}"
-        try:
-            self._page.context.add_init_script(script)
-        except Exception:
-            pass  # a context closing: nothing more loads in it
-        self._in_frames(script)
+        _init(self._page, {"driving": driving}, (DRIVE,))
+        control(self._page, {"driving": driving}, (DRIVE,))
 
     def _heard(self, message) -> None:
         for said in HEARD:

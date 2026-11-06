@@ -26,8 +26,11 @@ const NO_TAB = -1; // chrome.tabs.TAB_ID_NONE: a service or shared worker's requ
 let ctxRef = null; // the background's ctx, for events
 export const useCtx = (ctx) => { ctxRef = ctx; }; // from its start: what a page blocks after a reload comes before any op
 const routes = new Map(); // key -> {tab, regexes, caseSensitive, ids, tabs: Set}
-const lifted = new Map(); // tab -> the note's {again, warning, wrong, held}
-const applied = new Map(); // tab -> the day of the "You already applied" note (KAN-621) it shows
+const lifted = new Map(); // tab -> the control events that lift it, with its note (apply.submit_guard.lift)
+const applied = new Map(); // tab -> the control events of the "You already applied" note (KAN-621) it shows
+// This run's guard events (KAN-710, apply.plain.guards.tokens): the touch sent before each press, the rehearsal
+// guard's tell, and the bindings only that tell may call. Named with Apply's tokens; no page knows them.
+let tokens = { touch: [], tell: "", tells: [] };
 const bindings = new Map(); // tab (or "*", every tab) -> Set of names
 const syncs = new Map(); // token -> resolve
 let nextRule = 1000;
@@ -46,6 +49,7 @@ async function reset() {
   lifted.clear();
   applied.clear();
   bindings.clear();
+  tokens = { touch: [], tell: "", tells: [] };
   return null;
 }
 const ready = reset().then(restore);
@@ -62,6 +66,7 @@ export async function keepAcrossReload() {
     userScripts: userScriptsOn() ? await chrome.userScripts.getScripts() : [],
     routes: [...routes].map(([key, r]) => [key, { tab: r.tab, regexes: r.regexes, caseSensitive: r.caseSensitive, tabs: r.tabs && [...r.tabs] }]),
     lifted: [...lifted], applied: [...applied], bindings: [...bindings].map(([where, names]) => [where, [...names]]),
+    tokens,
   };
   await chrome.storage.local.set({ [KEPT]: kept });
 }
@@ -72,6 +77,7 @@ async function restore() {
   await chrome.storage.local.remove(KEPT);
   if (Date.now() - kept.at > KEPT_FOR_MS) return;
   useVendor(kept.vendor);
+  if (kept.tokens) tokens = kept.tokens;
   for (const [where, names] of kept.bindings) bindings.set(where, new Set(names));
   for (const [tab, note] of kept.lifted) lifted.set(tab, note);
   for (const [tab, day] of kept.applied) applied.set(tab, day);
@@ -235,55 +241,76 @@ function namesFor(tab) {
   return [...(bindings.get(tab) ?? []), ...(bindings.get("*") ?? [])];
 }
 
-// --- lift and rearm (apply.submit_guard.lift / rearm / renote)
+// --- the guards' state (KAN-710): set only by their control events, sent here from the isolated world
 
-const LIFTED = "vendor/guards/lifted.js";
-const REARMED = "vendor/guards/rearmed.js";
-
-function liftIn(tab, frame, note) {
-  return inFrames(tab, "MAIN", { frame, files: [vendor(LIFTED)], func: (note) => window.__applyLift && window.__applyLift(note), args: [note] });
+// apply.submit_guard.DISPATCH: each [type, detail] event on the window, or on the one element marked `mark`.
+function dispatchIn(events, mark) {
+  let at = window;
+  if (mark) {
+    at = document.querySelector('[data-apply-press="' + mark + '"]');
+    if (!at) return "none";
+    at.removeAttribute("data-apply-press");
+    if (at.querySelector("iframe, frame, object, embed, fencedframe, portal")) return "frame";
+  }
+  let heard = false;
+  for (const [type, detail] of events) {
+    const event = new CustomEvent(type, { detail, cancelable: true });
+    at.dispatchEvent(event);
+    heard = heard || event.defaultPrevented;
+  }
+  return heard ? "heard" : "unheard";
 }
 
-async function lift({ tab, again = false, warning = "", wrong = true, held = "", sha256: sha, onlyLifted = false }) {
-  await checked(LIFTED, sha);
+async function sendEvents(tab, frame, events, mark = null) {
+  const done = await inFrames(tab, "ISOLATED", { frame, func: dispatchIn, args: [events, mark] });
+  return (done || []).map((r) => r?.result);
+}
+
+async function control({ tab, events, mark = null }) {
+  return sendEvents(tab, undefined, events, mark);
+}
+
+async function setTokens({ touch = [], tell = "", tells = [] }) {
+  tokens = { touch, tell, tells };
+  await relay(); // every frame's relay asks for them again
+  return null;
+}
+
+// --- lift and rearm (apply.submit_guard.lift / rearm / renote)
+
+const liftIn = (tab, frame, events) => sendEvents(tab, frame, events);
+
+async function lift({ tab, events, onlyLifted = false }) {
   if (onlyLifted && !lifted.has(tab)) return false; // renote: a page still guarded stays guarded
-  const note = { again, warning, wrong, held };
-  lifted.set(tab, note);
-  await liftIn(tab, undefined, note);
+  lifted.set(tab, events);
+  await liftIn(tab, undefined, events);
   return null;
 }
 
 // The "You already applied on <day>" note (KAN-621) on a page still guarded, in its top frame now and in
-// each document the tab loads, until `day` is null (Lisul dismissed it: no page shows it again).
-const APPLIED = "vendor/guards/applied.js";
-
-function appliedIn(tab, frame, day) {
-  return inFrames(tab, "MAIN", { frame, files: [vendor(APPLIED)], func: (day) => window.__applyAppliedNote && window.__applyAppliedNote(day), args: [day] });
-}
-
-async function appliedNote({ tab, day = null, sha256: sha }) {
-  await checked(APPLIED, sha);
-  if (day === null) {
+// each document the tab loads, until `events` is null (Lisul dismissed it: no page shows it again).
+async function appliedNote({ tab, events = null, dismissed = null }) {
+  if (events === null) {
     applied.delete(tab);
-    await inFrames(tab, "MAIN", { func: () => { window.__applyAppliedDismissed = true; } });
+    if (dismissed) await sendEvents(tab, undefined, dismissed);
     return null;
   }
-  applied.set(tab, day);
-  await appliedIn(tab, 0, day);
+  applied.set(tab, events);
+  await sendEvents(tab, 0, events);
   return null;
 }
 
-async function rearm({ tab, sha256: sha }) {
+async function rearm({ tab, events }) {
   lifted.delete(tab);
-  await inFrames(tab, "MAIN", { files: [await checked(REARMED, sha)] });
+  await sendEvents(tab, undefined, events);
   return null;
 }
 
 // Each document a lifted tab loads is Lisul's too, and each gets the tab's bindings.
 function onDocument(d) {
-  const note = lifted.get(d.tabId);
-  if (note) liftIn(d.tabId, d.frameId, note).catch(() => {});
-  if (applied.has(d.tabId) && d.frameId === 0) appliedIn(d.tabId, 0, applied.get(d.tabId)).catch(() => {});
+  const events = lifted.get(d.tabId);
+  if (events) liftIn(d.tabId, d.frameId, events).catch(() => {});
+  if (applied.has(d.tabId) && d.frameId === 0) sendEvents(d.tabId, 0, applied.get(d.tabId)).catch(() => {});
   const names = namesFor(d.tabId);
   if (names.length) bindIn(d.tabId, d.frameId, names).catch(() => {});
 }
@@ -309,22 +336,14 @@ chrome.tabs.onRemoved.addListener((tab) => {
   bindings.delete(tab);
 });
 
-// --- flags, touches and what the page said
-
-const FLAGS = new Set(["__applyRehearsalLifted", "__applyDriveLifted", "__applyAccountClick", "__applyProfileClick", "__applyUploadPost"]);
-
-async function flags({ tab, set }) {
-  const pairs = Object.entries(set || {}).filter(([name, value]) => FLAGS.has(name) && typeof value === "boolean");
-  await inFrames(tab, "MAIN", { args: [pairs], func: (pairs) => { for (const [name, value] of pairs) window[name] = value; } });
-  return null;
-}
+// --- touches and what the page said
 
 // A press the extension is about to make in a frame counts as a touch: the guard then shows what
 // it blocks, as it does for a trusted click. tile.input calls this before
 // each press it replays (by = "lisul" for the tile's), and Apply hears `guard.touched` from the extension itself (his press is
-// untrusted, so the page can't tell it from a script's).
+// untrusted, so the page can't tell it from a script's). The touch is the token's: a page can't send one.
 export async function touch({ tab, frame = 0, by = "lisul" }, ctx = ctxRef) {
-  await inFrames(tab, "ISOLATED", { frame, args: [by], func: (by) => window.dispatchEvent(new CustomEvent("__apply_touch", { detail: by })) });
+  await inFrames(tab, "ISOLATED", { frame, args: [tokens.touch], func: (types) => { for (const type of types) window.dispatchEvent(new CustomEvent(type)); } });
   if (by === "lisul") ctx?.send("guard.touched", { tab, frame, by });
   return null;
 }
@@ -346,10 +365,14 @@ async function sync({ tab, timeout = 1000 }) {
   return null;
 }
 
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message?.applyGuard || sender.id !== chrome.runtime.id) return;
   if (message.applyGuard === "sync") {
     syncs.get(message.detail)?.();
+    return;
+  }
+  if (message.applyGuard === "tokens") { // a frame's relay, as it starts: what to send before a press, and hear
+    sendResponse({ touch: tokens.touch, tell: tokens.tell });
     return;
   }
   if (!sender.tab) return;
@@ -362,7 +385,17 @@ chrome.runtime.onMessage.addListener((message, sender) => {
     } catch {
       return;
     }
-    if (namesFor(where.tab).includes(call?.name)) ctxRef?.send("binding", { ...where, name: call.name, args: Array.isArray(call.args) ? call.args : [] });
+    // A guard's own binding (Lisul's press, Fill again, Dismiss) is called only by the guard's tell, never the page.
+    if (namesFor(where.tab).includes(call?.name) && !tokens.tells.includes(call.name)) ctxRef?.send("binding", { ...where, name: call.name, args: Array.isArray(call.args) ? call.args : [] });
+  } else if (message.applyGuard === "tell") {
+    let told;
+    try {
+      told = JSON.parse(message.detail);
+    } catch {
+      return;
+    }
+    const [name, args] = Array.isArray(told) ? told : [];
+    if (tokens.tells.includes(name) && namesFor(where.tab).includes(name)) ctxRef?.send("binding", { ...where, name, args: Array.isArray(args) ? args : [] });
   }
 });
 
@@ -392,7 +425,8 @@ export const ops = {
   "guard.lift": withCtx(lift),
   "guard.rearm": withCtx(rearm),
   "guard.applied": withCtx(appliedNote),
-  "guard.flags": withCtx(flags),
+  "guard.control": withCtx(control),
+  "guard.tokens": withCtx(setTokens),
   "guard.touch": withCtx(touch),
   "guard.sync": withCtx(sync),
   "guard.status": withCtx(status),
