@@ -14,7 +14,9 @@ frame, hidden or not, and given the file directly:
    page that does (Airtable's "Drop files here or click to browse" under
    "Please upload your resume").
 
-It counts only once the page shows the file's name. Jobvite's country of
+It counts only once the page shows the file's name. Until then the guards let
+the page's own script post the file it was given (iCIMS posts its résumé to be
+parsed by a native form submission, which they block otherwise: KAN-691). Jobvite's country of
 residence and privacy consent, when a tenant asks for them first, are passed
 here too, so Claude never has to.
 
@@ -26,6 +28,7 @@ before Claude spends a token on a page it can't click.
 
 import re
 import time
+from contextlib import contextmanager
 from pathlib import Path
 
 from playwright.sync_api import Error, Frame, Page
@@ -107,9 +110,10 @@ NATIVE = """name => [...document.querySelectorAll('input[type=file]')].some(el =
   el.checkVisibility() && el.getBoundingClientRect().width > 1 && [...el.files].some(f => f.name === name))"""
 
 
-def attach_resume(page: Page, resume: Path) -> bool:
+def attach_resume(page: Page, resume: Path, guard=None) -> bool:
     """Attach `resume` to the open form's résumé field. True once the page
-    shows its file name (as it may already); False if no input took it."""
+    shows its file name (as it may already); False if no input took it.
+    `guard` (a DriveGuard) lets the page post the file meanwhile."""
     if _shows(page, resume.name, wait=0):
         return True
     deadline = time.monotonic() + FOUND_WITHIN
@@ -118,13 +122,30 @@ def attach_resume(page: Page, resume: Path) -> bool:
             try:
                 index = frame.evaluate(FIND, [RESUME, COVER])
                 if index >= 0:
-                    frame.locator("input[type=file]").nth(index).set_input_files(resume)
-                    return _shows(page, resume.name)
+                    with _posting(guard):
+                        frame.locator("input[type=file]").nth(index).set_input_files(resume)
+                        return _shows(page, resume.name)
             except Error:
                 continue  # a frame that went away, or one that refuses scripts
         if time.monotonic() >= deadline:
-            return _behind_button(page, resume)
+            with _posting(guard):
+                return _behind_button(page, resume)
         page.wait_for_timeout(250)
+
+
+@contextmanager
+def _posting(guard):
+    """The guards let the page's own script post the file it is given, while plain code attaches it and waits
+    for its name to show: iCIMS's résumé parse, which waits on "Parsing resume, please wait..." for good
+    otherwise (KAN-691). A button that sends, and the final application URLs, stay blocked."""
+    if guard is None:
+        yield
+        return
+    guard.let_upload_post()
+    try:
+        yield
+    finally:
+        guard.let_upload_post(False)
 
 
 def _resume_button(frame: Frame):
