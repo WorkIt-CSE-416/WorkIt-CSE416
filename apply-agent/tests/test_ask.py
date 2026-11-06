@@ -561,27 +561,3 @@ def test_the_read_back_pairs_fields_by_label_when_a_field_comes_or_goes_before_t
     after = [{"frame": 0, "url": POSTING.url, "fields": shifted}]
     assert [(c["label"], c["was"], c["now"], c["i"]) for c in ask.changes(before, after)] == [(NON_COMPETE, "No", "", 3)]
 
-
-def test_undo_picks_a_select_s_option_again_and_leaves_a_text_box_dropdown_alone():
-    from playwright.sync_api import sync_playwright
-    html = ("<label>Heard <select id=s><option value=''>Select a value</option><option value='u'>University career fair"
-            "</option></select></label><label>Non-compete <input id=c role=combobox aria-autocomplete=list></label>"
-            "<label>City <input id=t></label>")
-    with sync_playwright() as p:
-        browser = p.chromium.launch()
-        page = browser.new_page()
-        page.set_content(html)
-        page.select_option("#s", "u")
-        page.fill("#c", "No")
-        page.fill("#t", "Boston")
-        before = ask.state(page)
-        assert [f.get("combo", False) for f in before[0]["fields"]] == [False, True, False]
-        page.select_option("#s", "")
-        page.fill("#c", "")
-        page.fill("#t", "")
-        found = {c["label"]: c for c in ask.changes(before, ask.state(page))}
-        assert ask.undo(page, found["Heard Select a value University career fair"]) is True
-        assert page.locator("#s").input_value() == "u"
-        assert ask.undo(page, found["Non-compete"]) is False and page.locator("#c").input_value() == ""
-        assert ask.undo(page, found["City"]) is True and page.locator("#t").input_value() == "Boston"
-        browser.close()

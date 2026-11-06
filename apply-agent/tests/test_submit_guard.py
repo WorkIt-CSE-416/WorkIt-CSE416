@@ -753,6 +753,33 @@ def test_the_read_back_sees_a_custom_box_ticked_and_undo_unticks_it():
         assert ask.changes(before, ask.state(page))[0]["label"] == "Boston"
 
 
+def test_undo_picks_a_select_s_option_again_and_leaves_a_text_box_dropdown_alone():
+    from playwright.sync_api import sync_playwright
+
+    from apply import ask
+    html = ("<label>Heard <select id=s><option value=''>Select a value</option><option value='u'>University career fair"
+            "</option></select></label><label>Non-compete <input id=c role=combobox aria-autocomplete=list></label>"
+            "<label>City <input id=t></label>")
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(html)
+        page.select_option("#s", "u")
+        page.fill("#c", "No")
+        page.fill("#t", "Boston")
+        before = ask.state(page)
+        assert [f.get("combo", False) for f in before[0]["fields"]] == [False, True, False]
+        page.select_option("#s", "")
+        page.fill("#c", "")
+        page.fill("#t", "")
+        found = {c["label"]: c for c in ask.changes(before, ask.state(page))}
+        assert ask.undo(page, found["Heard Select a value University career fair"]) is True
+        assert page.locator("#s").input_value() == "u"
+        assert ask.undo(page, found["Non-compete"]) is False and page.locator("#c").input_value() == ""
+        assert ask.undo(page, found["City"]) is True and page.locator("#t").input_value() == "Boston"
+        browser.close()
+
+
 # A form whose steps post natively, as TAL.net's do: each step's button posts to the next document. The guards
 # stop Claude's own click on it (KAN-638), so plain code presses it for Ask Claude (KAN-655).
 STEPS = {
