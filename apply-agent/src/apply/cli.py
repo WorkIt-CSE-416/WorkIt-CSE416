@@ -217,7 +217,7 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
     tiled.add_argument("--chrome", choices=("testing", "chrome"), default="testing",
                        help="Chrome for Testing (default), or branded Chrome from the seed profile")
     plain.add_parser("prepare", help="write the worker extension's engine bundle and Playwright's injected script")
-    plain.add_parser("seed", help="open branded Chrome on the seed profile to install the worker extension once")
+    plain.add_parser("seed", help="guided one-time setup: open branded Chrome on the seed profile, confirm each step, check a real Worker")
     asked = commands.add_parser("ask", help="Ask Claude to fix an open form in a running Apply window, in your own "
                                             "words; prints what Claude changed. It never submits")
     asked.add_argument("target", nargs="?", help="the form: its Application ID, or words of its company and role")
@@ -437,10 +437,18 @@ def _plain(args) -> None:
         identity = PlainWorkers(kind="testing").prepare()
         print(f"Worker extension ready: Fill engine {identity['version']}.")
     elif args.action == "seed":
-        workers = PlainWorkers(kind="chrome")
-        workers.prepare()
-        print(f"Opened Google Chrome on {workers.seed}. Once, by hand:")
-        print("\n".join(f"  {n}. {step}" for n, step in enumerate(workers.seed_profile(), 1)))
+        from apply.adapters import SetupError
+        from apply.plain import seed_setup
+
+        try:
+            done = seed_setup.run()
+        except (SetupError, ProfileInUse) as error:
+            print(error)
+            done = False
+        if done:
+            print("Setup is done. Plain Workers start as copies of this seed.")
+        else:
+            sys.exit(1)
 
 
 def _ask(target: str | None, message: str | None, listed: bool, out: Callable[[str], None] = print,

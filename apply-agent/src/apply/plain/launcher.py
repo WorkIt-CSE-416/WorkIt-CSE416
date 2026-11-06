@@ -9,7 +9,7 @@ sites' session cookies: their sign-ins. Workers sit on-screen, never minimized.
 
 Two Chromes (policies.yaml `plain_chrome`):
 - "chrome": branded Google Chrome. It ignores `--load-extension`, so the worker extension is
-  installed once by hand in the seed profile (APPLY_PROFILES/plain-seed: `apply plain seed`),
+  installed once by the user's clicks in the seed profile (APPLY_PROFILES/plain-seed: `apply plain seed`),
   with Allow User Scripts on; each Worker profile starts as a copy of the seed.
 - "testing": Chrome for Testing (the build Playwright installs), which still takes
   `--load-extension`: dev and tests. A seed is copied if there is one; else a fresh profile.
@@ -350,32 +350,6 @@ class PlainWorkers:
             yield page
         finally:
             self.stop(worker)
-
-    def seed_profile(self) -> list[str]:
-        """Open branded Chrome on the seed profile at chrome://extensions for Lisul's one-time
-        setup, with no extension loaded and nothing automated. Returns the steps to show him."""
-        self.seed.mkdir(parents=True, exist_ok=True)
-        _no_saved_passwords(self.seed)
-        if not self.idle():
-            raise ProfileInUse(f"a plain Worker of {self.profiles} {BUSY}: seed once none runs")
-        self.prepare()  # this folder's own copy, to load (KAN-645)
-        subprocess.Popen([str(BRANDED), f"--user-data-dir={self.seed}", *FLAGS, "chrome://extensions"],
-                         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                         start_new_session=True)
-        return seed_steps(self.copy)
-
-
-def seed_steps(folder: Path) -> list[str]:
-    """Lisul's one-time steps in the seed profile's chrome://extensions, in order."""
-    name = json.loads((folder / "manifest.json").read_text())["name"]
-    return ["Turn on Developer mode: the switch at the top right of the Extensions page.",
-            f'If a "{name}" card is there already (from another folder), click Remove on it.',
-            f"Click Load unpacked, and choose this folder: {folder.resolve()} "
-            "(in the picker, press Cmd+Shift+G, paste that path, press Return, then click Select). "
-            "Apply keeps this folder: every plain Worker loads the extension from it, and Apply updates it "
-            "only while no Worker runs.",
-            f'On the "{name}" card, click Details, and turn on Allow User Scripts.',
-            "Quit that Chrome with Cmd+Q. Each plain Worker now starts as a copy of this profile."]
 
 
 class Chrome:
