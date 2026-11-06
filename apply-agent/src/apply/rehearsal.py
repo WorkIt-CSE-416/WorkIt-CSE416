@@ -255,7 +255,7 @@ def rehearse(
             note += _keep_confirmation(page, done, adapters)
             # Sent: nothing on it waits on him now, and an answer given later neither fills it nor shows it unsent.
             done.outcome, done.missing = str(Status.SUBMITTED), ()
-            adapters.board.update(n, status="submitted", why=note, missing=[])
+            adapters.board.update(n, status="submitted", why=note, missing=[], resume=None)  # sent: Resume is gone
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
 
         def held() -> None:  # its form is open and planned: Ready, then Filling once Start is pressed
@@ -429,6 +429,9 @@ def rehearse(
                         adapters.board.update(n, resume=None)
                     if how != AGAIN:  # Fill again, or Fill it anyway
                         break
+                    # A Resume pressed for the hold that ended goes with it: never the next pause's (each pause offers its own).
+                    adapters.board.resumed(n)
+                    adapters.board.update(n, resume=None)
                     with gate:
                         done = _rehearse(url, site, adapters, profile, calibration.hold, accounts, n, pause=paused,
                                          anyway=anyway, force=force)
@@ -1124,7 +1127,8 @@ class _Kept:
         in and presses nothing. AGAIN when he presses Fill again, or `fill_again()` says it was asked
         from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
-        it can go on: then RESUME, with the page still his until rearm().
+        it can go on: then RESUME, with the page still his until rearm(). His own presses
+        before it (a sign-in, Apply now) don't stop it; one the job system confirms sent the form does.
         A captcha that shows after a press of his calls `challenged()`, once:
         he does it himself, and Apply never touches it. A bot block after a press
         of his (Lever's captcha turning the token down) calls `refused(said)`, once.
@@ -1188,7 +1192,9 @@ class _Kept:
                     hand_over()
                 if again or (fill_again() and not pressed):
                     return AGAIN
-                if resume and not pressed and resume(self._page):
+                # His own presses (sign-in, Apply now, a profile pop-up) leave Resume his to press; only a press that
+                # sent the application (the job system confirms it) makes the page his to send, never Apply's to drive.
+                if resume and not kept and not (pressed and _confirmed(self._page, job_system)) and resume(self._page):
                     return RESUME
                 for question, answer in answers():
                     fill(self._page, question, answer)
