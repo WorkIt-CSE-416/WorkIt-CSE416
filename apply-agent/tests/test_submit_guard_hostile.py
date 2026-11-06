@@ -293,6 +293,11 @@ LISTED_SENDS = {
                                        "<li><a href='#'>Help</a></li></ul></form>", "Declaration"),
     "a form in a list": (f"<ol><li>{_FORM}<button name=submit value=1>Save my application</button></form></li>"
                          "<li><a href='#'>Help</a></li></ol>", "Save my application"),
+    "a link around a Submit": (f"{_FORM}<nav><ul><li><a href='#o'>Languages</a></li><li><a href='#'>"
+                               "<button name=submit value=1>Inclusion</button></a></li></ul></nav></form>", "Inclusion"),
+    "a link around a Submit's label": (f"{_FORM}<button id=s name=submit value=1 style='position:absolute;left:-9999px'>Go"
+                                       "</button></form><nav><ul><li><a href='#o'>Languages</a></li><li><a href='#'>"
+                                       "<label for=s>Inclusion</label></a></li></ul></nav>", "Inclusion"),
     "a link in an aria-labelled Submit": (f"<nav><ul><li><a href='#' id=b aria-label='Submit application'>Inclusion</a></li>"
                                           f"<li><a href='#'>Help</a></li></ul></nav>{_FORM}</form><script>document.getElementById('b')"
                                           ".addEventListener('click', () => { const i = document.createElement('input'); i.name = 'submit';"

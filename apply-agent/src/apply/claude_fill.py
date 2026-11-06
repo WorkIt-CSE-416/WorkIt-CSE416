@@ -696,10 +696,13 @@ def _the_back(page: Page, name: str):
 
 # An entry in a list of a form's steps (TAL.net's Progress Tracker: each step's link posts the page to save_page,
 # then opens that step, KAN-692): in a nav or a list of more than one entry, and never a form's own button (a
-# submit, or any button of a form), which would post that form with no check of its other buttons. A link can
-# post only by script (form.submit(), requestSubmit()), where the guard still blocks a form with a button that sends.
+# submit, or any button of a form), nor one holding or held by a control or label, which would post that
+# form with no check of its other buttons. A link can post only by script (form.submit(), requestSubmit()),
+# where the guard still blocks a form with a button that sends.
 STEP_ENTRY = """el => {
   if ((el.tagName === 'BUTTON' || el.tagName === 'INPUT') && (el.type !== 'button' || el.form)) return false;
+  // A click on it must land on it alone: never a control or a label (one that clicks a submit) inside or around it.
+  if (el.querySelector('button, input, select, textarea, label') || el.parentElement?.closest('button, label')) return false;
   const list = el.closest('nav, [role=navigation], ol, ul, [role=list], [role=tablist]');
   return !!list && list.querySelectorAll('a[href], [role=link], [role=tab], button[type=button]').length > 1;
 }"""
