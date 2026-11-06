@@ -526,8 +526,10 @@ def test_a_block_lisul_resumed_after_does_not_stop_the_next_read(tmp_path):
     filler = ClaudeFill(FakeClaude(driver=driver))
 
     with FakeBambooServer(LUNAR_FORM) as server, claude_fill.OnePage(server) as site:
-        with pytest.raises(Handoff, match="blocked a form submission"):
+        with pytest.raises(Handoff, match="blocked a form submission") as handoff:
             filler.question_set(LUNAR_URL, site)
+        # JPMorgan (2026-11-05): the note says where the post went and that no button sent it.
+        assert re.search(r"form submission \(POST https://lunaroutpost\.bamboohr\.com/session, by a script\)", str(handoff.value))
         questions = filler.question_set(LUNAR_URL, site)  # his Resume: the same page, read again
 
     assert [q.label for q in questions][:3] == ["First Name", "Last Name", "Email"]

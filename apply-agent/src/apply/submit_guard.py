@@ -251,6 +251,17 @@ _TEMPLATE = r"""
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
   const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
     && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
+  // A blocked form submission named by where it went, its frame target and what sent it (a button's
+  // words, else a script), so a Handoff and the Trace tell a page's own post from the application.
+  const formNamed = (form, by) => {
+    let href = String(postTarget(form, by));
+    try { href = new URL(href, location.href).href; } catch (e) {}
+    const target = String((by && by.getAttribute && by.getAttribute('formtarget'))
+      || HTMLFormElement.prototype.getAttribute.call(form, 'target') || '');
+    const words = by ? String(by.innerText || by.value || by.getAttribute('aria-label') || '').trim().slice(0, 40) : '';
+    return 'a form submission (POST ' + href.slice(0, 160) + (target ? ', into frame ' + target.slice(0, 60) : '')
+      + ', by ' + (words ? 'the "' + words + '" button' : 'a script') + ')';
+  };
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
@@ -262,7 +273,7 @@ _TEMPLATE = r"""
     if (final) event.stopImmediatePropagation();
     if (final || (posts(form, by) && (!accountClick() || postsFinal(form, by)))) {
       event.preventDefault();
-      note('a form submission');
+      note(formNamed(form, by));
     }
   }, true);
   const submit = HTMLFormElement.prototype.submit;
@@ -271,7 +282,7 @@ _TEMPLATE = r"""
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
     const step = accountClick() && (!!this.querySelector('input[type=password]')
       || (![...this.querySelectorAll('button, input[type=submit]')].some(sends) && !postsFinal(this)));
-    if (!lifted() && !step && posts(this)) return note('a form submission');
+    if (!lifted() && !step && posts(this)) return note(formNamed(this, null));
     return submit.call(this);
   };
 
