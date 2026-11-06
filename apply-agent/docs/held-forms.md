@@ -94,6 +94,14 @@ goes on from the step that the page shows.
   Workday Filler says so until the page shows an application step (on
   Workday's or Google's sign-in page), so Resume never signs in or asks
   for a code. The why shows on the button, and the pause stays.
+- **Signing in carries on by itself (KAN-670).** A form paused at a sign-in goes on with no Resume
+  and no Fill again once Lisul has signed in on the page. The check is the Filler's `signed_in(page)`,
+  the one its own sign-in makes, so the fill from there signs in no more: Workday's `_on_step`, and
+  Oracle's `oracle.signed_in` (Claude fill's `signed_in`). `worker.ResumeCheck` carries it with
+  `resume_blocked`. It goes on only when the page showed a sign-in first and `resume_blocked` is "".
+  It never types into a sign-in page. A Filler with no `signed_in` waits for Resume, as before.
+  A captcha on the page (`captcha.pending`) stops it for the rest of the pause: the tile says
+  `rehearsal.CAPTCHA_SHOWED`, and Resume is his. The history says "Went on by itself".
 - A tab that closed, or a rehearsal that ended, makes `resume={"ok": False,
   "why": ...}` (`rehearsal.TAB_CLOSED`, `ENDED`). The button stays, turned
   off, and says why. Fill again still fills the form anew.
@@ -110,7 +118,8 @@ goes on from the step that the page shows.
 **Tests.** `tests/test_resume.py`: the fake Workday stops on a required
 Degree; Lisul picks it on the page, presses Resume, and the form goes to
 Review with no submit. Also a closed tab, the `/resume` route, and the
-window's card and tile. Run it with `-k`; it opens Chromium.
+window's card and tile. `-k by_itself`: Lisul signs in to Google on the paused page and the fill goes
+on with no Resume; a captcha there stops that. Run it with `-k`; it opens Chromium.
 
 ## Resume while a rehearsal fills (KAN-594)
 

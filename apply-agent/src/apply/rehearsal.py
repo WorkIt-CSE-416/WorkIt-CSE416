@@ -110,6 +110,10 @@ AGAIN, RESUME = "again", "resume"
 ANYWAY = "Fill it anyway"
 ANYWAY_WHY = f"{ANYWAY}: Apply opens the form and fills it as in any rehearsal. It never presses Submit"
 FILLED_ANYWAY = "Filled anyway: {}"
+# How a pause at a sign-in ended when Apply went on by itself: Lisul signed in on the page (KAN-670).
+SIGNED_IN = "signed in"
+# On the Resume button of a sign-in pause where a captcha showed: Apply no longer goes on by itself.
+CAPTCHA_SHOWED = "A captcha showed: do it, then press Resume. Apply won't go on by itself now"
 # Why a paused rehearsal can't go on, on its Resume button.
 TAB_CLOSED = "The form's tab was closed: start it again"
 ENDED = "The rehearsal ended: start it again"
@@ -312,13 +316,15 @@ def rehearse(
 
         def holds() -> dict:
             """What holds Submit on the held page (Rehearsed.holding), with its note, for hold()."""
-            return {"fill_again": lambda: adapters.board.fill_again_asked(n),
+            # A Board of an older shape (a test's, a run's) has no Fill again from outside the page: never asked.
+            return {"fill_again": lambda: getattr(adapters.board, "fill_again_asked", lambda k: False)(n),
                     "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong())}
 
-        def paused(stopped: Rehearsed, blocked: Callable[[object], str]) -> bool:
+        def paused(stopped: Rehearsed, blocked: Callable[[object], str]) -> bool | str:
             """The fill stopped mid-form for Lisul: hold its page, his to fix, until he presses Resume
-            (True: Apply goes on with it), Fill again, or the page closes."""
+            (True: Apply goes on with it), Fill again, or the page closes. Paused at a sign-in, it goes on
+            by itself once he has signed in on the page (SIGNED_IN), unless a captcha showed."""
             nonlocal done
             done = stopped
             start.leave(n)
@@ -328,7 +334,30 @@ def rehearse(
                 first.append(True)
                 finished.put(done)
 
-            def wants(page) -> bool:  # Lisul pressed Resume, and the page lets it go on
+            # Paused at a sign-in: once the page shows the form past it, by the Filler's own signed-in check (the one
+            # Fill again's sign-in uses), Apply goes on by itself (KAN-670). Never while a captcha shows, nor after.
+            signed_in, at_sign_in, captcha_seen = getattr(blocked, "signed_in", None), [False], [False]
+
+            def signed_in_now(page) -> bool:
+                if signed_in is None or captcha_seen[0]:
+                    return False
+                if captcha.pending(page):
+                    captcha_seen[0] = True
+                    adapters.board.update(n, status=done.outcome, resume={"ok": True, "why": CAPTCHA_SHOWED})
+                    out(f"{_name(done)} | {CAPTCHA_SHOWED}")
+                    return False
+                try:
+                    now = bool(signed_in(page))
+                except Exception:
+                    return False  # the page navigating: look again on the next turn
+                if not now:
+                    at_sign_in[0] = True
+                return now and at_sign_in[0] and not blocked(page)
+
+            def wants(page) -> bool:  # Lisul pressed Resume, and the page lets it go on; or he signed in
+                if signed_in_now(page):
+                    went[0] = SIGNED_IN
+                    return True
                 if not adapters.board.resumed(n):
                     return False
                 if why := blocked(page):
@@ -336,6 +365,7 @@ def rehearse(
                     out(f"{_name(done)} | can't resume yet: {why}")
                     return False
                 return True
+            went = [True]
             gate.release()  # a paused form holds no Worker's turn while it waits on him
             try:
                 how = site.hold(release, done.posting.job_system, submitted, done.warning(), done.wrong(),
@@ -346,7 +376,7 @@ def rehearse(
                 gate.acquire()
             if how == RESUME:
                 site.rearm()
-                return True
+                return went[0]
             if not how:
                 adapters.board.update(n, status=done.outcome, resume={"ok": False, "why": ENDED if release.is_set()
                                                                      else TAB_CLOSED})
@@ -508,7 +538,7 @@ def _name(rehearsed: Rehearsed) -> str:
 def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantProfile,
               calibration: Callable[[], str], accounts: "_Accounts", n: int,
               before_fill: Callable[[], None] = lambda: None, stage: str = "",
-              pause: Callable[[Rehearsed, Callable[[object], str]], bool] = lambda stopped, blocked: False,
+              pause: Callable[[Rehearsed, Callable[[object], str]], bool | str] = lambda stopped, blocked: False,
               anyway: str = "", force: bool = False) -> Rehearsed:
     """One fill of the link. A stop mid-form for Lisul goes to `pause` with its
     summary and why Resume can't go on (apply_to's `on_pause`): True, he
@@ -567,11 +597,12 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         trace.event("pause", reason=stopped.reason)
         board.update(n, status=summary.outcome, line=summary.line(), why=one_line(summary.why), filled=summary.filled,
                      asked=summary.asked, missing=list(summary.missing), resume={"ok": True}, history=list(history))
-        if not pause(summary, blocked):
+        if not (went := pause(summary, blocked)):
             return False
-        history.append(f"{adapters.clock.now().strftime('%H:%M')} Resumed: you pressed Resume; "
-                       "Apply went on from the page as you left it")
-        trace.event("resume")
+        history.append(f"{adapters.clock.now().strftime('%H:%M')} " + (
+            "Went on by itself: you signed in on the page" if went == SIGNED_IN
+            else "Resumed: you pressed Resume; Apply went on from the page as you left it"))
+        trace.event("resume", signed_in=went == SIGNED_IN)
         # Filling again: its caption anew, as a fill's start gives it (filling clears the tile).
         board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system,
                      posting_url=posting.url, application_id=posting.id, status="filling", files=list(files),

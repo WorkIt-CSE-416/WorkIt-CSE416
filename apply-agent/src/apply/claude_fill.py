@@ -266,7 +266,7 @@ class ClaudeFill:
                  sign_in: Callable[[Page], None] | None = None, resume: Path | None = None,
                  sms_opt_in: bool = False, marketing_opt_in: bool = False,
                  accounts: Accounts | None = None, account_facts: dict | None = None,
-                 page_gates: bool | str = False):
+                 page_gates: bool | str = False, signed_in: Callable[[Page], bool] | None = None):
         """`sign_in` takes the open posting to its form by plain code first,
         on a job system whose sign-in needs no Claude (Oracle's emailed code).
         `resume` is for a pop-up that asks for it before the form can be used.
@@ -278,12 +278,14 @@ class ClaudeFill:
         an attestation, consent, self-ID, legal or criminal-history field, or an answer Claude
         isn't sure of, pauses for his check before the form goes on, and Claude never ticks or
         signs his boxes. "note" pauses nothing: each such field goes on `checks`, his list to
-        check before he submits, and the form goes on."""
+        check before he submits, and the form goes on. `signed_in(page)` says whether a page is
+        past `sign_in`'s sign-in, with `sign_in`'s own check."""
         self._claude = claude
         self._account_pages = AccountPages(accounts, account_facts or {})
         self._url = ""  # the Posting's, to go back to once a mailed link is opened
         self._resume = resume
         self._sign_in = sign_in
+        self.signed_in = signed_in  # whether a page is past `sign_in`'s sign-in (Oracle's), for a paused rehearsal
         self._opt_ins = {"sms_opt_in": sms_opt_in, "marketing_opt_in": marketing_opt_in}
         self._max_turns = max_turns
         self._max_steps = max_steps
