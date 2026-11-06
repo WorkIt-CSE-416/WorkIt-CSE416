@@ -165,7 +165,7 @@ def test_the_fix_brief_reads_as_the_golden_file():
         "admin_note": "Greenhouse retypes the name.",
         "updated_at": None,
     }
-    golden = (FIXTURES / "fill_brief.md").read_text()
+    golden = (FIXTURES / "fill_brief.md").read_text(encoding="utf-8")
     assert fix_brief(report, engine_commit="fcaaf20d") == golden
 
 

@@ -42,11 +42,13 @@ async def _seed_posting(conn, url, *, status="published"):
 async def _seed_source(conn, schedule_id, url, *, stale=False):
     """Insert a job_sources row.  stale=True sets last_seen_at before the
     schedule's prior_read_at; stale=False sets it after."""
-    offset = "2 hours" if stale else "0 seconds"
-    await conn.execute(text("""
-        INSERT INTO job_sources (id, schedule_id, apply_url, last_seen_at)
-        VALUES (gen_random_uuid(), :sid, :url, now() - interval :offset)
-    """), {"sid": schedule_id, "url": url, "offset": offset})
+    if stale:
+        sql = """INSERT INTO job_sources (id, schedule_id, apply_url, last_seen_at)
+                 VALUES (gen_random_uuid(), :sid, :url, now() - interval '2 hours')"""
+    else:
+        sql = """INSERT INTO job_sources (id, schedule_id, apply_url, last_seen_at)
+                 VALUES (gen_random_uuid(), :sid, :url, now())"""
+    await conn.execute(text(sql), {"sid": schedule_id, "url": url})
 
 
 async def _status(conn, url) -> str:
@@ -153,8 +155,8 @@ async def test_company_job_never_closed(database):
         board = await _seed_schedule(conn)
         company_id = uuid.uuid4()
         await conn.execute(text("""
-            INSERT INTO company_profiles (id, company_name, contact_email)
-            VALUES (:cid, 'Acme Corp', 'hr@acme.com')
+            INSERT INTO company_profiles (id, company_name, contact_email, size_range)
+            VALUES (:cid, 'Acme Corp', 'hr@acme.com', 'ONE_TO_FIFTY')
         """), {"cid": company_id})
         await conn.execute(text("""
             INSERT INTO job_postings
