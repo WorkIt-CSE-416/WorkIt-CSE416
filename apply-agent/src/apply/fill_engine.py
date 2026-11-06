@@ -256,13 +256,34 @@ def tick_ask(wordings: list[str]) -> str:
     return f"Tick {named} yourself on this page, then press Resume: Apply never attests or signs for you."
 
 
-UNTICKED = re.compile(r"^\s*(no|false|off|unchecked|not checked|unticked|not ticked|empty|blank|none|left for you)?\s*$", re.IGNORECASE)
+# What a box or a pick shows when it is ticked or picked (KAN-676). Anything else, a placeholder ("Select..."), a
+# symbol, a refusal ("No.", "Not accepted"), the box's own label or a word nobody listed, reads as not ticked.
+TICKS = frozenset({"yes", "true", "on", "checked", "ticked", "selected", "agreed", "accepted", "agree", "accept", "i agree",
+                   "i accept", "i certify", "certified", "i acknowledge", "acknowledged", "i confirm", "confirmed", "i attest",
+                   "i certify and agree", "i agree and certify", "x", "☑", "☒", "✓", "✔", "[x]"})
+REFUSES = re.compile(r"^(no|not|non|un|decline|disagree|reject|refuse|i do not|i don'?t|i decline|i disagree|prefer not|n/?a\b|none\b)"
+                     r"|^(select|choose|please|pick)\b|^-+|^\W*$", re.IGNORECASE)
 
 
-def ticked(shown: object) -> bool:
-    """Whether a field read back shows a tick, a pick or text: not empty, nor a box read as unticked ("No")."""
-    values = shown if isinstance(shown, (list, tuple)) else [shown]
-    return any(not UNTICKED.match(str(value or "")) for value in values)
+def _plain(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "")).strip().strip(".!").strip().casefold()
+
+
+def ticked(shown: object, question: Question | None = None) -> bool:
+    """Whether a field read back shows a real tick or pick: an allowlist (TICKS), or one of `question`'s own options that
+    is no refusal or placeholder, or for a text attestation (a typed-name signature) text other than its label. Anything
+    else reads as not ticked: Apply fails closed."""
+    values = [v for v in (shown if isinstance(shown, (list, tuple)) else [shown]) if _plain(v)]
+    label = _plain(question.label) if question is not None else ""
+    options = {_plain(o) for o in question.options} if question is not None else set()
+    for value in map(_plain, values):
+        if value == label or REFUSES.search(value):
+            continue
+        if value in TICKS or value in options:
+            return True
+        if question is not None and question.kind in ("text", "textarea") and not question.options and re.search(r"[a-z].*[a-z]", value):
+            return True
+    return False
 
 
 def attestations(questions: QuestionSet) -> set[str]:

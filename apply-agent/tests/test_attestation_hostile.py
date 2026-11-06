@@ -153,6 +153,10 @@ def test_an_attestation_sharing_an_uploads_label_is_still_on_the_list():
 
 @pytest.mark.parametrize("shown", ["Select...", "-- Please select --", "Choose one", "Not selected", "unchecked yet", "☐", "[ ]",
                                    "Unchecked.", "(unchecked)", "No.", "Not accepted", CERTIFY])
+def test_a_box_read_back_unticked_is_not_ticked(shown):
+    assert not fill_engine.ticked([shown])
+
+
 # --- 3. Resume on Workday: an untouched box is read as Lisul's.
 
 def _workday():
