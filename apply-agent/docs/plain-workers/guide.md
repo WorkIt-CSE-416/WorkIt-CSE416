@@ -215,6 +215,9 @@ What changes on a plain Worker:
   Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the
   default) then copies that seed to each Worker. `plain_chrome: testing` (Chrome for Testing) needs no
   seed, but Allow User Scripts can't be turned on there.
+- **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
+  "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
+  and Developer mode is on), and both for `protected`. With `plain_chrome: testing` the seed line is ok.
 - **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
   `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
   hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A

@@ -40,7 +40,8 @@ routed, so a page Claude opens doesn't wait.
 
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
-step. A blocked attempt shows a small "Apply rehearsal" note on the page,
+step, and another site's widget posting hidden fields into its own iframe
+(LinkedIn's Apply with LinkedIn on Microsoft's form, KAN-711). A blocked attempt shows a small "Apply rehearsal" note on the page,
 once the page has had a click or key: one its own script makes first (a
 cookie banner, analytics) is blocked without one.
 
@@ -130,6 +131,11 @@ _TEMPLATE = r"""
     const form = el.form || (el.closest && el.closest('form'));
     return !!form && !!form.querySelector('input[type=password]');
   };
+  // A verification code's form: one with a one-time-code box, which no application's final button is in either.
+  const codeForm = (el) => {
+    const form = el.form || (el.closest && el.closest('form'));
+    return !!form && !!form.querySelector('input[autocomplete=one-time-code]');
+  };
   // Plain code's click on the button of a profile step before the application (Microsoft's
   // "Create your profile" pop-up names its button Submit, live: KAN-647).
   const profileClick = () => window.__applyProfileClick === true;
@@ -204,7 +210,10 @@ _TEMPLATE = r"""
       && event.target.closest('button, input[type=submit], input[type=button], [role=button], a');
     if (!target) return;
     if (lifted()) {  // Lisul's page: his click goes through, and Apply hears of one that sends
-      if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80));
+      // Saying whether it was a sign-in, account or code form's (Workday's Sign in with email names its button
+      // Submit): that press sends no application, so Resume still goes on after it.
+      if (sends(target) && window.__applyLisulPressed) window.__applyLisulPressed(wordsOf(target).trim().slice(0, 80),
+        accountForm(target) || codeForm(target));
       return;
     }
     if (!sends(target)) return;
@@ -253,9 +262,30 @@ _TEMPLATE = r"""
   // A profile pop-up posting to its own page, on a URL final by its name alone: the pop-up is proven no application.
   const profileOwnPage = (form, by) => !(by && by.getAttribute && by.getAttribute('formaction'))
     && !HTMLFormElement.prototype.getAttribute.call(form, 'action') && byNameAlone(form, by);
+  // A sign-in relay's own post (an SSO, OIDC or SAML hand-off: Amazon's idp.federate "Signing you in...", live):
+  // the page's script posts it before any click or key on the page, its fields are all hidden (a token, a
+  // state), no button of it sends, and it is bound for no final URL. Nothing of an application is in it.
+  const fields = (form) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form);
+  const hiddenOnly = (form) => [...fields(form)].some((n) => n.type === 'hidden')
+    && [...fields(form)].every((n) => n.type === 'hidden' || n.tagName === 'FIELDSET'
+      || (/^(submit|button|reset)$/.test(n.type) && !sends(n)));
+  const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by) && hiddenOnly(form);
+  // Another site's widget loading itself into its own frame on the page, click or no click: LinkedIn's Apply
+  // with LinkedIn on Microsoft's form (live, KAN-711) posts a form of hidden fields (its key, the job's code)
+  // to linkedin.com into the iframe it just made, as the form loads. Bound for another site and no final URL,
+  // into a frame of this page (its target names an iframe here), with nothing of the application in it.
+  const frameLoad = (form, by) => {
+    const target = (by && by.getAttribute && by.getAttribute('formtarget'))
+      || HTMLFormElement.prototype.getAttribute.call(form, 'target') || '';
+    if (!target || target.startsWith('_') || !posts(form, by) || postsFinal(form, by) || !hiddenOnly(form)) return false;
+    let away = false;
+    try { away = new URL(postTarget(form, by), location.href).origin !== location.origin; } catch (e) {}
+    return away && [...document.getElementsByName(target)].some((n) => /^I?FRAME$/.test(n.tagName));
+  };
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
+    if (relay(form, by) || frameLoad(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     if (accountClick() && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
@@ -275,7 +305,7 @@ _TEMPLATE = r"""
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
     const step = accountClick() && !postsFinal(this) && (!!this.querySelector('input[type=password]')
       || ![...this.querySelectorAll('button, input[type=submit]')].some(sends));
-    if (!lifted() && !step && posts(this)) return note('a form submission');
+    if (!lifted() && !step && !relay(this, null) && !frameLoad(this, null) && posts(this)) return note('a form submission');
     return submit.call(this);
   };
 
@@ -322,7 +352,8 @@ _TEMPLATE = r"""
 """
 
 
-# What else the drive guard blocks, while Claude drives: a sign-in other than Google's, a payment,
+# What else the drive guard blocks, while Claude drives: an account step's button on a page that carries a
+# captcha (apply.captcha.CARRIED), a sign-in other than Google's, a payment,
 # a withdraw or delete of the application, account or profile, and ticking an opt-in to texts or
 # marketing while Lisul's sms_opt_in or marketing_opt_in policy says no (the planner's questions
 # of those policies; unticking one goes on).
@@ -347,6 +378,11 @@ _CONTROLS = r"""
     const el = event.target && event.target.closest
       && event.target.closest(BOX + ', button, input[type=submit], input[type=button], [role=button], a');
     if (!el || lifted()) return;
+    if (!accountClick() && !el.matches(BOX) && !el.matches('a:not([role=button])') && carriesCaptcha() && accountStep(el)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return note('the "' + wordsOf(el).trim().slice(0, 40) + '" click ' + SIGN_IN_CLICK);
+    }
     const box = el.matches(BOX);
     const words = box ? boxWords(el) : wordsOf(el);
     // A checkbox's click has ticked it already; a role=checkbox's has yet to.
@@ -356,13 +392,40 @@ _CONTROLS = r"""
     event.stopImmediatePropagation();
     note('the "' + words.trim().slice(0, 40) + '" click');
   }, true);
+  // A page that carries a captcha, its invisible kind too (apply.captcha.CARRIED), in this frame or a same-origin
+  // one around it: an account step's button there runs the captcha, so it is Lisul's to press, never Claude's, and
+  // plain code's account click never comes (apply.account_pages hands off first). AMD's iCIMS email step, KAN-703.
+  const CAPTCHA_CARRIED = @CAPTCHA_CARRIED@, SIGN_IN_CLICK = @SIGN_IN_CLICK@;
+  const carriesCaptcha = () => {
+    for (let w = window; ; w = w.parent) {
+      try { if (w.document.querySelector(CAPTCHA_CARRIED)) return true; } catch (e) { return false; }
+      if (w === w.parent) return false;
+    }
+  };
+  // An account step: a form with a password box, or one with an email or username box and few fields else (an
+  // email step's Next): at most one more, or three on a page whose path signs in or makes an account.
+  const ACCOUNT_PATH = /(?:^|[\/_.-])(?:log-?in|sign-?in|sign-?up|log-?on|register|registration|account)(?:$|[\/_.-])/i;
+  const accountStep = (el) => {
+    const scope = el.form || (el.closest && el.closest('form')) || document;
+    if (scope.querySelector('input[type=password]')) return true;
+    const shown = [...scope.querySelectorAll('input, select, textarea')].filter((n) => !/^(hidden|submit|button|reset|image|checkbox|radio)$/.test(n.type)
+      && (!n.checkVisibility || n.checkVisibility()));
+    return shown.length <= (ACCOUNT_PATH.test(location.pathname) ? 4 : 2)
+      && shown.some((n) => n.type === 'email' || /e-?mail|user|login/i.test([n.name, n.id, n.autocomplete].join(' ')));
+  };
   // A sign-in or new account's own button, or its form sent another way (Enter): plain code's alone.
   const signsIn = (el) => {
     const form = el.form || (el.closest && el.closest('form'));
     return !!form && !el.matches('a') && !!form.querySelector('input[type=password]');
   };
   window.addEventListener('submit', (event) => {
-    if (lifted() || accountClick() || !event.target.querySelector('input[type=password]')) return;
+    if (lifted() || accountClick()) return;
+    if (carriesCaptcha() && accountStep(event.submitter || event.target)) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      return note('a sign-in ' + SIGN_IN_CLICK);
+    }
+    if (!event.target.querySelector('input[type=password]')) return;
     event.preventDefault();
     event.stopImmediatePropagation();
     note('a sign-in');
@@ -466,7 +529,7 @@ def drive_script(sms_opt_in: bool = False, marketing_opt_in: bool = False, port:
     """The drive guard's script, letting through ticking an opt-in to texts or
     marketing that Lisul's policy says yes to (`port`: a plain Worker's copy)."""
     controls = _CONTROLS.replace("@SMS_OPT_IN@", _js(sms_opt_in)).replace("@MARKETING_OPT_IN@", _js(marketing_opt_in))
-    for name, value in {"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
+    for name, value in {"@CAPTCHA_CARRIED@": json.dumps(captcha.CARRIED), "@SIGN_IN_CLICK@": json.dumps(captcha.SIGN_IN_CLICK),"@ASK_ELEMENT@": send_click.ELEMENT, "@ASK_SECRET@": json.dumps(send_click.SECRET.pattern),
                         "@ASK_ATTEST@": json.dumps(send_click.ATTEST.pattern), "@ASK_RESEND@": json.dumps(send_click.RESEND.pattern)}.items():
         controls = controls.replace(name, value)
     return _script("applyDrive", "Apply drive guard", lifted="window.__applyDriveLifted === true", extra=controls,
@@ -611,7 +674,8 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     """Hand a guarded page to Lisul once Apply is done with it: no Filler or
     Claude drives it any more, so a Submit on it can only be his, and it goes
     through, on this page and every page he loads from it. `pressed` hears
-    the words of each button he clicks that sends; `again`, when he presses
+    the words of each button he clicks that sends, with `account=True` when it is a sign-in, account
+    or verification code form's (it sends no application); `again`, when he presses
     the note's Fill again. Both are called on the page's own thread. A
     `warning` goes on the note, red when an answer is `wrong`, amber when
     it only names fields left blank. `bound`: the page was lifted before
@@ -624,7 +688,7 @@ def lift(page: Page, pressed: Callable[[str], None] | None = None, again: Callab
     if bound:
         pressed = again = dismiss = None
     if pressed:
-        page.expose_binding("__applyLisulPressed", lambda source, words: pressed(words))
+        page.expose_binding("__applyLisulPressed", lambda source, words, account=False: pressed(words, account=account))
     if again:
         page.expose_binding("__applyFillAgain", lambda source: again())
     if dismiss:

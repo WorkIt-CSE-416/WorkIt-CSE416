@@ -1505,6 +1505,50 @@ def test_a_step_that_shows_a_whole_address_in_a_part_or_a_future_start_year_neve
     assert claude_fill.cant_be_right({"Address line 1": address, "Home address": address}, 2026) == []
 
 
+def test_line_one_with_a_whole_address_is_wrong_only_on_a_step_that_asks_the_parts():
+    # TAL.net (KAN-684): the whole address in Address line 1, beside its own City/Town and Postcode boxes.
+    address = "1 Main Street, Springfield, NY 11111, United States"
+    assert claude_fill.cant_be_right({"Home/permanent address: Address line 1": address, "City/Town": "Springfield",
+                                      "Postcode/Zipcode": "11111"}, 2026) == [
+        "'Home/permanent address: Address line 1' holds a whole address, though the step asks its parts"]
+    assert claude_fill.cant_be_right({"Address line 1": "1 Main Street", "City/Town": "Springfield"}, 2026) == []
+    assert claude_fill.cant_be_right({"Street address": address}, 2026) == []  # one box for it all: right
+
+
+# TAL.net's Personal Details, as it showed live (KAN-684): a home and a campus address, line 1's help text under
+# its label, and line 2 holding the whole address an earlier run saved there, which this fill planned nothing for.
+TWO_ADDRESSES = """<!doctype html><body>
+<h3>Home/permanent address</h3>
+<label for=h1>Address line 1<br><span>Please include floor, apartment/flat number if applicable</span> *</label>
+<input id=h1 value="1 Main Street">
+<label for=h2>Address line 2</label><input id=h2 value="1 Main Street, Springfield, NY 11111, United States">
+<label for=h3>City/Town *</label><input id=h3 value="Springfield">
+<label for=h4>Postcode/Zipcode *</label><input id=h4 value="11111">
+<h3>Campus Address</h3>
+<label for=c1>Address line 1 *</label><input id=c1 value="Dorm Hall, 5 College Road">
+<label for=c2>Address line 2</label><input id=c2 value="Room 4">
+<label for=c3>City/Town *</label><input id=c3 value="College Town">
+<label for=c4>County / State / Province</label><select id=c4><option>Choose one...</option><option selected>New York</option></select>
+<input type=hidden id=x value="1 Main Street, Springfield, NY 11111, United States">
+</body>"""
+
+
+def test_a_box_the_fill_left_alone_is_checked_too():
+    # KAN-684: KAN-652's check read only the boxes Apply filled, so line 2's stale whole address was saved.
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.set_content(TWO_ADDRESSES)
+        planned = {"Home/permanent address: Address line 1": "1 Main Street"}
+        seen = claude_fill._on_step(page, planned)
+        browser.close()
+    assert seen["Home/permanent address: Address line 1"] == "1 Main Street"  # its own read-back, not read twice
+    assert seen["#2: Address line 2"].startswith("1 Main Street, Springfield")
+    assert seen["County / State / Province"] == "New York" and "x" not in seen
+    assert claude_fill.cant_be_right(seen, 2026) == ["'#2: Address line 2' holds a whole address"]
+
+
 @pytest.mark.parametrize("label", [
     # Saved forms (the Fill engine's fixtures) that ask a school's fields and the internship's start on one page.
     "What is your earliest preferred start date if hired? (YYYY-MM-DD)",
@@ -1582,3 +1626,10 @@ def test_the_section_of_a_bare_start_date_is_read_from_the_page(heading, stops):
         browser.close()
     assert sections == {"Start date": heading.lower()}
     assert bool(claude_fill.cant_be_right(shown, 2026, sections)) is stops
+
+
+def test_the_fill_prompt_says_how_to_pick_from_a_type_to_search_dropdown():
+    # AMD's iCIMS (live, KAN-699): Claude typed the whole state, read the list at once, got No Results and
+    # pressed Escape. Ask Claude then typed "New", waited and clicked New York.
+    assert "Type to Search" in FILL and "first word" in FILL and "browser_wait_for" in FILL
+    assert "Don't press Escape" in FILL

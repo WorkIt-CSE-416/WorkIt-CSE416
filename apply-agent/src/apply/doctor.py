@@ -31,6 +31,8 @@ from apply.gmail import live_mailbox
 from apply.home import CODE
 from apply.model import Status
 from apply.orchestrator import SUBMITTING
+from apply.plain import extension as worker_extension
+from apply.plain.launcher import SEED, developer_mode
 from apply.profile import ApplicantProfile, load_policies
 from apply.records import BRANCH, CLONE
 from apply.tracker import FileTracker
@@ -97,7 +99,7 @@ class Machine:
 
 
 def diagnose(machine: Machine) -> list[Check]:
-    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _worker_profiles, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
+    checks: list[Callable[[Machine], Check | list[Check]]] = [_claude, _chrome, _engine, _chromium, _workers, _facts, _resume_gate, _resume_source, _gmail, _records, _live_runs, _workit, _writes, _tracker, _accounts_host]
     return [found for c in checks for found in _safely(c, machine)]
 
 
@@ -177,6 +179,33 @@ def _chromium(machine: Machine) -> Check:
 
 SIGN_IN = ("sign in to Google by hand, in a Chrome started with --user-data-dir={} --use-mock-keychain "
            "--password-store=basic (docs/accounts-setup.md, step 3)")
+
+
+PLAIN_SEED = "run `uv run apply plain seed` once no plain Worker runs, and follow its steps (docs/plain-workers/guide.md)"
+
+
+def _workers(machine: Machine) -> list[Check]:
+    """The Workers policies.yaml's worker_mode runs: CDP Workers' profiles (cdp), the plain seed and its
+    worker extension (plain), or both (protected: plain only on the hosts that block CDP)."""
+    mode = _policy(machine, "worker_mode") or "cdp"
+    return ([] if mode == "plain" else _worker_profiles(machine)) + ([] if mode == "cdp" else [_plain_seed(machine)])
+
+
+def _plain_seed(machine: Machine) -> Check:
+    """The seed profile every plain Worker starts as a copy of, with the worker extension Load unpacked
+    registered in it, read from its files on disk. Chrome for Testing loads the extension itself."""
+    name = "Plain seed"
+    if (os.environ.get("APPLY_PLAIN_CHROME") or _policy(machine, "plain_chrome") or "chrome") == "testing":
+        return Check(name, OK, "not needed: Chrome for Testing loads the worker extension itself (plain_chrome: testing)")
+    seed = machine.profiles / SEED
+    if not seed.is_dir():
+        return Check(name, FAIL, f"no seed profile at {seed}", PLAIN_SEED)
+    if not (folder := worker_extension.loaded_folder(seed)):
+        return Check(name, FAIL, f"the worker extension isn't installed in {seed}", PLAIN_SEED)
+    if not developer_mode(seed):
+        return Check(name, WARN, f"Developer mode is off in {seed}, so Chrome disables the worker extension "
+                                 "when it reloads", PLAIN_SEED)
+    return Check(name, OK, f"the worker extension is installed, from {folder}")
 
 
 def _worker_profiles(machine: Machine) -> list[Check]:
