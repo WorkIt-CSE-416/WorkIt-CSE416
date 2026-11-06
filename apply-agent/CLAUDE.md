@@ -77,6 +77,25 @@ wording) wins in the engine's plan on every form that offers it. The
 company's-own-site order applies only when none is recorded (Lisul,
 2026-11-02).
 
+An attestation, certification or signature ("I certify", "I hereby certify",
+"I attest", "I declare", "I acknowledge" or "I affirm" except to a privacy or
+data notice, "under penalty", an electronic or typed-name signature, its
+date, a statement that the application is true) is Lisul's alone (Lisul,
+2026-11-05, KAN-676). The engine's plan never answers one, whatever a rule,
+`tick_consent_when_true`, the Answer bank or `answered_questions` holds, and
+names each in `Plan.attestations` with its exact wording. Apply keeps it out
+of every answer (`_Planned.answers`), the review's fixes, Claude fill and the
+essays. It stays blank and unticked, and the form holds with a "Yours to
+tick: <wording>" line on its Check before Submit list (`_Planned.to_tick`,
+dashboard `TO_CHECK`). A required one stops a stepped form on its page with
+one ask (`fill_engine.tick_ask`): Workday before Save and Continue, Claude
+fill after the step's session, which reads it back but never touches it.
+Resume goes on with what he ticked. The pattern is the engine's
+(`asksAttestation`, `src/holds.ts`): keep no copy in Apply. A privacy or data
+consent ("I agree to the privacy policy") still follows
+`tick_consent_when_true`, and a background-check consent
+`willing_to_undergo_checks`, unless it attests that the application is true.
+
 An Answer bank entry with `answer: []` and `none: true` answers a
 multi-select with none of its options (Roblox's partner organizations):
 its boxes stay unticked, a blank on purpose in the plan.
