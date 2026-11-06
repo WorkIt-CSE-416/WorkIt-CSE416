@@ -51,13 +51,14 @@ import sys
 import time
 from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Self
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 
-from apply import captcha, description
+from apply import captcha, description, on_page
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -361,7 +362,7 @@ class ClaudeFill:
             self._read_posting_text(page)  # the posting, before Claude clicks its Apply button
             found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
             self._read_posting_text(page)  # else what the form's own page says about the job
-            questions = _with_options(page, self._questions(found["questions"]))
+            questions = _with_sections(page, _with_options(page, self._questions(found["questions"])))
         why = str(found.get("why") or "").strip()
         if found.get("page") == "closed posting":
             raise Closed(f"the page says {why}" if why else "the page says the Posting no longer takes applications")
@@ -445,7 +446,7 @@ class ClaudeFill:
             # Known by its label with or without its help text, as either session may give it.
             unlisted = _new_questions(page, questions, done.get("unlisted") or [])
             if unlisted:
-                raise MoreQuestions(_with_options(page, self._questions(unlisted)))
+                raise MoreQuestions(_with_sections(page, _with_options(page, self._questions(unlisted))))
             # What this step shows, checked by plain code before Next saves it (KAN-652).
             shown = {labels[name]: self._readback.get(name) for name in todo if name in labels}
             if wrong := cant_be_right(_on_step(page, shown), sections=_sections(page, shown)):
@@ -524,13 +525,15 @@ class ClaudeFill:
         if said := clear_pop_up(page, self._resume):
             raise Handoff(f'A pop-up covers the form ("{said}") and Apply could not close it. Fill it in yourself.')
 
-    @staticmethod
-    def _attach_resume(page: Page, labels: dict[str, str], answers: Answers) -> dict[str, str]:
+    def _attach_resume(self, page: Page, labels: dict[str, str], answers: Answers) -> dict[str, str]:
         """The résumé, attached by plain code (see apply.attach), as {field: the
-        file name the page shows}; empty if it's left to Claude."""
+        file name the page shows}; empty if it's left to Claude. The guards let
+        the page post the file meanwhile (iCIMS's parse, KAN-691)."""
         for name, value in answers.items():
             if isinstance(value, Path) and re.search(RESUME, labels[name], re.IGNORECASE):
-                return {name: value.name} if attach_resume(page, value) else {}
+                if self._guard is None:
+                    self._guard = DriveGuard(page, **self._opt_ins)
+                return {name: value.name} if attach_resume(page, value, self._guard) else {}
         return {}
 
     def submit(self, page: Page) -> None:
@@ -1024,6 +1027,52 @@ SECTIONS = r"""(labels) => {
   }
   return out;
 }"""
+
+
+# The headings over each of `labels` in the page, nearest first (up to three): SECTIONS' walk, kept going.
+HEADINGS_OVER = r"""(labels) => {
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').replace(/[\s*:]+$/, '').trim().toLowerCase();
+  const heading = 'h1, h2, h3, h4, h5, h6, legend, [role=heading]';
+  const over = (el) => {
+    const found = [];
+    for (let at = el; at && at !== document.documentElement && found.length < 3; at = at.parentElement) {
+      for (let before = at.previousElementSibling; before && found.length < 3; before = before.previousElementSibling) {
+        const inside = before.matches(heading) ? [before] : [...before.querySelectorAll(heading)].reverse();
+        for (const h of inside) if (found.length < 3 && clean(h.innerText)) found.push(clean(h.innerText));
+      }
+    }
+    return found;
+  };
+  const out = {};
+  for (const el of document.querySelectorAll('label, legend, [aria-label], span, div, p')) {
+    const words = clean(el.getAttribute('aria-label') || (el.children.length ? '' : el.textContent));
+    const label = labels.find((l) => clean(l) === words);
+    if (label && !(label in out)) out[label] = over(el);
+  }
+  return out;
+}"""
+# A form's own error notice over its fields ("There is a problem"): never the section a question is in.
+ERROR_HEADING = re.compile(r"\bthere (is|was|are|were) (a )?problems?\b|\berrors?\b", re.IGNORECASE)
+# One half of a bare date as Claude names it ("Start date: Month"): the page labels the date ("Start date").
+DATE_HALF = re.compile(r":?\s*\b(month|year)$", re.IGNORECASE)
+
+
+def _with_sections(page: Page, questions: QuestionSet) -> QuestionSet:
+    """`questions`, each bare date ("Start date: Month", "From") given the heading it sits under on the page as
+    its section, when Claude's reading gave it none (KAN-685): the engine's sectionOf then reads the step's own
+    heading ("Current / Most Recent University Education"), not the questions listed before it, which may be an
+    earlier step's (TAL.net's "Role preference" read the degree's start as a job's, so Lisul was asked)."""
+    bare = {q.name: DATE_HALF.sub("", q.label).strip() for q in questions if not q.section and on_page.bare(q.label)}
+    if not bare:
+        return questions
+    heads: dict[str, list[str]] = {}
+    for frame in page.frames:
+        try:
+            heads |= {k: v for k, v in frame.evaluate(HEADINGS_OVER, sorted(set(bare.values()))).items() if v and k not in heads}
+        except Exception:
+            continue  # a frame that went away, or one that refuses scripts
+    sections = {name: next((h for h in heads.get(label, []) if not ERROR_HEADING.search(h)), "") for name, label in bare.items()}
+    return [replace(q, section=sections[q.name]) if sections.get(q.name) else q for q in questions]
 
 
 def clearly_education(section: str) -> bool:

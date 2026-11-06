@@ -192,3 +192,49 @@ def test_a_changed_bundle_on_disk_is_reloaded_before_the_next_posting(tmp_path, 
     assert node.poll() is not None and 0 not in fill_engine._nodes
     assert fill_engine.call_without_page("textOf", "<p>two</p>") == "two"
     assert fill_engine._nodes[0] is not node
+
+
+def test_amds_icims_profile_dates_title_phone_type_and_graduation_are_planned_from_the_right_facts():
+    # AMD's iCIMS Candidate Profile (rehearsal 2026-11-06, KAN-700): the job's split Start Year got the internship's
+    # start as a full date, Title a banked "Mr.", and Phones: Type and Did You Graduate? were Missing facts.
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile.set("experience_facts.employment_history",
+                [{"employer": "Acme Rail", "title": "Software Engineer Intern", "start": "2026-06", "end": "2026-08"}])
+    months = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    days = tuple(str(d) for d in range(1, 32))
+    questions = [Question("q6", "Phones: Type", "select", True, ("Mobile",)),
+                 Question("q21", "Did You Graduate?", "select", False, ("In Progress", "Not Received", "Received")),
+                 Question("q25", "Employer", "text"),
+                 Question("q27", "Work Experience: Region (State, Province, County)", "select"),
+                 Question("q28", "Title", "text"),
+                 Question("q29", "Start Date (Month / Day / Year): Month", "select", False, months),
+                 Question("q30", "Start Date (Month / Day / Year): Day", "select", False, days),
+                 Question("q31", "Start Date (Month / Day / Year): Year", "text")]
+    bank = AnswerBank()
+    bank.answer("Title", "Mr.", date(2026, 11, 5))
+    planned = fill_engine.plan(questions, POSTING, profile, bank, today=date(2026, 11, 6))
+    assert [planned.answers.get(n) for n in ("q6", "q21", "q28", "q29", "q30", "q31")] == [
+        "Mobile", "In Progress", "Software Engineer Intern", "Jun", None, "2026"]
+    assert "q30" in planned.blanks
+
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December")
+
+
+def _tal_education(section: str) -> list[Question]:
+    # Bank of America's TAL.net (live 2026-11-05, KAN-685): the step's Start date, read as two selects, came to
+    # the Question set after the previous step's role ranking, so the questions before it were a job's words.
+    return [Question("q1", "Role preference: Software Engineer", "select", True, ("1st choice", "2nd choice")),
+            Question("q2", "Role preference: Mainframe Analyst", "select", True, ("1st choice", "2nd choice")),
+            Question("q3", "Start date: Month", "select", True, MONTHS, section=section),
+            Question("q4", "Start date: Year", "select", True, tuple(str(y) for y in range(1925, 2037)), section=section)]
+
+
+def test_a_bare_start_date_under_the_steps_education_heading_is_the_degrees_start(tmp_path):
+    started = ApplicantProfile({**PROFILE._facts, "education": {**PROFILE._facts["education"], "start_date": "2024-08"}},
+                               tmp_path, PROFILE._policies)
+    under = fill_engine.plan(_tal_education("current / most recent university education"), POSTING, started)
+    assert (under.answers.get("q3"), under.answers.get("q4")) == ("August", "2024")
+    # Without its heading the questions before it decide, and "Role preference" reads as a job's: left to ask.
+    bare = fill_engine.plan(_tal_education(""), POSTING, started)
+    assert (bare.answers.get("q3"), bare.answers.get("q4")) == (None, None)
