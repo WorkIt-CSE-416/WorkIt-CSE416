@@ -326,6 +326,8 @@ class ClaudeFill:
         self._picked: Readback = {}  # the dropdown choices plain code picked
         self._readback: Readback = {}  # every field filled so far, on every step
         self._put: dict = {}  # the answer each field was filled with
+        self._found_at: dict[str, int] = {}  # the step each question the fill found was on (unlisted), by name
+        self._asked: tuple[dict[str, str], Answers] = ({}, {})  # the labels and answers of the last fill() call
         self._guard: DriveGuard | None = None  # on the page from Claude's first drive
         self._waited_for_box = False  # the form, filled, waited for Lisul to do its captcha's box
         self._page_gates = page_gates
@@ -383,6 +385,20 @@ class ClaudeFill:
         self._tick_asked = set()
         return {}
 
+    def _passed(self, name: str) -> bool:
+        """Whether the question `name` was found on a step the fill has gone past (KAN-687): its answer came
+        late (Lisul's, from the window), and a later step never shows its field. A question the read pass
+        listed has no step of its own: it may show on any step, so it is never passed."""
+        return name in self._found_at and self._found_at[name] < self._steps
+
+    @property
+    def left_behind(self) -> list[tuple[str, object]]:
+        """(label, answer) of each answer whose question's step went by before it came (`_passed`), never
+        put on the form: the Worker holds the form for it, and a rehearsal fills it on its step once held."""
+        labels, answers = self._asked
+        return [(labels[name], value) for name, value in answers.items()
+                if name in labels and value != "" and self._passed(name) and name not in self._put]
+
     @property
     def shown_so_far(self) -> Readback:
         """What each field filled so far shows, on every step: a Handoff's Record keeps it."""
@@ -415,6 +431,7 @@ class ClaudeFill:
         # back, so a required one left unticked on this step stops the form here, before its Next.
         attests = {name for name in fill_engine.attestations(questions) if name not in answers}
         required = {q.name for q in questions if q.required}
+        self._asked = (labels, answers)
         if self._waited_for_box and not captcha.shows(page):  # Lisul did the captcha on the filled form
             self._waited_for_box = False
             return dict(self._readback)
@@ -433,7 +450,8 @@ class ClaudeFill:
             self._readback.update(picked)
             todo = {name: value for name, value in answers.items()
                     if name not in self._attached and name not in self._picked and self._put.get(name, _UNSET) != value
-                    and value != ""}  # nothing to type: a blank answer only invites a mix-up with its neighbour
+                    and value != ""  # nothing to type: a blank answer only invites a mix-up with its neighbour
+                    and not self._passed(name)}  # its step went by without it: it is filled there once held
             fields = [{"field": name, "question": labels[name], "answer": value.name if isinstance(value, Path) else value}
                       for name, value in todo.items()]
             files = [value for value in todo.values() if isinstance(value, Path)]
@@ -481,7 +499,9 @@ class ClaudeFill:
             unlisted = _new_questions(page, questions, [*(done.get("unlisted") or []),
                                                         *_unlisted_attestations(page, questions, done.get("unlisted") or [])])
             if unlisted:
-                raise MoreQuestions(_with_formats(page, _with_sections(page, _with_options(page, self._questions(unlisted)))))
+                found = _with_formats(page, _with_sections(page, _with_options(page, self._questions(unlisted))))
+                self._found_at |= {q.name: self._steps for q in found}
+                raise MoreQuestions(found)
             # What this step shows, checked by plain code before Next saves it (KAN-652).
             shown = {labels[name]: self._readback.get(name) for name in todo if name in labels}
             if wrong := cant_be_right(_on_step(page, shown), sections=_sections(page, shown)):
@@ -1133,8 +1153,9 @@ def _pick_in_comboboxes(page: Page, questions: QuestionSet, answers: Answers) ->
                 if q.kind == "multi_select" and _shows_choice(combobox, choice):
                     continue  # ticked already: a click would untick it
                 combobox.click(timeout=3_000)
-                option = page.get_by_role("option", name=choice, exact=True)
-                option.first.click(timeout=OPENS_MS)
+                # Its own listbox's option, else one showing: never a same-named option of another list.
+                option = (_owned_listbox(page, combobox) or page).get_by_role("option", name=choice, exact=True)
+                option.filter(visible=True).first.click(timeout=OPENS_MS)
                 if q.kind == "multi_select":
                     page.keyboard.press("Escape")
         except Exception:
@@ -1158,11 +1179,15 @@ def _shows_choice(combobox, choice: str) -> bool:
 
 
 def _options_of(page: Page, combobox) -> tuple[str, ...]:
+    """The choices the dropdown lists once opened: those of the listbox it names (aria-controls,
+    aria-owns), else the options that showed when it opened and weren't showing before. Never every
+    option on the page: Microsoft's form kept another list's options there, and each dropdown read
+    them as its own, so a Yes/No question offered only "United States, California, Aliso Viejo" and
+    its answer fit none (live, 2026-11-06)."""
     try:
+        before = set(_visible_options(page))
         combobox.click(timeout=3_000)
-        listbox = page.get_by_role("option")
-        listbox.first.wait_for(state="attached", timeout=OPENS_MS)
-        options = tuple(dict.fromkeys(o.strip() for o in listbox.all_inner_texts() if o.strip()))
+        options = _owned_options(page, combobox) or _new_options(page, before)
     except Exception:
         options = ()
     try:
@@ -1191,6 +1216,41 @@ def _on_step(page: Page, shown: dict[str, object]) -> dict[str, object]:
             continue  # a box Apply filled: its own read-back is already in `shown`
         seen[label if counts[label] == 1 else f"#{at}: {label}"] = value
     return seen
+
+
+def _visible_options(page: Page) -> list[str]:
+    return [o.strip() for o in page.get_by_role("option").filter(visible=True).all_inner_texts() if o.strip()]
+
+
+def _owned_listbox(page: Page, combobox) -> Locator | None:
+    """The listbox an opened dropdown names as its own (aria-controls, aria-owns) once it lists options, else None."""
+    ids = combobox.evaluate("el => ((el.getAttribute('aria-controls') || '') + ' ' + (el.getAttribute('aria-owns') || '')).split(/\\s+/).filter(Boolean)")
+    for listbox in ids:
+        owned = page.locator(f'[id="{listbox}"]').first
+        try:
+            owned.get_by_role("option").first.wait_for(state="attached", timeout=OPENS_MS)
+        except Exception:
+            continue
+        return owned
+    return None
+
+
+def _owned_options(page: Page, combobox) -> tuple[str, ...]:
+    """The options of the listbox an opened dropdown names as its own, or () when it names none that lists any."""
+    owned = _owned_listbox(page, combobox)
+    if owned is None:
+        return ()
+    return tuple(dict.fromkeys(o.strip() for o in owned.get_by_role("option").all_inner_texts() if o.strip()))
+
+
+def _new_options(page: Page, before: set[str]) -> tuple[str, ...]:
+    """The options showing once a dropdown opened that weren't showing before it did, as soon as any show."""
+    for _ in range(max(1, OPENS_MS // 100)):
+        found = tuple(dict.fromkeys(o for o in _visible_options(page) if o not in before))
+        if found:
+            return found
+        page.wait_for_timeout(100)
+    return ()
 
 
 def _fields_shown(page: Page) -> str:

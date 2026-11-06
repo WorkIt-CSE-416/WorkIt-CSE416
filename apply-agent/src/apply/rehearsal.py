@@ -44,6 +44,7 @@ from apply import (
     already_applied,
     ashby,
     ask,
+    batch,
     bot_signals,
     captcha,
     description,
@@ -160,6 +161,9 @@ class Rehearsed:
     # The Pre-submit review's problems with a legal or eligibility answer (verify.LEGAL), as (field, why): each
     # holds Submit on the held page until Lisul dismisses it (on the page or in the window).
     legal: tuple[tuple[str, str], ...] = ()
+    # (label, answer) of each answer that came after its step was saved without it (KAN-687): the hold fills each
+    # on its own step once, through the window's in-place fill, and lists it as left blank till then.
+    left_behind: tuple[tuple[str, object], ...] = ()
 
     def holding(self) -> str:
         """What holds Submit on the held page now: each legal problem Lisul hasn't dismissed; "" for none."""
@@ -258,6 +262,7 @@ def rehearse(
             note += _keep_confirmation(page, done, adapters)
             # Sent: nothing on it waits on him now, and an answer given later neither fills it nor shows it unsent.
             done.outcome, done.missing = str(Status.SUBMITTED), ()
+            batch.done(url)  # it went in: a restart has nothing of it to bring back (KAN-719)
             adapters.board.update(n, status="submitted", why=note, missing=[])
             out(" | ".join([done.posting.company or done.title or url, done.posting.title or done.title, note]))
 
@@ -284,6 +289,7 @@ def rehearse(
         def sent() -> None:  # Lisul pressed the held form's Submit: its Resume goes on no more, so the window says so
             adapters.board.resumed(n)  # a Resume pressed before it waits no more
             adapters.board.update(n, resume={"ok": False, "why": SENT})
+            batch.note(url, status=batch.SENT)  # his until the job system confirms it
 
         def ruled_out() -> bool:  # it may be filled anyway: its tile offers the button
             if done.outcome not in (OUTCOMES[Status.NOT_ELIGIBLE], OUTCOMES[Status.CLOSED]):
@@ -299,7 +305,10 @@ def rehearse(
                 time.sleep(0.5)
             return False
 
-        answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
+        def answers() -> list[tuple[str, object]]:
+            """Lisul's answers from the window, after each answer the fill left behind (KAN-687), once."""
+            behind, done.left_behind = list(done.left_behind), ()
+            return behind + [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
         fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)
         # Each answer Claude wrote has its "Add context and regenerate", on the page and in the window (KAN-599).
         redo = _Redo(lambda: done, adapters, profile, n, site, out)
@@ -580,6 +589,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
     if applied:
         trace.event("already applied", said=applied.said())
         if not force:
+            batch.done(url)  # sent before: no form of it is open (KAN-719)
             board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system,
                          posting_url=posting.url, application_id=posting.id, status=ALREADY, why=applied.said())
             return Rehearsed(posting, ALREADY, applied.said() + "; Apply didn't open the form. "
@@ -589,6 +599,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                        "Submit stays blocked until you dismiss the red note on the page")
     board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system, posting_url=posting.url,
                  application_id=posting.id, status="filling", files=[], stage=stage)
+    _noted(url, site, adapters, posting, "filling")
     files: list[dict] = []
 
     def on_files(given: list[dict]) -> None:
@@ -609,6 +620,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         trace.event("pause", reason=stopped.reason)
         board.update(n, status=summary.outcome, line=summary.line(), why=one_line(summary.why), filled=summary.filled,
                      asked=summary.asked, missing=list(summary.missing), resume={"ok": True}, history=list(history))
+        _noted(url, site, adapters, summary.posting, summary.outcome, summary)
         if not (went := pause(summary, blocked)):
             return False
         history.append(f"{adapters.clock.now().strftime('%H:%M')} " + (
@@ -619,6 +631,7 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
         board.update(n, company=posting.company, role=posting.title, job_system=posting.job_system,
                      posting_url=posting.url, application_id=posting.id, status="filling", files=list(files),
                      stage="", history=list(history))
+        _noted(url, site, adapters, posting, "filling")
         return True
     caption = lambda: {"company": posting.company, "role": posting.title, "job_system": posting.job_system,
                        "posting_url": posting.url, "application_id": posting.id, "files": list(files),
@@ -695,7 +708,27 @@ def _rehearse(url: str, site: "_Kept", adapters: Adapters, profile: ApplicantPro
                  drafted=[f"{q} → {a}" for q, a in result.drafted], choices=result.choices, required=result.required,
                  where=result.where, history=list(history), blocked=bot_signals.BLOCKED in result.bot_signals,  # Open in my Chrome, on his press
                  written=rehearsed.form.shown() if rehearsed.form else [])
+    _noted(url, site, adapters, posting, rehearsed.outcome, rehearsed)
     return rehearsed
+
+
+def _noted(link: str, site: "_Kept", adapters: Adapters, posting: Posting, status: str,
+           done: "Rehearsed | None" = None) -> None:
+    """Keep the form of `link` on the open-forms list as it is now (apply.batch, KAN-719): where it is open (the
+    profiles folder and Worker that hold its sign-in), its status and what is left. Never an answer."""
+    worker = site.worker
+    fields = {"application_id": posting.id, "posting_url": posting.url, "job_system": posting.job_system,
+              "company": posting.company, "role": posting.title, "status": status, "worker": worker,
+              "plain": bool(callable(plain := getattr(adapters.site, "plain", None)) and plain(worker))}
+    if profiles := getattr(adapters.site, "profiles", None):
+        fields["profiles"] = str(Path(profiles).expanduser().resolve())
+    if done is not None:
+        fields |= {"left": list(done.missing) + ([f"{len(done.problems)} problems to check"] if done.problems else []),
+                   "record": done.record or None}
+    try:
+        batch.note(link, **fields)
+    except OSError as error:  # the data folder unwritable: the form still fills, and the terminal says so once
+        print(f"Couldn't keep {posting.company or link} on the open-forms list ({error}).", file=sys.stderr)
 
 
 def _save_record(rehearsed: Rehearsed, result: Result, filled: Filled, adapters: Adapters,
@@ -1039,10 +1072,12 @@ def _summary(posting: Posting, result: Result, site: "_Kept", tokens: int, secon
     answered = [q for q in filled.questions if filled.readback.get(q.name) not in (None, "", [])] if filled else []
     return Rehearsed(
         posting, outcome, why, site.title(),
-        len(answered), len(filled.questions) if filled else 0, result.missing, tokens, seconds,
+        len(answered), len(filled.questions) if filled else 0,
+        result.missing + tuple(label for label, _ in result.left_behind if label not in result.missing), tokens, seconds,
         problems=tuple(map(str, result.problems)), questions=tuple(filled.questions) if filled else (),
         where=dict(result.where),
         legal=tuple((f.field, f.why) for f in result.verification.holds_submit) if result.verification else (),
+        left_behind=tuple(result.left_behind),
     )
 
 
@@ -1119,6 +1154,11 @@ class _Kept:
 
     def fetch(self, url: str, body: bytes | None = None) -> bytes:
         return self._site.fetch(url, body)
+
+    @property
+    def worker(self) -> int:
+        """The Worker whose profile this link's pages open in."""
+        return self._worker
 
     @contextmanager
     def open(self, url: str):

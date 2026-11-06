@@ -215,12 +215,10 @@ What changes on a plain Worker:
   times out (`PortTimeoutError`) goes to the Rescue, as a FillError does
   (`WorkdayFiller._put_or_rescue`). Without a Rescue, it becomes a FillError naming the field, which a
   rehearsal skips.
-- **The production seed.** `uv run apply plain seed` opens branded Chrome on `APPLY_PROFILES/plain-seed`
-  and prints Lisul's steps: Developer mode, Remove an old card, Load unpacked with the profiles
-  folder's own copy of the extension (`APPLY_PROFILES/worker-extension`, next section), Details,
-  Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the
-  default) then copies that seed to each Worker. `plain_chrome: testing` (Chrome for Testing) needs no
-  seed, but Allow User Scripts can't be turned on there.
+- **The production seed.** `uv run apply plain seed` is a guided setup of `APPLY_PROFILES/plain-seed`
+  (`apply.plain.seed_setup`, KAN-677). `plain_chrome: chrome` (the default) then copies that seed to each
+  Worker. `plain_chrome: testing` (Chrome for Testing) needs no seed, but Allow User Scripts can't be turned
+  on there. See "The seed's guided setup" below.
 - **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
   "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
   and Developer mode is on), and both for `protected`. With `plain_chrome: testing` the seed line is ok.
@@ -286,5 +284,38 @@ differs from its Apply's crashed the page guard. So:
   `launch` stops it with `launcher.OutOfDate` (a SetupError: the rehearsal's line says how to fix
   it), never a crash. Its refusal for another engine names the folder to update.
 - Rolling it out: no running Worker is touched. When no plain Worker runs, `uv run apply plain
-  seed` once, and Load unpacked the copy it names. New Worker profiles copy that seed; an
+  seed` once: it shows the copy to load and checks it. New Worker profiles copy that seed; an
   existing idle `plain-<k>` profile keeps its old registration until it is deleted.
+
+## The seed's guided setup: `apply plain seed` (KAN-677)
+
+Branded Chrome takes the worker extension only by the user's own clicks. `apply.plain.seed_setup.Wizard`
+helps with each click and confirms it. It refuses to start while a plain Worker of the folder runs.
+
+- **What Apply does.** It opens branded Chrome on the seed at `chrome://extensions`. At Load unpacked it
+  puts the copy's path on the clipboard (`pbcopy`) and shows the copy in Finder (`open -R`), so the user
+  can drag it onto the page or paste it in the picker. At Allow User Scripts it opens
+  `chrome://extensions/?id=<EXTENSION_ID>`, where the switch is.
+- **What Apply never does.** It never clicks a `chrome://` page, never changes a Chrome setting and never
+  writes the seed's preference files. Those clicks are the user's. It only launches Chrome with normal
+  switches and reads files.
+- **How it sees each step.** It reads `Default/Secure Preferences` (then `Preferences`) once a second
+  (`read_state`): `extensions.ui.developer_mode`, `extensions.settings.<id>.path`, its `disable_reasons`
+  and `user_scripts_enabled`. Chrome writes a click to disk about 10 s after it (measured on Chrome for
+  Testing 157). `first_problem` gives the first step not saved, with one message for each problem: no
+  extension, wrong folder (names both folders: Remove that card), card turned off, user scripts off.
+  A step that is saved and then goes back says "did not stick". A step still unsaved after 45 s gets a
+  nudge, and the path goes on the clipboard again.
+- **Quit.** When all steps show, Apply quits the seed's Chrome itself, with SIGTERM to the PID that holds
+  the seed's SingletonLock (checked with `ps`: its command line names the seed). A SIGTERM saves pending
+  changes; a SIGKILL loses them (measured on both Chromes), so Apply never kills it. If Chrome is still up
+  after 15 s (a dialog or the folder picker open), Apply says so and waits. Ctrl-C quits it the same way.
+  After the quit, Apply reads the files again. A step that a clean exit didn't save is named and shown again.
+- **Done only after a real hello.** Apply starts one Worker from the seed on a new `plain-<k>` profile (so an
+  old Worker profile can't answer for the seed) and needs its hello with `userScripts: true`. Then that
+  profile goes. No hello, a refused hello or user scripts off is not done: Apply opens the Details page
+  and asks the user to press Return to try again.
+- **Old Worker profiles** keep their own registration. The wizard lists them; delete them to copy the seed again.
+- Tests: `tests/test_plain_seed_setup.py` (in CI), with fixture preference files and a fake Chrome and Worker.
+  A live run with Chrome for Testing on a scratch `APPLY_PROFILES` needs a stand-in for the user's clicks,
+  since the wizard makes none. Branded Chrome needs a person for the three clicks and the folder picker.

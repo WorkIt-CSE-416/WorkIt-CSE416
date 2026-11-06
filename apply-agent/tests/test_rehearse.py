@@ -1697,3 +1697,23 @@ def test_ask_claude_on_a_held_page_sends_nothing_from_a_page_it_loads():
 
     assert asking.done, "the message was taken"
     assert site.posts == []
+
+
+def test_a_held_form_is_on_the_open_forms_list_until_lisul_sends_it(monkeypatch, tmp_path):
+    # KAN-719: a restart of the Mac lost every held form (2026-11-04 and 05). The list keeps each one as it goes.
+    from apply import batch
+
+    path = tmp_path / "open-forms.json"
+    monkeypatch.setattr(batch, "PATH", path)
+    monkeypatch.setitem(FILLERS, "greenhouse", NeverSubmits(GreenhouseFiller()))
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+    with FakeJobServer(ARC_FORM) as fake:
+        [done] = rehearse([ARC_URL], fake, profile_with(tmp_path))
+        [kept] = batch.forms(path)
+        assert (kept["link"], kept["status"], kept["job_system"], kept["worker"]) == (ARC_URL, "ready to submit",
+                                                                                     "greenhouse", 0)
+        assert kept["application_id"] == done.posting.id and kept["record"] == done.record
+
+        lisul_on_the_held_page(monkeypatch, lambda n: ["Submit application"])
+        hold_until(fake, profile, lambda lines: "you submitted it" in lines[-1], submitted_to=InMemoryTracker())
+    assert batch.forms(path) == []  # it went in: nothing to bring back
