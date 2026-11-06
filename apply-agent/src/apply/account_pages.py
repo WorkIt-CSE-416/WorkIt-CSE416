@@ -21,6 +21,11 @@ code, a captcha, and more than MAX_PAGES account pages in one Application.
 A page that carries a captcha, an invisible one too (captcha.CARRIED), is a
 Handoff before anything is typed or clicked: its button runs the captcha, so
 Lisul signs in himself (AMD's iCIMS email step, KAN-703).
+
+A reopened form (`apply reopen`, KAN-720, `Accounts.hands_off`) types nothing into an account page:
+Claude is told to fill nothing there, a page that shows a password box is a Handoff before Claude
+drives it (`hands_off`), and any account page Claude names is a Handoff (accounts.HANDS_OFF) before
+plain code types or clicks.
 """
 
 import json
@@ -33,7 +38,7 @@ from urllib.parse import urlsplit
 from playwright.sync_api import Page
 
 from apply import captcha
-from apply.accounts import NO_PASSWORD, Accounts
+from apply.accounts import HANDS_OFF, NO_PASSWORD, Accounts
 from apply.model import Handoff
 from apply.oracle import MAIL_SEARCH as ORACLE_MAIL_SEARCH
 
@@ -100,6 +105,9 @@ class AccountPages:
         """What a prompt tells Claude for an account page: no password, ever."""
         if self._accounts is None:
             return ""
+        if getattr(self._accounts, "hands_off", False):  # no fact to type: Lisul signs in himself (KAN-720)
+            return ("<account>\nLisul signs in himself here. On an account page type nothing and click nothing: "
+                    "only say which page it is.\n</account>")
         facts = dict(self._facts, email=self._accounts.login)
         if self._no_account:
             facts["no_account_at"] = self._no_account
@@ -130,6 +138,8 @@ class AccountPages:
         site = urlsplit(page.url).hostname or page.url
         if self._accounts is None:
             raise Handoff(f"Claude fill reached {site}'s sign-in page, and this Application can't sign in. Fill it in yourself.")
+        if getattr(self._accounts, "hands_off", False):  # a reopened form: before any password, code or click (KAN-720)
+            raise Handoff(HANDS_OFF)
         if kind != "link_sent" and captcha.carried(page):  # its button runs the captcha: before a password or code
             raise Handoff(captcha.SIGN_IN.format(site))
         since = clicked.since if clicked else began
@@ -145,6 +155,21 @@ class AccountPages:
         else:
             self._sign_in(page, kind, site, button, guard)
         return True
+
+    def hands_off(self, page: Page) -> None:
+        """Before Claude drives a reopened form's page (KAN-720): a page that shows a password box is a sign-in,
+        Lisul's to do, so it is a Handoff before Claude can type anything there."""
+        if not (self._accounts and getattr(self._accounts, "hands_off", False)):
+            return
+        for frame in page.frames:
+            try:
+                boxes = frame.locator("input[type=password]")
+                if any(boxes.nth(k).is_visible() for k in range(boxes.count())):
+                    raise Handoff(HANDS_OFF)
+            except Handoff:
+                raise
+            except Exception:
+                continue  # a frame that went away
 
     def release(self) -> None:
         """Let another Worker wait on this sender's mail."""

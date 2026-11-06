@@ -599,6 +599,7 @@ class ClaudeFill:
         the way of the form that plain code got past."""
         try:
             while True:
+                self._account_pages.hands_off(page)  # a reopened form's sign-in is Lisul's (KAN-720)
                 began = self._account_pages.now()
                 told = self._account_pages.told()
                 said = self._drive(page, system, f"{prompt}\n{told}" if told else prompt, schema, files)
