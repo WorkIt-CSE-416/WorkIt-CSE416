@@ -40,7 +40,8 @@ routed, so a page Claude opens doesn't wait.
 
 Everything else goes through: résumé uploads, Ashby's per-answer saves,
 Lever's résumé parse, Workday's Save and Continue, a Next that saves its
-step. A blocked attempt shows a small "Apply rehearsal" note on the page,
+step, and another site's widget posting hidden fields into its own iframe
+(LinkedIn's Apply with LinkedIn on Microsoft's form, KAN-711). A blocked attempt shows a small "Apply rehearsal" note on the page,
 once the page has had a click or key: one its own script makes first (a
 cookie banner, analytics) is blocked without one.
 
@@ -257,14 +258,26 @@ _TEMPLATE = r"""
   // the page's script posts it before any click or key on the page, its fields are all hidden (a token, a
   // state), no button of it sends, and it is bound for no final URL. Nothing of an application is in it.
   const fields = (form) => Object.getOwnPropertyDescriptor(HTMLFormElement.prototype, 'elements').get.call(form);
-  const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by)
-    && [...fields(form)].some((n) => n.type === 'hidden')
+  const hiddenOnly = (form) => [...fields(form)].some((n) => n.type === 'hidden')
     && [...fields(form)].every((n) => n.type === 'hidden' || n.tagName === 'FIELDSET'
       || (/^(submit|button|reset)$/.test(n.type) && !sends(n)));
+  const relay = (form, by) => !touched && posts(form, by) && !postsFinal(form, by) && hiddenOnly(form);
+  // Another site's widget loading itself into its own frame on the page, click or no click: LinkedIn's Apply
+  // with LinkedIn on Microsoft's form (live, KAN-711) posts a form of hidden fields (its key, the job's code)
+  // to linkedin.com into the iframe it just made, as the form loads. Bound for another site and no final URL,
+  // into a frame of this page (its target names an iframe here), with nothing of the application in it.
+  const frameLoad = (form, by) => {
+    const target = (by && by.getAttribute && by.getAttribute('formtarget'))
+      || HTMLFormElement.prototype.getAttribute.call(form, 'target') || '';
+    if (!target || target.startsWith('_') || !posts(form, by) || postsFinal(form, by) || !hiddenOnly(form)) return false;
+    let away = false;
+    try { away = new URL(postTarget(form, by), location.href).origin !== location.origin; } catch (e) {}
+    return away && [...document.getElementsByName(target)].some((n) => /^I?FRAME$/.test(n.tagName));
+  };
   window.addEventListener('submit', (event) => {
     if (lifted()) return;
     const form = event.target, by = event.submitter;
-    if (relay(form, by)) return;
+    if (relay(form, by) || frameLoad(form, by)) return;
     // Plain code's sign-in, as above, but never a POST bound for the final URL: an application that makes an
     // account as it applies has a password box too (KAN-681).
     if (accountClick() && form.querySelector('input[type=password]') && !postsFinal(form, by)) return;
@@ -284,7 +297,7 @@ _TEMPLATE = r"""
     // or one bound for the final URL (a Continue whose handler calls the application form's submit()).
     const step = accountClick() && !postsFinal(this) && (!!this.querySelector('input[type=password]')
       || ![...this.querySelectorAll('button, input[type=submit]')].some(sends));
-    if (!lifted() && !step && !relay(this, null) && posts(this)) return note('a form submission');
+    if (!lifted() && !step && !relay(this, null) && !frameLoad(this, null) && posts(this)) return note('a form submission');
     return submit.call(this);
   };
 
