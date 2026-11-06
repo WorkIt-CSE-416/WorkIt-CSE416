@@ -11,6 +11,7 @@ import statistics
 import zipfile
 from io import BytesIO
 
+from app.services.pdf_spaces import gapped_words, restore_spaces
 from app.utils.resume_parser import count_sections
 
 logger = logging.getLogger(__name__)
@@ -38,8 +39,10 @@ def extract_pdf_text(data: bytes) -> str | None:
     from pypdf import PdfReader
     try:
         pages = PdfReader(BytesIO(data)).pages
-        layout = _join_pages(pages, "layout")
-        plain = _join_pages(pages, "plain")
+        # the same gaps fix both modes' text (KAN-303, pdf_spaces.py)
+        gaps = [gapped_words(p) for p in pages]
+        layout = _join_pages(pages, "layout", gaps)
+        plain = _join_pages(pages, "plain", gaps)
     except Exception:
         logger.warning("PDF text extraction failed", exc_info=True)
         return None
@@ -53,8 +56,9 @@ def _median_words_per_line(text: str) -> float:
     return statistics.median(counts) if counts else 0
 
 
-def _join_pages(pages, mode: str) -> str:
-    return _tidy_lines("\n".join(p.extract_text(extraction_mode=mode) or "" for p in pages))
+def _join_pages(pages, mode: str, gaps: list) -> str:
+    return _tidy_lines("\n".join(restore_spaces(p.extract_text(extraction_mode=mode) or "", glued)
+                                 for p, glued in zip(pages, gaps)))
 
 
 def _tidy_lines(text: str) -> str:
