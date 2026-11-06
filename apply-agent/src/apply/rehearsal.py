@@ -52,6 +52,7 @@ from apply import (
     fill_engine,
     greenhouse,
     lever,
+    masked,
     on_page,
     regenerate,
     stuck,
@@ -877,8 +878,9 @@ class _Ask:
         done.asks = done.asks + ({"message": message, "via": item.get("via", ""), **reply.as_json()},)
         _record_asked(done, reply.changed, adapters)
         board.update(n, status=done.outcome, history=list(done.history))
-        self._out(f"{_name(done)} | Ask Claude: {reply.reply}"
-                  + (f" Couldn't: {'; '.join(reply.couldnt)}" if reply.couldnt else ""))
+        # Its reply quotes what it typed, so the line says it answered; the window shows the words.
+        self._out(f"{_name(done)} | Ask Claude replied: {masked.sized(reply.reply, 'reply')}"
+                  + (f", and couldn't do {len(reply.couldnt)} things" if reply.couldnt else ""))
 
     @staticmethod
     def _form(done: "Rehearsed") -> ask.Form:

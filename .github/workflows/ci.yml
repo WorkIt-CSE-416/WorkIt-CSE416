@@ -184,6 +184,7 @@ jobs:
             tests/test_into.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
+            tests/test_masked.py \
             tests/test_matches.py \
             tests/test_notification.py \
             tests/test_outside_us.py \
