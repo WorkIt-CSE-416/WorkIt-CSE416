@@ -96,8 +96,10 @@
     mouse(target, "pointerdown", at, { button, buttons: HELD[event.button] ?? 1, detail });
     if (mouse(target, "mousedown", at, { button, buttons: HELD[event.button] ?? 1, detail }) && button === 0) {
       const focusable = target.closest?.(FOCUSABLE);
+      // Each focus move through page/dom.js's leaving: an unfocused window tells the box left nothing (KAN-709).
+      const { leaving } = globalThis.__applyDom;
       if (focusable && document.activeElement !== focusable) {
-        focusable.focus();
+        leaving(() => focusable.focus());
         // A real click puts the caret where it lands; the end of the text is the nearest a script can say.
         if (focusable.matches("textarea") || (focusable.matches("input") && TEXTY.test(focusable.type))) {
           try {
@@ -105,7 +107,7 @@
           } catch {}
         }
       } else if (!focusable && document.activeElement && document.activeElement !== document.body) {
-        document.activeElement.blur(); // a press on nothing focusable takes the focus away, as a real one does
+        leaving(() => document.activeElement.blur()); // a press on nothing focusable takes the focus away, as a real one does
       }
     }
     const pick = button === 0 ? target.closest?.("select") : null;

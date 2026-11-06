@@ -38,6 +38,7 @@ it.
 uv sync                                        install deps from the lock
 uv run uvicorn app.main:app --reload           dev server on :8000
 uv run pytest                                  the tests in tests/ (database tests: Tests against real Postgres)
+uv run pytest -n auto                          the same, one worker per core, as CI runs it
 uv run ruff check .                            lint (CI runs it)
 uv run alembic revision --autogenerate -m msg  write a migration
 uv run alembic check                           fail if models lack a migration
@@ -198,6 +199,12 @@ uv run pytest
   Alembic, and drops it at the end. Parallel runs from several worktrees share
   the container but never a table. `TEST_DATABASE_URL` points at another server
   (default `postgresql://postgres:postgres@localhost:54330/postgres`).
+- **CI runs the suite on every core** (`uv run pytest -n auto`,
+  pytest-xdist; the same works locally). Each worker process imports
+  `conftest.py` itself, so each gets its own database by the rule above and
+  pays its own migration. A test therefore never relies on another test's
+  rows or order, and writes files only under `tmp_path`: a fixed path would
+  be shared by every worker.
 - **The test database gets Supabase's search path** (`"$user", public,
   extensions`). pgvector lives in `extensions`, so without it a cosine
   query (`<=>`) fails with "operator does not exist", which production never

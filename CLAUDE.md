@@ -289,6 +289,13 @@ with the failure it prevents.
   code keeps its older names (`board`, `provider`); leave them as they are.
 - Pre-PR review and bug hunts use the `pr-review` skill
   (`.claude/skills/pr-review/`).
+- **A PR that touches the submit or drive guards gets an adversarial review
+  before it merges** (KAN-666). The guards are `apply-agent/src/apply/submit_guard.py`,
+  `plain/guards.py`, `send_click.py`, and any code that sets a guard flag or
+  presses through one. A second reviewer tries to make the change send an
+  application, and the PR merges only once each way they find is fixed. A
+  new click path, or a new way a page can trick the guard, joins
+  `apply-agent/tests/test_submit_guard_hostile.py` in the same PR.
 
 ## Agent skills
 

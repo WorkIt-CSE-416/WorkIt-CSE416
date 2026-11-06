@@ -51,13 +51,14 @@ import sys
 import time
 from collections.abc import Callable
 from contextlib import ExitStack, contextmanager
+from dataclasses import replace
 from pathlib import Path
 from typing import Self
 from urllib.parse import urlsplit
 
 from playwright.sync_api import Locator, Page
 
-from apply import captcha, description
+from apply import captcha, description, on_page
 from apply.account_pages import FIELDS as ACCOUNT_FIELDS
 from apply.account_pages import PROMPT as ACCOUNT_PROMPT
 from apply.account_pages import SENDS, AccountPages
@@ -145,6 +146,28 @@ CAPTCHA_CHALLENGE = ("A captcha's challenge covers the form, and Apply never tou
                      "and the fill goes on")
 CAPTCHA_BOX = "The form has a captcha (\"I'm not a robot\") to do before it can be sent. Do it on the form, and Apply goes on"
 # What a step shows: its URL and the form fields on view, in every frame.
+# Every visible box of the step and what it shows, label: value, in every frame (KAN-684): the step's check reads a
+# box Apply didn't fill too (a value an earlier run saved). A label's first line only: its help text follows.
+STEP_VALUES = r"""() => {
+  const clean = (s) => String(s || '').split('\n').map((l) => l.trim()).filter(Boolean)[0] || '';
+  const named = (el) => {
+    const byFor = el.id && document.querySelector(`label[for="${CSS.escape(el.id)}"]`);
+    if (byFor && clean(byFor.innerText)) return clean(byFor.innerText);
+    const ids = (el.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+    const by = ids.map((id) => clean(document.getElementById(id)?.innerText)).filter(Boolean).join(' ');
+    return by || clean(el.getAttribute('aria-label')) || clean(el.closest('label')?.innerText);
+  };
+  const texty = /^(text|email|tel|search|url|number|)$/;
+  const out = [];
+  for (const el of document.querySelectorAll('input, select, textarea')) {
+    if (el.matches('input') && !texty.test(el.type)) continue;
+    if (!(el.checkVisibility && el.checkVisibility())) continue;
+    const value = el.matches('select') ? (el.selectedIndex > 0 ? el.options[el.selectedIndex].text : '') : el.value;
+    const label = named(el).replace(/[\s*:]+$/, '');
+    if (label && String(value || '').trim()) out.push([label, String(value).trim()]);
+  }
+  return out;
+}"""
 FIELDS_SHOWN = """() => [...document.querySelectorAll('input, select, textarea')]
   .filter(el => el.type !== 'hidden' && el.checkVisibility && el.checkVisibility())
   .map(el => el.name || el.id || el.type).join('|')"""
@@ -195,6 +218,7 @@ The form may come in steps (pages): work only on the step showing now. Never cli
 A file answer names a file in your working folder: attach that file. A select answer is the option to pick; a list answer, the options to tick.
 Use as few tool calls as you can: one browser_fill_form call for every field it can take, then the rest one by one; take a new snapshot only when the page has changed.
 Pick every select answer yourself, even when the dropdown already seems to show it (a country listed first): choose the option, then read it back; never leave a select's `shown` empty.
+A dropdown that opens a search box ("Type to Search") searches as you type, and its list takes a few seconds to change: click the dropdown, type only the answer's first word or its first few letters ("New" for New York, "Stony" for Stony Brook University) with browser_type, then browser_wait_for 2 seconds, find the answer's option in the list and click it. On "No Results", or a list that hasn't changed, wait once more, then type a shorter part of the answer. Don't press Escape or leave the dropdown before its option is clicked.
 Leave every other field as it is, and any captcha ("I'm not a robot") too.
 Then read each field back, one `filled` entry a field: `field` is its id from <fields> ("q1"), copied exactly, never its label; `shown` is exactly the text, option or file name the field shows now, with nothing added ("Yes" or "No" for a single checkbox).
 If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it. When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
@@ -338,7 +362,7 @@ class ClaudeFill:
             self._read_posting_text(page)  # the posting, before Claude clicks its Apply button
             found = self._session(page, READ, "List the questions of the form open in the current tab.", READ_SCHEMA, [])
             self._read_posting_text(page)  # else what the form's own page says about the job
-            questions = _with_options(page, self._questions(found["questions"]))
+            questions = _with_sections(page, _with_options(page, self._questions(found["questions"])))
         why = str(found.get("why") or "").strip()
         if found.get("page") == "closed posting":
             raise Closed(f"the page says {why}" if why else "the page says the Posting no longer takes applications")
@@ -422,10 +446,10 @@ class ClaudeFill:
             # Known by its label with or without its help text, as either session may give it.
             unlisted = _new_questions(page, questions, done.get("unlisted") or [])
             if unlisted:
-                raise MoreQuestions(_with_options(page, self._questions(unlisted)))
+                raise MoreQuestions(_with_sections(page, _with_options(page, self._questions(unlisted))))
             # What this step shows, checked by plain code before Next saves it (KAN-652).
             shown = {labels[name]: self._readback.get(name) for name in todo if name in labels}
-            if wrong := cant_be_right(shown, sections=_sections(page, shown)):
+            if wrong := cant_be_right(_on_step(page, shown), sections=_sections(page, shown)):
                 raise Handoff(f"Page {self._steps + 1} shows what can't be right, so Apply didn't go on: {'; '.join(wrong)}. "
                               "Fix it on the page, then press Resume.")
             asks = [one for one in (str(a).strip() for a in done.get("for_lisul") or []) if one]
@@ -501,13 +525,15 @@ class ClaudeFill:
         if said := clear_pop_up(page, self._resume):
             raise Handoff(f'A pop-up covers the form ("{said}") and Apply could not close it. Fill it in yourself.')
 
-    @staticmethod
-    def _attach_resume(page: Page, labels: dict[str, str], answers: Answers) -> dict[str, str]:
+    def _attach_resume(self, page: Page, labels: dict[str, str], answers: Answers) -> dict[str, str]:
         """The résumé, attached by plain code (see apply.attach), as {field: the
-        file name the page shows}; empty if it's left to Claude."""
+        file name the page shows}; empty if it's left to Claude. The guards let
+        the page post the file meanwhile (iCIMS's parse, KAN-691)."""
         for name, value in answers.items():
             if isinstance(value, Path) and re.search(RESUME, labels[name], re.IGNORECASE):
-                return {name: value.name} if attach_resume(page, value) else {}
+                if self._guard is None:
+                    self._guard = DriveGuard(page, **self._opt_ins)
+                return {name: value.name} if attach_resume(page, value, self._guard) else {}
         return {}
 
     def submit(self, page: Page) -> None:
@@ -604,6 +630,8 @@ class ClaudeFill:
             # the form is filled and unsent, as a Filler leaves it (Roblox's, live: a Handoff after 1.2M tokens).
             self._guard.forget()
             blocked = []
+        if any(b.endswith(captcha.SIGN_IN_CLICK) for b in blocked):  # Claude pressed it: nothing ran the captcha
+            raise Handoff(captcha.SIGN_IN.format(urlsplit(page.url).hostname or "This site"))
         if blocked:
             raise Handoff(f"Apply blocked {blocked[0]} while Claude filled the form (a click that may send it, sign in, "
                           "pay, withdraw or opt in), so nothing it blocked was sent. Check the form and finish it yourself.")
@@ -656,12 +684,13 @@ def _profile_step(page: Page, name: str) -> Locator | None:
     return None
 
 
-def press_step(page: Page, guard, name: str, back: bool = False) -> None:
-    """Plain code's own click on a step's Next (or `back`: its Back), which goes through the guards where it posts
-    natively: a button that sends, a form that has one and the final application URLs stay blocked (KAN-639).
-    Waits for the step it leads to; a Handoff says why it didn't."""
+def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = False) -> None:
+    """Plain code's own click on a step's Next (or `back`: its Back; or `listed`: a step in the form's list of
+    steps, TAL.net's Progress Tracker), which goes through the guards where it posts natively: a button that
+    sends, a form that has one and the final application URLs stay blocked (KAN-639). Waits for the step it
+    leads to; a Handoff says why it didn't."""
     before = _fields_shown(page)
-    button = _the_back(page, name) if back else _the_next(page, name)
+    button = _the_back(page, name) if back else _the_listed(page, name) if listed else _the_next(page, name)
     # Plain code's own check: never Claude's word for it. A Back leaves the review page, so only its words count.
     words = _sends_or_reviews(page, button)
     if words and not (back and words == REVIEW_WORDS):
@@ -690,6 +719,41 @@ def _the_back(page: Page, name: str):
     found = [b for b in page.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
     if len(found) != 1:
         raise Handoff(f"The form shows {len(found)} buttons named {name!r}, so Apply didn't press one. Do it yourself.")
+    return found[0]
+
+
+# An entry in a list of a form's steps (TAL.net's Progress Tracker: each step's link posts the page to save_page,
+# then opens that step, KAN-692): in a nav or a list of more than one entry, and never a form's own button (a
+# submit, or any button of a form), nor one holding or held by a control or label, which would post that
+# form with no check of its other buttons. A link can post only by script (form.submit(), requestSubmit()),
+# where the guard still blocks a form with a button that sends.
+STEP_ENTRY = """el => {
+  if ((el.tagName === 'BUTTON' || el.tagName === 'INPUT') && (el.type !== 'button' || el.form)) return false;
+  // A click on it must land on it alone: never a control, a label (one that clicks a submit) or a frame inside it, nor a control or label around it.
+  if (el.querySelector('button, input, select, textarea, label, iframe, frame, object, embed') || el.parentElement?.closest('button, label')) return false;
+  const list = el.closest('nav, [role=navigation], ol, ul, [role=list], [role=tablist]');
+  return !!list && list.querySelectorAll('a[href], [role=link], [role=tab], button[type=button]').length > 1;
+}"""
+
+
+def _the_listed(page: Page, name: str):
+    """The one entry in the form's list of steps that Claude named: of exactly that name, else the one whose name
+    starts with it (a tracker's "Declaration Item not completed"). A name that sends (Claude's, or the entry's own
+    as the page names it), none, or two that differ is a Handoff: no click."""
+    if not name.strip() or SENDS.search(name):
+        raise Handoff(f"Claude named {name!r} as a step of the form, which may send it. Fill it in yourself.")
+    starts = re.compile(rf"^\s*{re.escape(name.strip())}(?!\w)", re.IGNORECASE)
+    for match in ({"name": name, "exact": True}, {"name": starts}):
+        found = [el for role in ("link", "button", "tab") for el in page.get_by_role(role, **match).all()
+                 if el.is_visible() and el.evaluate(STEP_ENTRY) is True]
+        if found:
+            break
+    if not found:
+        raise Handoff(f"Claude fill found no step named {name!r} in the form's list of steps. Fill it in yourself.")
+    if len({el.aria_snapshot() for el in found}) > 1:
+        raise Handoff(f"The form's list of steps shows more than one {name!r}, so Apply didn't press one. Do it yourself.")
+    if SENDS.search(found[0].aria_snapshot()):
+        raise Handoff(f"The form's step {name!r} is named as one that sends, so Apply didn't press it. Do it yourself.")
     return found[0]
 
 
@@ -892,8 +956,29 @@ def _options_of(page: Page, combobox) -> tuple[str, ...]:
     return options
 
 
+def _on_step(page: Page, shown: dict[str, object]) -> dict[str, object]:
+    """`shown` (what the fields Apply filled read back) with every other box the step shows that holds a value
+    (STEP_VALUES): a label that shows twice (a home and a campus address) is numbered by its place, "#7: City"."""
+    found: list[list[str]] = []
+    for frame in page.frames:
+        try:
+            found += frame.evaluate(STEP_VALUES)
+        except Exception:
+            continue  # a frame that went away, or one that refuses scripts
+    counts: dict[str, int] = {}
+    for label, _ in found:
+        counts[label] = counts.get(label, 0) + 1
+    mine = {_key(_bare(label)) for label in shown} | {_key(label.rsplit(": ", 1)[-1]) for label in shown}
+    seen = dict(shown)
+    for at, (label, value) in enumerate(found, 1):
+        if counts[label] == 1 and _key(label) in mine:
+            continue  # a box Apply filled: its own read-back is already in `shown`
+        seen[label if counts[label] == 1 else f"#{at}: {label}"] = value
+    return seen
+
+
 def _fields_shown(page: Page) -> str:
-    shown = [page.url]
+    shown = [page.url.removesuffix("#")]  # a step link's href="#" whose post the guard blocked: still the same step
     for frame in page.frames:
         try:
             shown.append(frame.evaluate(FIELDS_SHOWN))
@@ -906,6 +991,11 @@ def _fields_shown(page: Page) -> str:
 ADDRESS_PART = re.compile(r"(?:^|:\s*)(address( line)? ?[2-9]|city( ?/ ?town)?|town|(county ?/ ?)?state( ?/ ?province)?|county|"
                           r"province|(zip|postal|postcode)\S*( ?/ ?\S+)?( code)?)\s*\*?$", re.IGNORECASE)
 WHOLE_ADDRESS = re.compile(r"\d.*,.*,")  # a street number and two commas: a whole address, not a part
+# Line 1 of an address, as a label names it: a whole address is right there only when the step asks no parts.
+ADDRESS_LINE_ONE = re.compile(r"(?:^|:\s*)((street )?address( line)? ?1|street( address)?)\s*\*?$", re.IGNORECASE)
+# The parts a whole address breaks into: a step that asks one of them wants the street alone in line 1 (KAN-684).
+SPLIT_PART = re.compile(r"(?:^|:\s*)(city( ?/ ?town)?|town|(county ?/ ?)?state( ?/ ?province)?|province|"
+                        r"(zip|postal|postcode)\S*( ?/ ?\S+)?( code)?)\s*\*?$", re.IGNORECASE)
 SCHOOL_STEP = re.compile(r"degree|universit|college|school|major|gpa|education", re.IGNORECASE)
 START_YEAR = re.compile(r"\bstart(ed|ing)?\b.*\byear\b|\bstart date\b", re.IGNORECASE)
 # A start that is the internship's or the job's, not the degree's: next year is right for it.
@@ -939,6 +1029,52 @@ SECTIONS = r"""(labels) => {
 }"""
 
 
+# The headings over each of `labels` in the page, nearest first (up to three): SECTIONS' walk, kept going.
+HEADINGS_OVER = r"""(labels) => {
+  const clean = (s) => String(s || '').replace(/\s+/g, ' ').replace(/[\s*:]+$/, '').trim().toLowerCase();
+  const heading = 'h1, h2, h3, h4, h5, h6, legend, [role=heading]';
+  const over = (el) => {
+    const found = [];
+    for (let at = el; at && at !== document.documentElement && found.length < 3; at = at.parentElement) {
+      for (let before = at.previousElementSibling; before && found.length < 3; before = before.previousElementSibling) {
+        const inside = before.matches(heading) ? [before] : [...before.querySelectorAll(heading)].reverse();
+        for (const h of inside) if (found.length < 3 && clean(h.innerText)) found.push(clean(h.innerText));
+      }
+    }
+    return found;
+  };
+  const out = {};
+  for (const el of document.querySelectorAll('label, legend, [aria-label], span, div, p')) {
+    const words = clean(el.getAttribute('aria-label') || (el.children.length ? '' : el.textContent));
+    const label = labels.find((l) => clean(l) === words);
+    if (label && !(label in out)) out[label] = over(el);
+  }
+  return out;
+}"""
+# A form's own error notice over its fields ("There is a problem"): never the section a question is in.
+ERROR_HEADING = re.compile(r"\bthere (is|was|are|were) (a )?problems?\b|\berrors?\b", re.IGNORECASE)
+# One half of a bare date as Claude names it ("Start date: Month"): the page labels the date ("Start date").
+DATE_HALF = re.compile(r":?\s*\b(month|year)$", re.IGNORECASE)
+
+
+def _with_sections(page: Page, questions: QuestionSet) -> QuestionSet:
+    """`questions`, each bare date ("Start date: Month", "From") given the heading it sits under on the page as
+    its section, when Claude's reading gave it none (KAN-685): the engine's sectionOf then reads the step's own
+    heading ("Current / Most Recent University Education"), not the questions listed before it, which may be an
+    earlier step's (TAL.net's "Role preference" read the degree's start as a job's, so Lisul was asked)."""
+    bare = {q.name: DATE_HALF.sub("", q.label).strip() for q in questions if not q.section and on_page.bare(q.label)}
+    if not bare:
+        return questions
+    heads: dict[str, list[str]] = {}
+    for frame in page.frames:
+        try:
+            heads |= {k: v for k, v in frame.evaluate(HEADINGS_OVER, sorted(set(bare.values()))).items() if v and k not in heads}
+        except Exception:
+            continue  # a frame that went away, or one that refuses scripts
+    sections = {name: next((h for h in heads.get(label, []) if not ERROR_HEADING.search(h)), "") for name, label in bare.items()}
+    return [replace(q, section=sections[q.name]) if sections.get(q.name) else q for q in questions]
+
+
 def clearly_education(section: str) -> bool:
     """Whether a section's heading says education, and nothing else that has a start of its own."""
     return bool(SCHOOL_STEP.search(section)) and not NOT_SCHOOLS.search(section)
@@ -958,16 +1094,19 @@ def _sections(page: Page, shown: dict[str, object]) -> dict[str, str]:
 
 def cant_be_right(shown: dict[str, object], this_year: int | None = None, sections: dict[str, str] | None = None) -> list[str]:
     """What a step's fields show (label: value) that can't be right, whatever the plan said (KAN-652): an address
-    part that holds a whole address, or, on an education step, a start year after this one. A bare "Start date"
+    part that holds a whole address (line 1 too, on a step that asks the parts: KAN-684), or, on an education step, a start year after this one. A bare "Start date"
     beside school fields may be the internship's: it stops the fill only in a section `sections` heads as clearly
     education, or at a year no internship starts in (KAN-659)."""
     this_year = this_year or time.localtime().tm_year
     school = any(SCHOOL_STEP.search(label) for label in shown)
+    split = any(SPLIT_PART.search(label.strip()) for label in shown)
     wrong = []
     for label, value in shown.items():
         text = " ".join(value) if isinstance(value, list) else str(value or "")
         if ADDRESS_PART.search(label.strip()) and WHOLE_ADDRESS.search(text):
             wrong.append(f"{label!r} holds a whole address")
+        elif ADDRESS_LINE_ONE.search(label.strip()) and WHOLE_ADDRESS.search(text) and split:
+            wrong.append(f"{label!r} holds a whole address, though the step asks its parts")
         years = [int(y) for y in re.findall(r"\b(19\d\d|20\d\d)\b", text)]
         if school and START_YEAR.search(label) and not NOT_SCHOOLS.search(label) and years and max(years) > this_year:
             if (BARE_START.match(label.strip()) and max(years) <= this_year + PLAUSIBLE_YEARS

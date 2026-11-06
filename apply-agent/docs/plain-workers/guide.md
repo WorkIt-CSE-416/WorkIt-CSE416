@@ -141,6 +141,12 @@ A plain Worker is a Chrome with no CDP, driven by the worker extension
 - **Focus.** Go to question focuses the field. The Worker's window is behind
   Lisul's apps, so `:focus` doesn't match. `document.activeElement` is set,
   and that is what the Watch reads.
+  Nor does the page hear any focus events: `focus()`, `blur()`, a Tab or a
+  click elsewhere fire no `blur` or `focusout`. Workday's text boxes keep a
+  value only as they are left (React's onBlur), so each focus move the
+  extension makes (page/dom.js `leaving`, also the tile's presses) and the
+  Fill engine's `leave` tell the box left by hand when it went unheard
+  (KAN-709, `tests/test_plain_focus.py`).
 - The window's own field-error read (`CdpFrames._read_errors`) needs CDP.
   For a plain Worker, the window reads `stuck.field_error(page)` over the
   port, from its own thread (S3's frames).
@@ -204,12 +210,20 @@ What changes on a plain Worker:
 - **Claude fill and Rescue** run on a plain Worker as on a CDP one: `claude_cli.drive` gives Claude
   Apply's own MCP server (S6, KAN-612) when the page is a PortPage, so a run or rehearsal in `plain`
   or `protected` mode needs no other wiring.
+- **An engine call has 60 s** (`bridge.CALL_TIMEOUT`). The engine's Workday `fill` ends inside it: past
+  45 s, the field still going fails as a FillError that names it (KAN-702). A field whose call still
+  times out (`PortTimeoutError`) goes to the Rescue, as a FillError does
+  (`WorkdayFiller._put_or_rescue`). Without a Rescue, it becomes a FillError naming the field, which a
+  rehearsal skips.
 - **The production seed.** `uv run apply plain seed` opens branded Chrome on `APPLY_PROFILES/plain-seed`
   and prints Lisul's steps: Developer mode, Remove an old card, Load unpacked with the profiles
   folder's own copy of the extension (`APPLY_PROFILES/worker-extension`, next section), Details,
   Allow User Scripts, then quit (`launcher.seed_steps`). `plain_chrome: chrome` (the
   default) then copies that seed to each Worker. `plain_chrome: testing` (Chrome for Testing) needs no
   seed, but Allow User Scripts can't be turned on there.
+- **`apply doctor`** checks the Workers `worker_mode` runs: the CDP Worker profiles for `cdp`, the
+  "Plain seed" line for `plain` (the seed exists, Load unpacked registered the worker extension in it,
+  and Developer mode is on), and both for `protected`. With `plain_chrome: testing` the seed line is ok.
 - **Held Submit and the already-applied note** (KAN-629, KAN-621) work on plain pages:
   `submit_guard.lift(held=, dismiss=)`, `renote(held=)`, `warn_applied` and `applied_dismissed`
   hand over to `apply.plain.guards` (`guard.lift`'s `held` and `onlyLifted`, `guard.applied`). A

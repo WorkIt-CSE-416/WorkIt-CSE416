@@ -749,6 +749,20 @@ more. A row goes into
 `checked_websites.csv` only after its checks (`docs/logos.md`, Checked
 websites): a script for the site and its name, a person for every failure.
 
+**A board with still no domain is checked once by its own address**
+(`logos.board_address`, `logos.check_addresses`, `Store.addresses`): a Jibe or
+SuccessFactors host is on the company's own site (`careers.garmin.com`), and a
+Workday tenant is the name the company chose (`sbdinc`, so `sbdinc.com`, only a
+guess). The scraper reads the home page, `www.` first, and keeps the domain only
+when the page shows it is the company's (`logos.names_company`); a guess needs
+the company's whole name, two words or more, in the page's title, since
+`denver.com` is Denver Media and `nexstar.com` a web host. **What is left is
+flagged every run**: `metrics.json`'s `boards_without_domain` and the log list
+each board whose roles go out with no domain, most roles first. A person works
+down that list into `checked_websites.csv`; never into the database, which the
+next import overwrites. On 2026-11-04 the check proved 133 of 404 boards (1,941
+of the 7,089 jobs with no domain).
+
 ## The page
 
 One self-contained HTML table (`# · Position Title · Date · Apply · Work Model
@@ -816,6 +830,10 @@ the design they serve and its next steps):
   was only a line in the log.
 - **`resting`**: the boards the next runs will not ask (`Store.resting`), in the
   same shape as `unread`, by why each last went unread.
+- **`boards_without_domain`**: each board whose roles go out with no
+  `company_domain`, so no Brandfetch logo, with its company, its roles and
+  whether its address was tried (`feed.without_domain`): the list a person
+  works through into `checked_websites.csv` (Logos).
 - **`boards_fingerprint_resting`**: how many boards the next runs will not ask
   because their kept postings have not changed (`Store.fingerprint_resting`,
   KAN-502). Compare it run against run to see what the rest saves.

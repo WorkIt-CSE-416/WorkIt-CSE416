@@ -90,6 +90,27 @@ def test_a_save_keeps_what_changed_in_the_file_since_the_profile_was_loaded(tmp_
     assert saved.answered("Which role are you applying to?") == "Software Engineering"
 
 
+def test_a_forms_values_joined_are_never_saved_as_one_answer(tmp_path):
+    # Live (KAN-693): a held form's whole section, read as one field, was saved as the answer to the field
+    # Lisul had left blank: his name, email and phone in one string; "Yes; No" for work authorization.
+    path = tmp_path / "profile.yaml"
+    path.write_text((FIXTURES / "profile.yaml").read_text())
+    profile = ApplicantProfile.load(path)
+    joined = "; ".join([profile.get("identity.legal_first_name"), profile.get("identity.email"), "Yes"])
+
+    with pytest.raises(ValueError, match="several of the form's values"):
+        profile.save_answered("Alternate Phone Number", joined)
+    with pytest.raises(ValueError):
+        profile.save_answered("Are you legally authorized to work here?", "Yes; No")
+    profile.set_answered("State", joined)  # a Worker's plan keeps it out too, without failing
+    profile.save_answered("Which tracks interest you?", "Software; Hardware")  # a multi-pick is one answer
+
+    saved = ApplicantProfile.load(path)
+    assert saved.answered("Alternate Phone Number") is None and saved.answered("State") is None
+    assert saved.answered("Are you legally authorized to work here?") is None
+    assert saved.answered("Which tracks interest you?") == "Software; Hardware"
+
+
 def test_a_save_leaves_long_lines_unwrapped_so_a_long_question_reads_back(tmp_path):
     # Seen live: Datadog's 96-character question was wrapped onto two lines, which no YAML reader takes as a key.
     path = tmp_path / "profile.yaml"
