@@ -1272,6 +1272,59 @@ def test_a_widget_loading_into_its_own_frame_goes_through_the_drive_guard(action
     assert ('the "Submit application" click' in blocked) and (("a form submission" in blocked) is not through)
 
 
+# A TAL.net-style Employment step (Bank of America's, live 2026-11-06, KAN-728): its "Add another" posts the page to add a
+# blank entry. Claude's click on it is blocked as any POST is; plain code's own press goes through, and nothing sends.
+TAL_STEP = ('<form method="post" action="/eform/1/save_page"><input name="employer" aria-label="Employer">'
+            '<button name="add">Add another</button><button name="next">Save and Continue</button></form>')
+
+
+def _employment_step(press):
+    from playwright.sync_api import sync_playwright
+
+    from apply import claude_fill
+    posts = []
+
+    def serve(route):
+        if route.request.method == "POST":
+            posts.append(route.request.post_data or "")
+            return route.fulfill(body=TAL_STEP.replace('<button name="add">', '<input name="employer2"><button name="add">'),
+                                 content_type="text/html")
+        return route.fulfill(body=TAL_STEP, content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(lambda url: True, serve)  # every request: no real site is ever reached
+        page.goto("https://jobs.example.com/eform/1")
+        guard(page)
+        drive = DriveGuard(page)
+        drive.arm()
+        try:
+            press(page, drive, claude_fill)
+        finally:
+            page.wait_for_timeout(300)
+            browser.close()
+    return posts
+
+
+def test_claudes_click_on_a_sections_add_another_is_blocked():
+    assert _employment_step(lambda page, drive, _: page.get_by_role("button", name="Add another").click()) == []
+
+
+def test_plain_code_presses_a_sections_add_another_through_the_guards():
+    posts = _employment_step(lambda page, drive, claude_fill: claude_fill.press_step(page, drive, "Add another", add=True))
+
+    assert len(posts) == 1 and "add=" in posts[0]
+
+
+def test_a_button_named_as_an_add_button_that_sends_is_never_pressed():
+    def press(page, drive, claude_fill):
+        with pytest.raises(claude_fill.Handoff):
+            claude_fill.press_step(page, drive, "Save and Continue", add=True)
+
+    assert _employment_step(press) == []
+
+
 # TAL.net's posting page (Bank of America's campus careers, live 2026-11-06, KAN-725): its Apply button is a submit
 # input in a POST form of its token alone, bound for .../opp/<id>/apply/<lang>, which opens the application. The
 # guard took it for a form's Apply that sends, and the rehearsal handed off with no field filled.

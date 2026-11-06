@@ -407,3 +407,42 @@ def test_a_review_problem_with_a_legal_answer_holds_submit_until_it_is_dismissed
     flag = found.flags[0]
     gone = verify.check((), {}, {}, person, POSTING, review=[problem], today=TODAY, dismissed=[(flag.field, flag.why)])
     assert gone.holds_submit == ()
+
+
+# Bank of America's TAL.net Employment (live 2026-11-06, KAN-728): one job of three was filled, and nothing said so.
+JOBS = [{"employer": "Acme Rail", "title": "Software Engineer Intern", "start": "2026-06", "end": "2026-08"},
+        {"employer": "Data Shop", "title": "Software Engineer (Part-time)", "start": "2025-10", "end": None},
+        {"employer": "Bus Co", "title": "Software Engineering Intern", "start": "2025-06", "end": "2025-08"}]
+
+
+def _work_form(tmp_path, entries: int, cap: tuple[str, ...] = ()):
+    person = ApplicantProfile({"experience_facts": {"employment_history": JOBS}}, tmp_path, {})
+    questions = [Question("n", "Work Experience (entries)", "select", False, cap)]
+    shown = {"n": str(entries)}
+    for n, job in enumerate([JOBS[0], JOBS[2]][:entries], 1):
+        questions += [Question(f"e{n}", f"Work Experience {n} / Employer", "select", True, ("Accenture", "Other")),
+                      Question(f"o{n}", f"Work Experience {n} / Employer / Organization - other", "text", True)]
+        shown |= {f"e{n}": "Other", f"o{n}": job["employer"]}
+    return verify.check(questions, shown, shown, person, POSTING, today=TODAY)
+
+
+def test_a_job_missing_from_the_work_section_holds(tmp_path):
+    result = _work_form(tmp_path, 1)
+
+    assert sorted(f.why for f in result.needs if f.kind == verify.HISTORY_KIND) == [
+        "Bus Co, a job on your profile, is not on the form's work section",
+        "Data Shop, a job on your profile, is not on the form's work section"]
+
+
+def test_a_job_a_capped_work_section_leaves_out_is_a_note(tmp_path):
+    result = _work_form(tmp_path, 2, cap=("1", "2"))
+
+    assert not [f for f in result.needs if f.kind == verify.HISTORY_KIND]
+    [note] = [f for f in result.notes if f.kind == verify.HISTORY_KIND]
+    assert "left out Data Shop" in note.why and "Acme Rail, Bus Co" in note.why
+
+
+def test_a_capped_work_section_not_yet_full_still_holds(tmp_path):
+    result = _work_form(tmp_path, 1, cap=("1", "2"))
+
+    assert len([f for f in result.needs if f.kind == verify.HISTORY_KIND]) == 2

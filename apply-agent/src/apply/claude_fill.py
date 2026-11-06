@@ -97,6 +97,9 @@ MAX_STEPS = 20  # a guard against a loop: Bank of America's TAL.net form has mor
 # A button that names the application: never a profile step's, whatever pop-up it is in (KAN-647).
 APPLIES = re.compile(r"\bappl(?:y|ying|ication)\b", re.IGNORECASE)
 STEP_SHOWS_MS = 8_000
+ADDS = re.compile(r"^\s*add\b", re.IGNORECASE)  # a section's button that adds an entry ("Add another")
+ENTRIES_COUNT = re.compile(r"^work experience \(entries\)$", re.IGNORECASE)
+MAX_ADDS = 10  # a guard against a loop: no work section takes more entries
 # What a page says once it has the application, and how long it may take to say so.
 THANKS = re.compile(
     r"\bthanks? (you )?for (applying|your (application|submission)|submitting)\b"
@@ -179,6 +182,13 @@ An "I'm not a robot" box on the form doesn't stop you: leave it as it is and go 
 If the form can't be reached or filled without one of those, and the page is no account page (below), stop: set `blocked` and say why in `why`. A captcha's challenge over the page (a picture or puzzle, a slider) always stops you: say captcha in `why`.
 If a pop-up or overlay keeps taking your clicks after one try to close it, stop the same way: don't try again.
 {ACCOUNT_PROMPT}"""
+# A work-history section whose entries the person adds one at a time (TAL.net's Employment, KAN-728): named as the
+# engine reads Workday's, so every job on file gets an entry, up to the most the section takes.
+ENTRIES = ("A section for jobs or work experience whose entries the person adds one at a time (an \"Add another\" button under it): "
+           "name each field of its entries \"Work Experience <n> / <label>\", n counting the entries from 1, whatever the "
+           "section's heading (\"Work Experience 1 / Employer\"), and list one more question, \"Work Experience (entries)\": "
+           "kind select, not required, options the counts of entries it may hold (\"1\", \"2\"), up to the most the page "
+           "states, or no options when it states no limit.")
 BLOCKED = {
     "blocked": {"type": "boolean", "description": "true only if you had to stop (see the rules)"},
     "why": {"type": "string", "description": "why you stopped; empty if not blocked"},
@@ -191,6 +201,7 @@ Work on that tab: don't navigate away. If it shows the posting rather than the f
 List every question a person sees, in order, with its label exactly as shown: kind is text, textarea, file, select (dropdowns, radio buttons, a single checkbox as Yes/No) or multi_select (checkboxes); options are the choices exactly as shown. Don't open a dropdown or pick anything to read its choices: list a dropdown whose choices don't show with no options (plain code opens it after you). When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 Put a field's help text under its label into the label, after it in parentheses ("Please write out the name of the club and do not use any acronyms").
 Leave out hidden fields, fields marked to be left blank and any captcha ("I'm not a robot").
+{ENTRIES}
 If the page is not one job posting (a careers home page, a list of jobs, a company page), or says the posting is closed or no longer accepts applications, list no questions, say which in `page` and why in `why`.
 {RULES}"""
 QUESTION = {
@@ -223,6 +234,7 @@ Leave every other field as it is, and any captcha ("I'm not a robot") too.
 Then read each field back, one `filled` entry a field: `field` is its id from <fields> ("q1"), copied exactly, never its label; `shown` is exactly the text, option or file name the field shows now, with nothing added ("Yes" or "No" for a single checkbox).
 If the step asks a question <fields> doesn't hold, leave it and go on: list it in `unlisted` like a question read off the form (label exactly as shown, with the help text under it after it in parentheses; kind, required, options). Don't stop for it. When a label shows more than once on the form, in different sections (a home and a campus address, current and permanent, mailing and residential), put the section's heading before it: "Campus Address: Address line 1".
 If a question in <fields> is not on this step, leave it out of `filled` and go on.
+{ENTRIES} "Work Experience (entries)" in <fields> is how many entries that section should hold: read it back as the count it holds now. Never press the section's add button yourself: if it holds fewer, fill the entries it shows, then name that button exactly in `add_button`, and Apply presses it. Otherwise leave `add_button` empty.
 If this step has a button that goes on to the form's next step ("Next", "Continue"), name it exactly in `next_button` and leave `submit_button` empty.
 On the last step, name exactly the button that would send the application in `submit_button` and leave `next_button` empty. Never click that button, press Enter to send or try it again: once the fields are filled and read back, you are done. Apply sends the form itself, after its own checks.
 {RULES}"""
@@ -243,6 +255,7 @@ FILL_SCHEMA = {
         "submit_button": {"type": "string", "description": "the button that sends the application, on the last step only"},
         "next_button": {"type": "string", "description": "the button that goes to the next step; empty on the last step"},
         "unlisted": {"type": "array", "items": QUESTION, "description": "questions on the page that <fields> doesn't hold"},
+        "add_button": {"type": "string", "description": "the work section's button that adds an entry, while it holds fewer than asked"},
     },
     "required": [*REPORTED, "filled", "submit_button", "next_button", "unlisted"],
 }
@@ -335,6 +348,7 @@ class ClaudeFill:
         self._gated = ""  # the step held for Lisul's check, till his Resume
         self._approved: set[str] = set()  # the steps he checked and resumed from
         self._tick_asked: set[str] = set()  # the attestations the form stopped on for Lisul, till his Resume (KAN-676)
+        self._adds = 0  # the entries plain code added to work sections (_add_entry)
         self._tick_his: set[str] = set()  # the attestations he resumed from a stop on: his own, as he left them
         self.posting_text = ""  # the Posting's own text, as its open page showed it
         self.names: tuple[str, str] = ("", "")  # the company and role its open page named
@@ -517,6 +531,10 @@ class ClaudeFill:
                 self._gated = step
                 raise Handoff(f"Page {self._steps + 1}: check these {len(asks)} and tick any box that is yours, "
                               "then press Resume: " + "; ".join(asks))
+            counts = [name for name, label in labels.items() if ENTRIES_COUNT.match(label.strip())]
+            if (add := str(done.get("add_button") or "").strip()) and any(_fewer(self._readback.get(n), answers.get(n)) for n in counts):
+                self._add_entry(page, add, counts)
+                continue
             next_button = str(done.get("next_button") or "").strip()
             if not next_button or SENDS.search(next_button) or not NEXT.search(next_button):
                 submit_button = str(done.get("submit_button") or next_button).strip()
@@ -537,6 +555,18 @@ class ClaudeFill:
                     raise Captcha(CAPTCHA_BOX, page)
                 return dict(self._readback)
             self._next_step(page, next_button)
+
+    def _add_entry(self, page: Page, name: str, counts: list[str]) -> None:
+        """Press a work section's add button by plain code (TAL.net's "Add another" posts the page, which the guard
+        blocks from Claude's session, KAN-728), then fill again: the new entry's fields come back as unlisted, and
+        the section's count is read back once more."""
+        self._adds += 1
+        if self._adds > MAX_ADDS:
+            raise Handoff(f"Apply pressed {name!r} {MAX_ADDS} times and the work section still asks for more entries. "
+                          "Add the rest yourself.")
+        press_step(page, self._guard, name, add=True)
+        for count in counts:
+            self._put.pop(count, None)
 
     def _stop_for_attestations(self, page: Page, attesting: list[Question], required: set[str],
                                before: dict[str, list[str] | None], claude_read: dict[str, list[str]]) -> None:
@@ -777,13 +807,14 @@ def _profile_step(page: Page, name: str) -> Locator | None:
     return None
 
 
-def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = False) -> None:
+def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = False, add: bool = False) -> None:
     """Plain code's own click on a step's Next (or `back`: its Back; or `listed`: a step in the form's list of
     steps, TAL.net's Progress Tracker), which goes through the guards where it posts natively: a button that
     sends, a form that has one and the final application URLs stay blocked (KAN-639). Waits for the step it
     leads to; a Handoff says why it didn't."""
     before = _fields_shown(page)
-    button = _the_back(page, name) if back else _the_listed(page, name) if listed else _the_next(page, name)
+    button = _the_back(page, name) if back else _the_listed(page, name) if listed else _the_add(page, name) if add \
+        else _the_next(page, name)
     # Plain code's own check: never Claude's word for it. A Back leaves the review page, so only its words count.
     words = _sends_or_reviews(page, button)
     if words and not (back and words == REVIEW_WORDS):
@@ -803,6 +834,25 @@ def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = 
         if guard:
             guard.arm()  # the account click's flag off again, in the step it led to
             guard.rest()
+
+
+def _fewer(shown: object, wanted: object) -> bool:
+    """Whether a section's count of entries read back is below the count planned: never on Claude's word alone."""
+    try:
+        return int(str(shown).strip()) < int(str(wanted).strip())
+    except ValueError:
+        return False
+
+
+def _the_add(page: Page, name: str):
+    """The one button of exactly the name Claude gave a section's add button ("Add another"), whose words add an entry
+    and say nothing that sends. None, or two, is a Handoff."""
+    if SENDS.search(name) or not ADDS.match(name):
+        raise Handoff(f"Claude named {name!r} as a section's add button, which may send the form. Fill it in yourself.")
+    found = [b for b in page.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
+    if len(found) != 1:
+        raise Handoff(f"The form shows {len(found)} buttons named {name!r}, so Apply didn't add an entry. Add it yourself.")
+    return found[0]
 
 
 def _the_back(page: Page, name: str):
