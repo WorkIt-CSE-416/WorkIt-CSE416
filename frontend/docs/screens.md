@@ -893,7 +893,7 @@ states: the API failed, nothing tracked yet (Find Jobs), and filters that
 hide everything (Clear Filters). The mock cards and their stand-in company
 glyphs were removed with the fixture. A job the student has a tailored resume
 for wears a Tailored chip (`components/tailored-chip.tsx`, KAN-217) beside its
-company in the list and under it on the grid card, from the built resumes read
+company in the table and under its location on a Card View card, from the built resumes read
 beside the applications (`getTailoredJobIds`; Home's unscored read skips it).
 
 **The list is the primary view and the board is archived** (KAN-256).
@@ -984,7 +984,7 @@ open, not download (asked for again on each open, since it lasts 5
 minutes). A rebuilt upload (its upload replaced or deleted since) says so,
 with Show Original Text for the file's own words. A Word file cannot be
 shown in a browser, so it points to Resumes & Experiences instead.
-Nothing downloads here. A grid card with a sent resume carries the same
+Nothing downloads here. A Card View card with a sent resume carries the same
 button above its footer, on a strip that sits over the card's stretched
 link, so the strip's gap is no misclick either. Location and Pay print as the Jobs page's card does
 (`jobs/format.ts`). The cells are drawn as the job cards draw their facts
