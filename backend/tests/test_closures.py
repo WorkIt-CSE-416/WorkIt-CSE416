@@ -25,7 +25,7 @@ async def _seed_schedule(conn, *, schedule_id=None, enabled=True, prior_read_at=
     await conn.execute(text("""
         INSERT INTO scraper_schedules (id, ats, token, company, enabled, prior_read_at, last_read_at)
         VALUES (:id, 'greenhouse', :token, 'Acme', :enabled,
-                CASE WHEN :prior IS NOT NULL THEN now() - interval '1 hour' END,
+                CASE WHEN CAST(:prior AS text) IS NOT NULL THEN now() - interval '1 hour' END,
                 now())
     """), {"id": sid, "token": str(sid), "enabled": enabled, "prior": prior_read_at})
     return sid
