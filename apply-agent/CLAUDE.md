@@ -351,6 +351,17 @@ WorkIt one time per run or rehearsal, through `WorkIt.applications`.
 `tests/fake_tracker.py`. `tests/test_rehearse.py -k "already_applied or
 could_not_run or force_rehearses"` rehearses in Chromium.
 
+## The resume check (KAN-663)
+
+`src/apply/resume_check.py` compares `files.resume_pdf` with policies.yaml's
+`resume_source` (`repo`, `path`, `branch`, default `main`) by git blob sha.
+The default is unset, and then nothing runs and doctor prints no line. A
+different file stops `apply rehearse`, `apply run` and `approve-pass` at
+their start, with one line that names both shas. In doctor, it is a fail. If
+`gh` can't answer, it is a warning and the run goes on. The repo's sha is
+kept for 10 minutes in `resume-source.json` in the data folder. A link sent
+with `--into` joins a run that was checked at its start.
+
 ## The tailored resume is the Sent resume (KAN-547)
 
 A student can tailor a resume to a job posting on WorkIt (Tailor,
