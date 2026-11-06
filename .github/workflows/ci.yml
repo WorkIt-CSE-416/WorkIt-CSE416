@@ -198,6 +198,7 @@ jobs:
             tests/test_regenerate.py \
             tests/test_repair_requests.py \
             tests/test_requests.py \
+            tests/test_resume_check.py \
             tests/test_sameness.py \
             tests/test_schedule.py \
             tests/test_send_click.py \
