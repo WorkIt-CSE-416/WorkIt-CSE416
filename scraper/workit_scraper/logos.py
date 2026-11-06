@@ -85,6 +85,7 @@ VENDOR_DOMAINS = frozenset(
         "google.com",
         "greenhouse.io",
         "icims.com",
+        "jibeapply.com",
         "lever.co",
         "myworkday.com",
         "myworkdayjobs.com",
@@ -166,23 +167,144 @@ def needs_read(key: str, logos: dict[str, str | None], websites: dict[str, str |
     return key not in logos or (is_upload(logos[key]) and key not in websites)
 
 
-def company_domain(key: str, logo: str | None, website: str | None = None) -> str | None:
+def company_domain(
+    key: str, logo: str | None, website: str | None = None, address: str | None = None
+) -> str | None:
     """The employer's own registered domain, for the Jobs page's logo (KAN-442).
 
     The checked website first (`CHECKED_WEBSITES`), else the website the board named
-    (`Store.websites`), else the website its favicon came from. None for a hiring
-    vendor's site or no website at all. Worked out when the feed is written, so a row
-    added to the checked list reaches every board's jobs on the next run, read or not.
+    (`Store.websites`), else the website its favicon came from, else the domain its
+    board's own address gave and `check_addresses` proved (`Store.addresses`). None
+    for a hiring vendor's site or no website at all. Worked out when the feed is
+    written, so a row added to the checked list reaches every board's jobs on the
+    next run, read or not.
     """
     site = CHECKED_WEBSITES.get(key) or website
     if site is None and logo and logo.startswith(FAVICON):
         site = parse_qs(urlsplit(logo).query).get("domain", [None])[0]
+    site = site or address
     if not site:
         return None
     domain = registered_domain(site)
     if domain in VENDOR_DOMAINS or not DOMAIN.fullmatch(domain):
         return None
     return domain
+
+
+#: Hiring systems whose board token is a host on the company's own site:
+#: Jibe's `careers.garmin.com`, SuccessFactors' `jobs.mcdonalds.com`.
+OWN_HOST = ("jibe", "successfactors")
+#: A home page's title, read to check the company's name on it.
+TITLE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
+
+
+def board_address(ats: str, token: str) -> tuple[str, bool] | None:
+    """The company's domain as its board's own address gives it, and whether that
+    is a guess. A Jibe or SuccessFactors board lives on the company's careers site,
+    so its host's registered domain is the company's (not a guess). A Workday tenant
+    is the name the company chose (`sbdinc` for Stanley Black & Decker), and
+    `{tenant}.com` is only a guess: `yale` gives yale.com, a lock maker, not Yale
+    University. None for other systems, a vendor's host, or no usable name."""
+    if ats in OWN_HOST and "." in token:
+        domain, guess = registered_domain(token.split("/")[0]), False
+    elif ats == "workday":
+        domain, guess = f"{token.split('.')[0].lower()}.com", True
+    else:
+        return None
+    if domain in VENDOR_DOMAINS or not DOMAIN.fullmatch(domain):
+        return None
+    return domain, guess
+
+
+def _squash(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", text.lower())
+
+
+def names_company(domain: str, company: str, title: str, *, guess: bool) -> bool:
+    """Whether a home page shows it is the company's: the check a row of
+    `checked_websites.csv` passes (docs/logos.md, Checked websites), done by the
+    scraper. A guess must have the company's whole name, of two words or more, in
+    its page's title (Stanley Black & Decker on sbdinc.com); yale.com's "Yale
+    Home" does not hold "Yale University", and a one-word company is left to a
+    person. A domain the board's own address gave needs less: its name
+    in the company's name (garmin.com) or the company's name at its start
+    (chsinc.com for CHS), the company's initials (gxo.com), or the company's first
+    word in the title."""
+    name, heading = _squash(company), _squash(title)
+    words = re.findall(r"[a-z0-9]+", company.lower())
+    if guess:
+        # Two words at least: a one-word name is in too many titles. On
+        # 2026-11-04 denver.com was "Denver Media", not the City of Denver, and
+        # nexstar.com a web host, not Nexstar Media.
+        return len(words) >= 2 and name in heading
+    label = domain.split(".")[0]
+    initials = "".join(word[0] for word in words)
+    return (
+        (len(label) >= 3 and label in name)
+        or (len(name) >= 3 and label.startswith(name))
+        or (len(initials) >= 2 and label.startswith(initials))
+        or (bool(words) and len(words[0]) >= 3 and words[0] in heading)
+    )
+
+
+def check_addresses(boards: list[tuple[str, str, str]]) -> dict[str, str | None]:
+    """`{"ats/token": domain or None}` for each board whose address gives a domain
+    (`board_address`) and whose home page we could read: the domain when the page
+    shows it is the company's (`names_company`), None when it does not, refuses us
+    or is not there, so it is flagged for a person (`checked_websites.csv`). A
+    timeout or a dropped connection leaves the board out, for the next run.
+
+    The home page is read through `web.get` behind robots.txt and pacing like any
+    other request, at www. first and then the bare domain; a redirect to another
+    host of the same domain (garmin.com -> www.garmin.com) is followed, any other
+    is not."""
+    robots = Robots()
+
+    def title(url: str) -> str | None:
+        """The page's title, "" for a page with none; None when it refused us
+        (robots.txt, an HTTP error, a redirect elsewhere). Raises OSError when the
+        site could not be reached at all."""
+        for _ in range(3):
+            if not robots.allows(url):
+                return None
+            robots.pace(url)
+            try:
+                body = web.get(url, timeout=15)
+            except urllib.error.HTTPError as error:
+                moved = error.filename if 300 <= error.code < 400 else None
+                host = urlsplit(moved).hostname if moved else None
+                if host and registered_domain(host) == registered_domain(urlsplit(url).hostname):
+                    url = moved
+                    continue
+                return None
+            match = TITLE.search(body[:400_000].decode("utf-8", "replace"))
+            return html.unescape(match.group(1)).strip() if match else ""
+        return None
+
+    def one(board: tuple[str, str, str]) -> tuple[str, str | None] | None:
+        ats, token, company = board
+        found = board_address(ats, token)
+        if found is None:
+            return None
+        domain, guess = found
+        # www first: most bare domains redirect there, robots.txt included, and a
+        # robots.txt that redirects reads as a refusal (viasat.com, 2026-11-04).
+        heading, unreachable = None, 0
+        for url in (f"https://www.{domain}/", f"https://{domain}/"):
+            try:
+                heading = title(url)
+            except OSError:  # DNS, refused, timeout
+                unreachable += 1
+                continue
+            if heading is not None:
+                break
+        if unreachable == 2:  # neither host answered today: ask again next run
+            return None
+        ok = heading is not None and names_company(domain, company, heading, guess=guess)
+        return f"{ats}/{token}", domain if ok else None
+
+    with ThreadPoolExecutor(8) as pool:
+        return dict(found for found in pool.map(one, boards) if found)
 
 
 def reads_logo(ats: str) -> bool:

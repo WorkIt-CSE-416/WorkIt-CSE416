@@ -117,13 +117,15 @@ class TailorMatch(BaseModel):
     pick the missing keywords to add. `tailored_resume_id`: the posting's
     tailored resume, when it has one (a run is then refused).
     `weak_match`: the posting has no description, so WorkIt read its title
-    only."""
+    only. `in_experiences`: the missing keywords the student's Experiences
+    already show, though this resume does not (KAN-587)."""
 
     job_posting_id: UUID
     tailored_resume_id: UUID | None
     weak_match: bool
     matched: list[Keyword]
     missing: list[Keyword]
+    in_experiences: list[str] = []
 
 
 class TailorRunResult(BaseModel):

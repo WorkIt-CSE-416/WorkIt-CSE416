@@ -10,6 +10,7 @@ import { useToast } from "@/components/ui/toast";
 import { openNextApplication, showRunTab, useBrowserJobs } from "@/lib/autofill-extension";
 
 import { hasApplied } from "../applied";
+import { rememberStage } from "../jobs/shown-list";
 import { dequeueJob, queueJob, type ApplicationStage, type RunStage } from "./actions";
 import { openedNote } from "./opened-note";
 
@@ -40,6 +41,10 @@ const STAGE_LABEL: Record<RunStage, string> = {
  * (dequeueJob) and turns the button back to Auto Apply: the same as Live
  * Activity's cross and its Undo, the other way round. Only a new queueing
  * raises one; a click that finds an earlier stage just shows it.
+ *
+ * Every stage it sets goes to the shown list (`rememberStage`, KAN-217), so
+ * the job's other buttons and every list follow: a saved job queued here
+ * empties its bookmark and comes back to the Jobs page.
  *
  * THEN THE SAME PIPELINE AS START AUTO APPLY, without the matching: a click
  * that leaves the job queued asks the extension to open the oldest queued
@@ -93,6 +98,7 @@ export function AutoApplyButton({
       return;
     }
     setStage(null);
+    rememberStage(jobId, null);
   }
 
   if (stage === "queued" && inBrowser) {
@@ -140,7 +146,10 @@ export function AutoApplyButton({
               if (queued) {
                 const result = await dequeueJob(jobId);
                 setError(result.error);
-                if (!result.error) setStage(null);
+                if (!result.error) {
+                  setStage(null);
+                  rememberStage(jobId, null);
+                }
                 return;
               }
               const result = await queueJob(jobId);
@@ -149,6 +158,9 @@ export function AutoApplyButton({
               // The job may have moved past applied in another tab since
               // this page was drawn; it reads as Applied, as on first draw.
               setStage(hasApplied(result.stage) ? "applied" : result.stage);
+              // Every other button for this job follows (KAN-217): a saved
+              // job's bookmark empties once it is queued.
+              rememberStage(jobId, result.stage);
               if (result.stage === "queued") {
                 void openInBrowser();
                 toast.show({

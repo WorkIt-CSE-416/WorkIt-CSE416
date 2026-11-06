@@ -144,7 +144,11 @@ The feed carries each job's `company_domain`: the website its board names, with
 or without an uploaded image, cut to the company's own domain
 (`careers.gevernova.com` becomes `gevernova.com`),
 or one a script checked and a person reviewed (`scraper/checked_websites.csv`,
-which also covers boards that name none). The browser loads Brandfetch's sharp
+which also covers boards that name none). A board with still none is checked
+once by its own address: a careers site such as `careers.garmin.com`, or a
+Workday account name proved on the company's home page. Each run's
+`metrics.json` lists the boards still without a domain, most jobs first, for a
+person to add to the checked list. The browser loads Brandfetch's sharp
 square icon; where Brandfetch has none, the card falls back to the board's own
 image or favicon, and then to the company's initials.
 
@@ -461,7 +465,7 @@ can't be shown as matching a fact it never stated.
 | **Opening it** | A click anywhere on a card |
 | **Header** | The same facts as the card, and the company logo |
 | **About the Role** | The description, with headings and bullet lists recovered from the plain text |
-| **Actions** | One row under the title: Save, a "…" menu (Copy Link, Report), Ask Scout, Auto Apply, Tailor My Resume and Apply Now (the company's own page). Save keeps the job posting in the Saved column on My Applications; a second click takes it out. Report isn't built yet. |
+| **Actions** | One row under the title: Save, a "…" menu (Copy Link, Report), Ask Scout, Auto Apply, Tailor My Resume and Apply Now (the company's own page). Save keeps the job posting on the Tracker as Saved and takes it off the Jobs page (KAN-217); a second click, or the toast's Undo, takes it back out. Report isn't built yet. |
 | **Applied** | Signed-in applicants only. After Apply Now opens the company's page, the dialog asks "Did You Apply?". Yes records the job posting in `job_applications`, and the page reads "You applied on Oct 17, 2026", on the viewer's own calendar. The job posting then leaves their Jobs page, search and matches. There is no undo yet. |
 | **Back to Jobs** | Returns to the list you came from, with its filters |
 

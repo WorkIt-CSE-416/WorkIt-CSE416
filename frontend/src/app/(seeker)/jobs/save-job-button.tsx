@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 
 import { SaveButton } from "@/components/save-button";
@@ -14,7 +15,15 @@ import { readShownList, rememberStage, subscribe } from "./shown-list";
  * A job's Save button on its card and its own page (KAN-261): <SaveButton>
  * with a click that keeps the job as saved through the API (./actions,
  * saveJob), and a second click that takes it back out (unsaveJob). A saved
- * job is a Saved card on My Applications.
+ * job is on the Tracker, and off the Jobs page (KAN-217): a
+ * save there takes its card off the list at once (./feed-stages).
+ *
+ * A SAVE SAYS WHERE THE JOB WENT (KAN-217): a toast, "Saved to your
+ * Tracker.", with two buttons side by side, View (the
+ * application's own page) and Undo,
+ * which takes the save back and so puts the card back on the list. The toast
+ * outlives the card it came from (it lives in the root layout), so its Undo
+ * works from the shown list, never this button's state alone.
  *
  * `stage` is the job's application as the server read it when it drew the
  * page, the same one its Auto Apply button gets: the button starts filled
@@ -42,6 +51,7 @@ export function SaveJobButton({
   quiet?: boolean;
 }) {
   const toast = useToast();
+  const router = useRouter();
   const [saved, setSaved] = useState(stage === "saved");
   const [pending, start] = useTransition();
   const kept = useSyncExternalStore(
@@ -80,7 +90,18 @@ export function SaveJobButton({
           toast.show({ message: `Couldn't save ${title}. ${result.error}` });
         } else {
           rememberStage(jobId, result.stage);
-          if (result.stage !== "saved") {
+          if (result.stage === "saved") {
+            toast.show({
+              message: "Saved to your Tracker.",
+              actions: [
+                {
+                  label: "View",
+                  onClick: () => router.push(`/applications/${encodeURIComponent(jobId)}`),
+                },
+                { label: "Undo", onClick: () => undo() },
+              ],
+            });
+          } else {
             setSaved(false);
             toast.show({
               message: hasApplied(result.stage)
@@ -93,6 +114,17 @@ export function SaveJobButton({
         busy.current = false;
       }
     });
+  }
+
+  /** The toast's Undo: unsaves, and the job comes back to every list. */
+  async function undo() {
+    const result = await unsaveJob(jobId);
+    if (result.error) {
+      toast.show({ message: `Couldn't take ${title} back. ${result.error}` });
+      return;
+    }
+    rememberStage(jobId, null);
+    setSaved(false);
   }
 
   return (

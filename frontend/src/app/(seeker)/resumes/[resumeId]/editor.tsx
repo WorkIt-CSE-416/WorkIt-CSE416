@@ -29,12 +29,20 @@ import {
   type ComponentProps,
   type ComponentType,
   type ReactNode,
+  type RefObject,
 } from "react";
 
-import { CloseIcon, FileIcon, PlusIcon } from "@/components/icons";
+import { CloseIcon, EllipsisIcon, FileIcon, PlusIcon } from "@/components/icons";
 import { setScoutOpen, useScout } from "@/components/scout/scout-store";
 import { ScoutTakeover } from "@/components/scout/scout-takeover";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/shadcn/dropdown-menu";
 import { Skeleton } from "@/components/shadcn/skeleton";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/shadcn/tooltip";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { IconButton } from "@/components/ui/icon-button";
@@ -71,7 +79,7 @@ import {
 import { bulletPlaced, NEW_BULLET } from "./add-bullet";
 import { Assistant } from "./assistant";
 import { FitToast } from "./fit-notice";
-import { Zoom, useZoom, zoomWidth } from "./zoom";
+import { Zoom, ZoomSubmenu, useZoom, zoomWidth } from "./zoom";
 import { TitleHistoryContext, type ApplyName, type TitleHistory } from "./resume-title";
 import {
   addCuts,
@@ -118,6 +126,7 @@ import {
 import { PhoneEditor, usePhone } from "./phone";
 import { SectionsOutline } from "./sections-panel";
 import { SLIM_BAR } from "./slim-bar";
+import { FOLD, FoldButton } from "./bar-fold";
 import { readMarked, runs, showMarked, unmarked } from "./text-marks";
 import {
   cardsOf,
@@ -2258,7 +2267,7 @@ export function Editor({
             }
           : null
       }
-      zoom={<Zoom zoom={zoom} onZoom={setZoom} />}
+      zoom={{ zoom, onZoom: setZoom }}
       history={history}
       docs={Boolean(suggestions)}
       format={{
@@ -2618,7 +2627,7 @@ function Bar({
   experiences: ExperiencesTools | null;
   docs: boolean;
   format: FormatTools;
-  zoom: ReactNode;
+  zoom: ZoomTools;
   history: HistoryTools;
 }) {
   return (
@@ -2793,6 +2802,10 @@ type ExperiencesTools = {
   cut: { open: boolean; onToggle: () => void } | null;
 };
 
+/** The page's zoom and its setter (./zoom.tsx), for the bar's `Zoom` and
+ *  More's `ZoomSubmenu`. */
+type ZoomTools = { zoom: number; onZoom: (zoom: number) => void };
+
 /** The bar's page settings (./page-format.tsx). */
 type FormatTools = {
   page: PageSettings;
@@ -2937,12 +2950,18 @@ function SlimBar({
   docs?: boolean;
   /** The ways to the panels, at the bar's end while no line is open. */
   format?: FormatTools;
-  /** The page's zoom control (`Zoom`), on the editor's own page only. */
-  zoom?: ReactNode;
+  /** The page's zoom (`Zoom`, and `ZoomSubmenu` in More). */
+  zoom?: ZoomTools;
   history?: HistoryTools;
 }) {
+  const bar = useRef<HTMLDivElement>(null);
   const status = (
-    <span className="text-note text-ink-meta pr-1" aria-live="polite">
+    // Shrinks before any button does, and folds away (`FOLD.status`) while
+    // still read out, so a long one never pushes the row past the bar
+    <span
+      className={cn("text-note text-ink-meta min-w-0 truncate pr-1", FOLD.status)}
+      aria-live="polite"
+    >
       {fitting
         ? "Fitting to One Page…"
         : saving
@@ -2953,8 +2972,9 @@ function SlimBar({
     </span>
   );
   const box = docs ? DOCS_BAR : SLIM_BAR;
+  const zoomControl = zoom && <Zoom zoom={zoom.zoom} onZoom={zoom.onZoom} />;
   // `Zoom` ends in its own divider; a second one here stood beside it
-  const docsZoom = docs && zoom && (rendered ? zoom : <ZoomSkeleton />);
+  const docsZoom = docs && zoom && (rendered ? zoomControl : <ZoomSkeleton />);
   // Gone while a bullet is being added: a fit would read a resume without it
   const fitButton = !composing && rendered && rendered.page_count > 1 && (
     <FitButton
@@ -2989,88 +3009,230 @@ function SlimBar({
       </div>
     );
   }
+  // One row at every width (./bar-fold.tsx): each piece that can leave the
+  // row sits in a `data-fold` box, which More reads to list what has left
+  const cutShown = Boolean(experiences?.cut);
   return (
-    <div data-keeps-selection data-page-bar className={box}>
+    <div
+      ref={bar}
+      data-keeps-selection
+      data-page-bar
+      className={cn(box, "@container/bar flex-nowrap")}
+    >
       <History tools={history} />
-      {docsZoom}
+      {docsZoom && (
+        <span data-fold="zoom" className={cn("flex shrink-0", FOLD.zoomAway)}>
+          {docsZoom}
+        </span>
+      )}
       {fitButton}
       {experiences?.picker && (
         // A button of the bar's own weight, as Download is: it is the way to
         // add to the resume, not a label. Tinted while its panel is open
-        <Button
-          variant="secondary"
-          size="sm"
-          aria-pressed={experiences.picker.open}
-          title="Pick what this resume shows"
-          className={cn(
-            experiences.picker.open && "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
-          )}
-          onClick={experiences.picker.onToggle}
-        >
-          <StackIcon aria-hidden /> Add Experiences
-        </Button>
+        <span data-fold="experiences" className={cn("flex shrink-0", FOLD.experiencesAway)}>
+          <FoldButton
+            label="Add Experiences"
+            hint="Pick what this resume shows"
+            icon={<StackIcon aria-hidden />}
+            fold={FOLD.experiencesWord}
+            render={
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-pressed={experiences.picker.open}
+                className={cn(
+                  experiences.picker.open &&
+                    "border-brand bg-brand-tint text-brand hover:bg-brand-tint",
+                )}
+                onClick={experiences.picker.onToggle}
+              />
+            }
+          />
+        </span>
       )}
       {experiences?.cut && (
         // Beside Add Experiences, in the same weight, amber as Fit is
-        <Button
-          variant="secondary"
-          size="sm"
-          aria-pressed={experiences.cut.open}
-          title="Put back what Fit to One Page cut"
-          className={cn(
-            "text-warning hover:text-warning",
-            experiences.cut.open && "border-warning/50 bg-warning-tint hover:bg-warning-tint",
-          )}
-          onClick={experiences.cut.onToggle}
-        >
-          <ScissorsIcon aria-hidden /> Cut From Resume
-        </Button>
+        <span data-fold="cut" className={cn("flex shrink-0", FOLD.cutAway)}>
+          <FoldButton
+            label="Cut From Resume"
+            hint="Put back what Fit to One Page cut"
+            icon={<ScissorsIcon aria-hidden />}
+            fold={FOLD.cutWord}
+            render={
+              <Button
+                variant="secondary"
+                size="sm"
+                aria-pressed={experiences.cut.open}
+                className={cn(
+                  "text-warning hover:text-warning",
+                  experiences.cut.open && "border-warning/50 bg-warning-tint hover:bg-warning-tint",
+                )}
+                onClick={experiences.cut.onToggle}
+              />
+            }
+          />
+        </span>
       )}
-      <div className="ml-auto flex shrink-0 items-center gap-2">
+      <div className="ml-auto flex min-w-0 items-center gap-2">
         {status}
         {/* Until the first render lands, the panel buttons and the zoom
             are bars, not their names in grey (KAN-561). */}
         {format && !rendered && (
-          <span aria-hidden="true" className="flex items-center gap-2">
-            {format.marks && <Skeleton className="h-7 w-28" />}
-            <Skeleton className="h-7 w-24" />
-            <Skeleton className="h-7 w-28" />
+          <span aria-hidden="true" className={cn("flex items-center gap-2", FOLD.panelsAway)}>
+            {format.marks && <Skeleton className={cn("h-7 w-28", FOLD.sectionsSkeleton)} />}
+            <Skeleton className={cn("h-7 w-24", FOLD.sectionsSkeleton)} />
+            <Skeleton className={cn("h-7 w-28", FOLD.formatSkeleton)} />
           </span>
         )}
         {format && rendered && (
           <>
             {format.marks && (
-              <PanelButton
-                label={format.marks.shown ? "Hide Suggestions" : "Show Suggestions"}
-                Icon={format.marks.shown ? EyeSlashIcon : EyeIcon}
-                open={false}
-                disabled={format.disabled}
-                onToggle={format.marks.onToggle}
-              />
+              <span data-fold="marks" className={cn("flex shrink-0", FOLD.panelsAway)}>
+                <PanelButton
+                  label={format.marks.shown ? "Hide Suggestions" : "Show Suggestions"}
+                  Icon={format.marks.shown ? EyeSlashIcon : EyeIcon}
+                  fold={FOLD.sectionsWord}
+                  open={false}
+                  disabled={format.disabled}
+                  onToggle={format.marks.onToggle}
+                />
+              </span>
             )}
-            <PanelButton
-              label="Sections"
-              Icon={ListDashesIcon}
-              open={format.sectionsOpen}
-              disabled={format.disabled}
-              onToggle={() => format.onToggle("sections")}
-            />
-            <PanelButton
-              label="Format Options"
-              Icon={SlidersHorizontalIcon}
-              open={format.formatOpen}
-              disabled={format.disabled}
-              onToggle={() => format.onToggle("format")}
-            />
+            <span data-fold="sections" className={cn("flex shrink-0", FOLD.panelsAway)}>
+              <PanelButton
+                label="Sections"
+                Icon={ListDashesIcon}
+                fold={FOLD.sectionsWord}
+                open={format.sectionsOpen}
+                disabled={format.disabled}
+                onToggle={() => format.onToggle("sections")}
+              />
+            </span>
+            <span data-fold="format" className={cn("flex shrink-0", FOLD.panelsAway)}>
+              <PanelButton
+                label="Format Options"
+                Icon={SlidersHorizontalIcon}
+                fold={FOLD.formatWord}
+                open={format.formatOpen}
+                disabled={format.disabled}
+                onToggle={() => format.onToggle("format")}
+              />
+            </span>
           </>
         )}
-        {!docs && (rendered ? zoom : zoom && <ZoomSkeleton />)}
+        {!docs && zoom && (
+          <span data-fold="zoom" className={cn("flex shrink-0", FOLD.zoomAway)}>
+            {rendered ? zoomControl : <ZoomSkeleton />}
+          </span>
+        )}
         {/* On Tailor's review it sits in the name's row, as Docs' Share does.
             Secondary: Finish is the review's one filled button, and in the
             brand fill too, the two competed */}
-        {!docs && <DownloadMenu download={download} />}
+        {!docs && <DownloadMenu download={download} fold={FOLD.downloadWord} />}
+        {rendered && (
+          <MoreMenu
+            bar={bar}
+            className={cutShown ? FOLD.moreWithCut : FOLD.more}
+            zoom={zoom}
+            format={format}
+            experiences={experiences}
+          />
+        )}
       </div>
     </div>
+  );
+}
+
+/**
+ * The slim bar's More (⋯), at the row's end once a control has left a
+ * narrow bar (./bar-fold.tsx), as Docs keeps its own. It lists only what
+ * has left: on open it reads which `data-fold` boxes the bar hides, so the
+ * row's classes alone decide, and nothing is listed twice. A panel's item
+ * is checked while its panel is open, as its button is pressed.
+ */
+function MoreMenu({
+  bar,
+  className,
+  zoom,
+  format,
+  experiences,
+}: {
+  bar: RefObject<HTMLDivElement | null>;
+  className: string;
+  zoom?: ZoomTools;
+  format?: FormatTools;
+  experiences: ExperiencesTools | null;
+}) {
+  const [away, setAway] = useState<ReadonlySet<string>>(new Set());
+  const read = () => {
+    const boxes = bar.current?.querySelectorAll<HTMLElement>("[data-fold]") ?? [];
+    setAway(
+      new Set([...boxes].filter((box) => box.offsetWidth === 0).map((box) => box.dataset.fold!)),
+    );
+  };
+  return (
+    <span className={cn("shrink-0", className)}>
+      <DropdownMenu onOpenChange={(open) => open && read()}>
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <DropdownMenuTrigger
+                render={<Button variant="ghost" size="icon-lg" aria-label="More Tools" />}
+              />
+            }
+          >
+            <EllipsisIcon className="size-5" />
+          </TooltipTrigger>
+          <TooltipContent>More Tools</TooltipContent>
+        </Tooltip>
+        <DropdownMenuContent data-keeps-selection align="end" className="w-auto min-w-52">
+          {experiences?.picker && away.has("experiences") && (
+            <DropdownMenuCheckboxItem
+              checked={experiences.picker.open}
+              onCheckedChange={experiences.picker.onToggle}
+            >
+              <StackIcon aria-hidden /> Add Experiences
+            </DropdownMenuCheckboxItem>
+          )}
+          {experiences?.cut && away.has("cut") && (
+            <DropdownMenuCheckboxItem
+              checked={experiences.cut.open}
+              onCheckedChange={experiences.cut.onToggle}
+            >
+              <ScissorsIcon aria-hidden /> Cut From Resume
+            </DropdownMenuCheckboxItem>
+          )}
+          {format?.marks && away.has("marks") && (
+            <DropdownMenuCheckboxItem
+              checked={format.marks.shown}
+              disabled={format.disabled}
+              onCheckedChange={format.marks.onToggle}
+            >
+              <EyeIcon aria-hidden /> Suggestions
+            </DropdownMenuCheckboxItem>
+          )}
+          {format && away.has("sections") && (
+            <DropdownMenuCheckboxItem
+              checked={format.sectionsOpen}
+              disabled={format.disabled}
+              onCheckedChange={() => format.onToggle("sections")}
+            >
+              <ListDashesIcon aria-hidden /> Sections
+            </DropdownMenuCheckboxItem>
+          )}
+          {format && away.has("format") && (
+            <DropdownMenuCheckboxItem
+              checked={format.formatOpen}
+              disabled={format.disabled}
+              onCheckedChange={() => format.onToggle("format")}
+            >
+              <SlidersHorizontalIcon aria-hidden /> Format Options
+            </DropdownMenuCheckboxItem>
+          )}
+          {zoom && away.has("zoom") && <ZoomSubmenu zoom={zoom.zoom} onZoom={zoom.onZoom} />}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
   );
 }
 
@@ -3148,27 +3310,31 @@ function FitButton({
     linesOver > 0
       ? `About ${linesOver} ${linesOver === 1 ? "line runs" : "lines run"} onto page 2.`
       : `It runs to ${pages} pages.`;
+  // Its word folds late (`FOLD.fitWord`), and it never leaves the row
   return (
-    <Button
-      variant="outline"
-      size="sm"
-      data-bar-action
-      className="shrink-0"
-      title={`${over} This hides the least useful lines until it fits.`}
-      disabled={disabled}
-      onClick={onFit}
-    >
-      {fitting ? (
-        <>
+    <FoldButton
+      label={fitting ? "Fitting…" : "Fit to One Page"}
+      hint={`${over} This hides the least useful lines until it fits.`}
+      icon={
+        fitting ? (
           <CircleNotchIcon aria-hidden className="animate-spin motion-reduce:animate-none" />
-          Fitting…
-        </>
-      ) : (
-        <>
-          <ScissorsIcon aria-hidden /> Fit to One Page
-        </>
-      )}
-    </Button>
+        ) : (
+          <ScissorsIcon aria-hidden />
+        )
+      }
+      fold={FOLD.fitWord}
+      disabled={disabled}
+      render={
+        <Button
+          variant="outline"
+          size="sm"
+          data-bar-action
+          className="shrink-0"
+          disabled={disabled}
+          onClick={onFit}
+        />
+      }
+    />
   );
 }
 

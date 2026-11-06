@@ -21,7 +21,11 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  * key, which Sign Out clears, so the next person in this browser starts from
  * the default. Keeping it per account needs the API to store it. A layout
  * stored under old column ids (the separate Company column) loses those
- * ids on reading (`parse`), so it never breaks the table.
+ * ids on reading (`parse`), so it never breaks the table. Source and Notes /
+ * Next Step left the table on 2026-11-05 the same way: Source is on the
+ * application's page, and Notes stored nothing. So did Posting (Open or
+ * Closed): a closed saved job says "Posting closed" in its Status cell, and
+ * an applied one's posting closing changes nothing for the student.
  *
  * An external store (useSyncExternalStore), because the table and the
  * Columns menu in the filter bar both read and write it. The server, and the
@@ -32,17 +36,14 @@ import { APPLICATIONS_COLUMNS_KEY } from "@/lib/local-drafts";
  */
 export const COLUMNS = [
   { id: "role", label: "Role", width: 320 },
-  { id: "status", label: "Status", width: 128 },
+  { id: "status", label: "Status", width: 184 },
   { id: "applied", label: "Date Applied", width: 152 },
   { id: "match", label: "Match", width: 128 },
   { id: "track", label: "Job Type", width: 152 },
   { id: "location", label: "Location", width: 208 },
   { id: "workModel", label: "Work Model", width: 144 },
   { id: "pay", label: "Pay Range", width: 184 },
-  { id: "source", label: "Source", width: 168 },
   { id: "resume", label: "Resume", width: 200 },
-  { id: "posting", label: "Posting", width: 112 },
-  { id: "notes", label: "Notes / Next Step", width: 224 },
 ] as const;
 
 export type ColumnId = (typeof COLUMNS)[number]["id"];

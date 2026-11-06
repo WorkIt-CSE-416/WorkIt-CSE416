@@ -11,7 +11,8 @@ both.
 
 POST /applicants/{id}/tailor/match  TailorMatchRequest {job_posting_id, source} -> TailorMatch
      The source's keyword match, for the student to pick the missing
-     keywords to add, and the posting's tailored resume if it has one. It
+     keywords to add (`in_experiences`: those the whole bank already shows,
+     KAN-587), and the posting's tailored resume if it has one. It
      extracts the posting's keywords once (cached on the posting) and saves
      what reading an upload that owned nothing wrote. Free while KAN-319
      lifts the limit. 404 a posting the Jobs page does not list or a source
@@ -27,7 +28,10 @@ POST /applicants/{id}/tailor        TailorRun {job_posting_id, source, skills} -
      place: the same id, name and star, every choice and its own skills
      and wordings made again (Back to Choose Keywords, 2026-10-26). A source
      that is that tailored resume answers 422 before any model call. It
-     tailors only what the source shows.
+     tailors only what the source shows. The run also saves the job
+     posting to the student's Tracker (a `saved` application,
+     in the same commit; one already queued or applied keeps its stage),
+     so it leaves the Jobs page (KAN-217).
      Free while KAN-319 lifts the limit: no Tailor use is checked or
      counted, and uses_left is always the cap. 404 as above; 409 an empty
      bank (send the student to intake) or an upload read as nothing; 503
@@ -58,6 +62,7 @@ from app.db import get_session, get_sessionmaker
 from app.deps import assert_applicant_owns, get_current_account
 from app.models.built_resume import Built_Resume
 from app.models.jobs import Job_Post
+from app.queries import applications
 from app.schemas.auth import AuthenticatedAccount
 from app.schemas.built_resume import BuiltResumeResponse
 from app.schemas.tailor import (
@@ -76,7 +81,7 @@ from app.services.ai_messages import AIMessages
 from app.services.bank import NotFound, load_bank
 from app.services.identity import load_identity
 from app.services.models import get_large_llm, get_small_llm
-from app.services.resume_view import Choices, build_view
+from app.services.resume_view import Choices, all_chosen, build_view
 
 # KAN-319: the Tailor limit is lifted for now; restore with the lines in run().
 # from app.services.usage import Feature, count_use, uses_left
@@ -145,6 +150,9 @@ async def match(
     except ScoutUnavailable as exc:
         raise HTTPException(503, AI.failure(exc)) from exc
     matched, missing = keywords.match(build_view(bank, choices), found)
+    # The missing ones the whole bank already shows, which the keyword step
+    # groups first (KAN-587).
+    shown = keywords.in_experiences(build_view(bank, all_chosen(bank)), missing)
     tailored = await built_resumes.tailored_for(session, applicant_id, job.id)
     # One commit: the keyword cache and what reading an uploaded source wrote.
     await session.commit()
@@ -154,6 +162,7 @@ async def match(
         weak_match=tailor.weak_match(job),
         matched=matched,
         missing=missing,
+        in_experiences=shown,
     )
 
 
@@ -303,6 +312,11 @@ async def _steps(
     placed = tailor.place_skills(view, picked, reading.placements)
     choices, new = await tailor.place_on(session, applicant_id, resume.id, choices, placed)
     await built_resumes.write_choices(session, resume.id, choices)
+    # The job goes on the Tracker as saved, in the same commit
+    # (KAN-217): a student who tailored for it is preparing to apply, so it
+    # leaves the Jobs page and waits on the tracker with its resume. A job
+    # already queued or applied keeps its stage.
+    await applications.keep_saved(session, applicant_id, job.id)
     # KAN-319: the Tailor limit is lifted for now.
     # await count_use(session, applicant_id, Feature.TAILOR)
     try:

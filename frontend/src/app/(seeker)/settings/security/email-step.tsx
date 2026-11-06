@@ -69,7 +69,7 @@ function EmailStep({ current }: { current: string }) {
       title="Change Sign-In Email"
       description={
         <>
-          You sign in with {current} now. The email employers see is on My Profile, under Contact
+          You sign in with {current} now. The email employers see is on your Profile, under Contact
           &amp; Links.
         </>
       }

@@ -631,7 +631,8 @@ def by_filler(
                         sms_opt_in=profile.policy("sms_opt_in") is True,
                         marketing_opt_in=profile.policy("marketing_opt_in") is True,
                         accounts=signing_in, account_facts=account_facts(profile, agree),
-                        page_gates=_page_gates(profile.policy("page_gates")))
+                        page_gates=_page_gates(profile.policy("page_gates")),
+                        signed_in=oracle.signed_in if oracle_sign_in else None)
     with OnePage(site) as page_site:
         result = apply(filler, page_site)
     result.reason = "; ".join(filter(None, [result.reason, filler.usage()]))

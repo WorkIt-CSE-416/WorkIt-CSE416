@@ -51,7 +51,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Protocol, Self
 from urllib.parse import parse_qs, urlsplit
 
-from apply import bot_signals, captcha, dock_app, stuck
+from apply import bot_signals, captcha, dock_app, masked, stuck
 from apply.answers_tab import AnswersTab, Refused
 from apply.asking import IN
 from apply.dashboard_page import (
@@ -794,7 +794,7 @@ class Dashboard:
                 self._answered[f"{item['id']}|{question}"] = answer
                 if item.get("posting_url"):
                     self._answered[f"{item['posting_url']}|{question}"] = answer
-        print(f"Answered on the form, for {item.get('company') or 'an application'}: {asked} → {answer}")
+        print(f"Answered on the form, for {item.get('company') or 'an application'}: {asked} → {masked.sized(answer)}")
         return message
 
     def resume(self, key: str) -> str:
@@ -893,7 +893,7 @@ class Dashboard:
             thread.append(entry)
             self._to_ask.setdefault(k, []).append({"id": entry["id"], "message": entry["message"],
                                                    "thread": [dict(t) for t in thread[:-1]]})
-        print(f"Ask Claude ({via}), for {entry['company'] or key}: {entry['message']}")
+        print(f"Ask Claude ({via}), for {entry['company'] or key}: {masked.sized(entry['message'], 'message')}")
         return dict(entry)
 
     def asks(self, worker: int) -> list[dict]:
@@ -1399,7 +1399,7 @@ class _Handler(BaseHTTPRequestHandler):
             if _fills_in_place(item, question):
                 self.dashboard._to_fill.setdefault(item["worker"], []).append((question, answer))
                 message += " Claude fills it in on the open form now."
-        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer}")
+        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {masked.sized(answer)}")
         self._json(200, {"message": message})
 
     def _go_to(self) -> None:
@@ -1483,7 +1483,7 @@ class _Handler(BaseHTTPRequestHandler):
         if item is None:
             return self._json(404, {"error": "That flag no longer needs you."})
         verify.dismiss(item["application_id"], field, why)
-        print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {why}")
+        print(f"Dismissed in the window, for {item.get('company') or 'an application'}: {field}: {masked.sized(why, 'reason')}")
         self._json(200, {"message": "Dismissed: it holds this application no more."})
 
     def _resume(self) -> None:
@@ -1634,7 +1634,7 @@ class _Handler(BaseHTTPRequestHandler):
                 self.dashboard._answered[f"{item['posting_url']}|{question}"] = str(answer or "")
             if isinstance(item.get("worker"), int) and item["worker"] >= 0:
                 self.dashboard._to_fill.setdefault(item["worker"], []).append((question, answer))
-        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {answer or 'skipped'}")
+        print(f"Answered in the window, for {item.get('company') or 'an application'}: {question} → {masked.sized(answer) if answer else 'skipped'}")
         self._json(200, {"message": message})
 
     def _applied(self) -> None:

@@ -383,7 +383,7 @@ Auto-wait: actions poll their `dom` op every 100 ms while it answers `{"retry": 
 `NotFound`, until the timeout, then raise `PortTimeoutError` with Playwright's wording
 ("Locator.click: Timeout 30000ms exceeded."). Events are synthetic (`isTrusted: false`):
 `fill` focuses, selects all and uses `execCommand("insertText")`, falling back to the
-native value setter plus `input`/`change`; `press` emulates the default of Enter, Tab,
+native value setter plus `input`/`change`; a focus move (a click, Tab, `focus`, `blur`, `fill`) that the page didn't hear, as in a window without focus, dispatches `blur` and `focusout` on what it left (KAN-709); `press` emulates the default of Enter, Tab,
 Backspace, Delete, Space and (S3) the caret keys ArrowLeft/ArrowRight/Home/End (Shift extends); `click` dispatches pointer and mouse events
 at the element's centre on the hit target, then `click`.
 

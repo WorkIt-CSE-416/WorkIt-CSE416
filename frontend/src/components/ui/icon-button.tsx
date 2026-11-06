@@ -36,6 +36,10 @@ const VARIANTS = {
    *  button height (36px), to line up with the actions beside it. */
   outline:
     "border-border-control bg-panel text-ink hover:bg-hover focus-visible:ring-brand-ring rounded-control inline-flex items-center justify-center border focus-visible:ring-[3px]",
+  /** A bare glyph on the inverted surface: a toast's close (ui/toast.tsx,
+   *  KAN-217). On-inverse at 80%, full on hover; never on a light page. */
+  inverse:
+    "text-on-inverse/80 hover:text-on-inverse focus-visible:ring-on-inverse inline-flex items-center justify-center rounded-xs [--hit-grow:8px] focus-visible:ring-2",
   /** Brand disc — an edit affordance overlapping the thing it edits. The border
    *  matches the panel behind it so the disc reads as cut out of the surface. */
   brand:

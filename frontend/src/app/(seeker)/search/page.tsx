@@ -31,6 +31,7 @@ import {
   getJobLocations,
   getSearchFacts,
   getJobsView,
+  drawnAt,
   getTailoredJobIds,
   isApplicant,
   type FeedPage,
@@ -124,7 +125,8 @@ async function Results({
 }) {
   // The seeker's applications and tailored resumes, for the cards' Auto Apply
   // and Tailor buttons, and whether Apply Now may ask "Did You Apply?" (as
-  // /jobs).
+  // /jobs). Dated first (../jobs/listings, drawnAt).
+  const drawn = drawnAt();
   const [{ jobs, more, error }, facts, stages, tailored, canMarkApplied] = await Promise.all([
     results,
     factsLoading,
@@ -179,6 +181,7 @@ async function Results({
         tailored={tailored}
         canMarkApplied={canMarkApplied}
         compact={view === "split"}
+        drawnAt={drawn}
       />
     </>
   );

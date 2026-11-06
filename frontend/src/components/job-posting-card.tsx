@@ -18,8 +18,8 @@ import type { LogoSrc } from "@/lib/job-logo";
 
 /**
  * The job posting card a seeker sees on their Jobs feed, in the layout it had
- * when the feed showed mock postings: the employer's logo in a tile as tall
- * as the header beside it; a timing badge, the title and the company; a
+ * when the feed showed mock postings: the employer's logo in a square tile
+ * beside the header; a timing badge, the title and the company; a
  * ruled grid of six facts (location, job type, salary, work style,
  * experience level, years required); and a ruled row of actions along the
  * bottom, right-aligned. Moved here from (seeker)/jobs/page.tsx
@@ -33,9 +33,11 @@ import type { LogoSrc } from "@/lib/job-logo";
  * square, so the className override wins — `rounded-card` beats `<Avatar>`'s
  * own `rounded-full` under tailwind-merge's conflict resolution, since both
  * set the same CSS property. Not `<CompanyTile>`: that draws an icon glyph,
- * not an image. It is 80px wide and stretches to the header's height, so it
- * reads as the same block as the badge, title and company beside it; on a
- * body under 448px (a phone) it narrows to 56px so the title keeps room.
+ * not an image. It is an 80px square at the top of the header, and on a
+ * body under 448px (a phone) a 56px one so the title keeps room. It
+ * stretched to the header's height until KAN-217: on a narrow window, with
+ * the title wrapped, it grew taller than wide. A logo is always square
+ * (components/company-logo.tsx).
  *
  * TIMING IS THE GREEN BADGE ABOVE THE TITLE, as on the mock cards. It moved
  * into the company line for a while, as quieter text, and the user asked for
@@ -249,11 +251,15 @@ export function JobPostingCard({
   headerAction,
   actions,
   rail,
+  marks,
 }: {
   job: JobPostingCardData;
   headerAction?: ReactNode;
   actions?: ReactNode;
   rail?: ReactNode;
+  /** Chips after the timing badge, about the seeker's own state with the
+   *  role: the feed's Tailored (KAN-217). */
+  marks?: ReactNode;
 }) {
   return (
     <Card
@@ -298,23 +304,26 @@ export function JobPostingCard({
             <CompanyLogo
               name={job.company}
               src={job.logoUrl}
-              className="text-heading rounded-card w-14 shrink-0 self-stretch @md:w-20"
+              className="text-heading rounded-card size-14 self-start @md:size-20"
             />
 
             <div className="min-w-0 flex-1">
-              {isNotListed(job.timing) ? (
-                <Badge variant="status" tone="inert">
-                  <span className="italic">Post date not listed</span>
-                </Badge>
-              ) : (
-                job.timing != null && (
-                  <Badge variant="status" tone="positive">
-                    {/* "5 minutes ago" reads the clock, which moves
-                        between the server render and hydration. */}
-                    <span suppressHydrationWarning>{job.timing}</span>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {isNotListed(job.timing) ? (
+                  <Badge variant="status" tone="inert">
+                    <span className="italic">Post date not listed</span>
                   </Badge>
-                )
-              )}
+                ) : (
+                  job.timing != null && (
+                    <Badge variant="status" tone="positive">
+                      {/* "5 minutes ago" reads the clock, which moves
+                        between the server render and hydration. */}
+                      <span suppressHydrationWarning>{job.timing}</span>
+                    </Badge>
+                  )
+                )}
+                {marks}
+              </div>
 
               {/* p-0.5 inside -m-0.5: room for a link's focus ring, which
                   the clamp's overflow would otherwise cut, at no change of
