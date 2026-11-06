@@ -304,7 +304,9 @@ def _main(argv: list[str] | None, adapters: Adapters | None) -> None:
                 kept = None
                 print(f"No Tracker ({type(error).__name__}: {error}): add any you submit yourself.")
             try:
-                with _dashboard(adapters, len(args.urls), profile):  # a tile per link: each keeps its page open
+                # A tile per link: each keeps its page open. A reopened tile follows its own Worker, whatever its number.
+                with _dashboard(adapters, len(args.urls), profile, max([len(args.urls), *(
+                        k + 1 for k in (reopening.workers if reopening else []))])):
                     rehearsal.rehearse(args.urls, adapters, profile, args.workers, on_done=lambda: repair_later(adapters.repairs, profile.policy("repair") or {}),
                                        submitted_to=kept, together=args.together, force=args.force,
                                        reopening=reopening)
@@ -602,12 +604,12 @@ def _stop(signum, frame) -> None:
 
 
 @contextmanager
-def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile):
+def _dashboard(adapters: Adapters, tiles: int, profile: ApplicantProfile, workers: int | None = None):
     """Serve the dashboard (a live tile per Worker, and the Answers tab over
     the run's own Answer bank and profile) while a run goes, and open it in its own window."""
     site = adapters.site
     answers = AnswersTab(adapters.answer_bank, profile, held=adapters.tracker.rows)
-    with _frames(site, tiles) as frames, \
+    with _frames(site, workers or tiles) as frames, \
             dashboard.Dashboard(tiles, frames, answers, _applied(adapters), past=adapters.tracker.rows,
                                 answer=_answering(lambda: adapters.tracker, answers),
                                 approve=_approving(lambda: adapters.tracker), notify=adapters.notifier.notify,

@@ -214,7 +214,7 @@ def apply_to(
     `fetched` is the Posting's page as a plain fetch read it, when the caller
     read it already (embedded.form_behind), so it is not fetched again.
     `draft` is what a reopened form held before Apply stopped (`apply reopen`, KAN-720: its Record's answers,
-    by field name): before each fill, it and what the job system's own saved draft shows on the step
+    by field name, each with its question, kept only where the field asks the same question now): before each fill, it and what the job system's own saved draft shows on the step
     (the Filler's `resumed`) are kept, as a Resume keeps Lisul's, so the form comes back as it was."""
     planned = _Planned(posting, site, profile, claude, answered or {}, approved, rehearse, bank or AnswerBank(),
                        today or date.today(), on_files, on_missing)
@@ -243,6 +243,12 @@ def apply_to(
     if rehearse and result.filled is not None:  # a page held for Lisul: each answer Claude wrote has its regenerate
         result.regenerable = regenerate.form_of(planned)
     return result
+
+
+def _held(draft: dict, questions: list[Question]) -> dict:
+    """A reopened form's draft (apply.batch.draft), by field name, where the field asks the same question now."""
+    asks = {q.name: one_line(q.label) for q in questions}
+    return {name: value for name, (label, value) in draft.items() if asks.get(name) == label}
 
 
 def _saved_draft(filler, page) -> dict:
@@ -335,7 +341,7 @@ def _apply(planned: "_Planned", filler, site, before_submit, rehearse, before_fi
                                 raise stuck.Stopped("you pressed Resume")
                             stuck.doing(f"Filling {_where(filler)}")
                             if draft is not None:  # a reopened form: what it held, and the site's saved draft (KAN-720)
-                                planned.keep(draft | _saved_draft(filler, page))
+                                planned.keep(_held(draft, planned.questions) | _saved_draft(filler, page))
                             readback = filler.fill(page, planned.questions, planned.answers)
                         break
                     except stuck.Stopped:  # Resume, while Apply waited inside the fill

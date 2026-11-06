@@ -82,8 +82,11 @@ def test_a_reopened_forms_draft_is_its_records_answers_but_no_file_or_secret(tmp
         {"question": "Password", "field": "q4", "kind": "text", "planned": "(secret, not recorded)", "on_page": None},
         {"question": "Cover letter", "field": "q5", "planned": "letter.pdf", "on_page": "letter.pdf"},  # an older Record
         {"question": "Skills", "field": "q6", "kind": "multi_select", "planned": ["Python"], "on_page": ["Python", "Go"]},
+        {"question": "I certify that my answers are true", "field": "q7", "kind": "select", "planned": None,
+         "on_page": "Yes"},  # his to tick, always
     ]))
-    assert batch.draft({"record": str(tmp_path)}) == {"q1": "His edit", "q2": "https://x", "q6": ["Python", "Go"]}
+    # Only what the page showed (q2 was only planned), each with its question: a field asks the same one, or none.
+    assert batch.draft({"record": str(tmp_path)}) == {"q1": ("Why us?", "His edit"), "q6": ("Skills", ["Python", "Go"])}
     assert batch.draft({"record": str(tmp_path / "gone")}) == {} and batch.draft({}) == {}
 
 
@@ -137,3 +140,13 @@ def test_the_window_aims_each_reopened_tile_at_the_worker_that_held_it():
     with Dashboard(2, NoFrames()) as board:
         board.aim([3, 1])
         assert [board.worker_of(0), board.worker_of(1)] == [3, 1]
+
+
+def test_a_draft_value_goes_only_to_a_field_that_asks_the_same_question_now():
+    from apply.model import Question
+    from apply.worker import _held
+
+    # Claude fill numbers its fields: this run's q9 is another question than the last run's.
+    draft = {"q9": ("Phone", "555"), "q1": ("Why us?", "His edit")}
+    now = [Question("q9", "Will you require sponsorship?", "select"), Question("q1", "Why  us?", "textarea")]
+    assert _held(draft, now) == {"q1": "His edit"}

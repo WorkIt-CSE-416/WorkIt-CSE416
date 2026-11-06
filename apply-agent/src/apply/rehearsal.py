@@ -445,7 +445,8 @@ def rehearse(
             done = Rehearsed(Posting("", "", "", url), FAILED, f"setup: {error}")
         finally:
             start.leave(n)
-            settles(n).set()
+            if done is None or done.outcome != SIGN_IN or site.empty():  # never while it still waits at a sign-in
+                settles(n).set()
             done = done or Rehearsed(Posting("", "", "", url), FAILED, "the rehearsal stopped")
             if not first:
                 first.append(True)

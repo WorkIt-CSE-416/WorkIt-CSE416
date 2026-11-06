@@ -22,6 +22,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from apply.home import HOME
+from apply.send_click import ATTEST
 
 PATH = HOME / "open-forms.json"
 SENT = "sent"  # Lisul pressed the held form's Submit: not confirmed yet, so it stays, and reopen leaves it to him
@@ -131,21 +132,24 @@ def plan(kept: list[dict], profiles: Path) -> Plan:
     return done
 
 
-def draft(form: dict) -> dict:
-    """What a form held when its Record was last saved, by field name: each answer the page showed (else the one
-    planned), never a file or a secret. {} when it has no Record."""
+def draft(form: dict) -> dict[str, tuple[str, object]]:
+    """What a form held when its Record was last saved, by field name, with its question: each answer the page
+    showed, never one only planned, a file, a secret, or an attestation, consent or signature (those stay Lisul's
+    to tick or sign, send_click.ATTEST). {} when it has no Record. `worker.apply_to` keeps one only where the
+    field asks the same question now: Claude fill numbers its fields, and a number may name another field."""
     try:
         rows = json.loads((Path(form["record"]) / "answers.json").read_text())
     except (KeyError, TypeError, OSError, ValueError):
         return {}
     held = {}
     for row in rows if isinstance(rows, list) else []:
-        value = row.get("on_page") if row.get("on_page") not in (None, "", []) else row.get("planned")
-        if not row.get("field") or value in (None, "", []) or value in NOT_REFILLED or row.get("kind") == "file":
+        value, question = row.get("on_page"), str(row.get("question") or "")
+        if not row.get("field") or value in (None, "", []) or value in NOT_REFILLED or row.get("kind") == "file" \
+                or ATTEST.search(question):
             continue
         if "kind" not in row and isinstance(value, str) and FILE_NAME.search(value):
             continue  # a Record from before rows named their kind: a file is told by its name
-        held[row["field"]] = value
+        held[row["field"]] = (" ".join(question.split()), value)
     return held
 
 

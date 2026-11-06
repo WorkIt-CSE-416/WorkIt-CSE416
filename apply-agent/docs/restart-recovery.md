@@ -88,11 +88,15 @@ with the guards of any rehearsal. It never submits.
 - **Its own Worker.** Each plain Worker's forms go back to that Worker (`plain-<k>`), whose profile
   holds their sign-ins: its first form at once, each later one sent into it as `apply rehearse
   --into` sends one (the same `into`), once the form before it there has stopped past any sign-in
-  (`settles`). Turns, never a timed wait. The window aims tile n at that Worker (`Dashboard.aim`).
+  (`settles`; a form that still waits at a sign-in, with its tab open, holds the next back).
+  Turns, never a timed wait. The window aims tile n at that Worker (`Dashboard.aim`), and its frame
+  source follows every Worker up to the highest one reopened.
   A CDP Worker's form (one browser per form) gets a Worker number of its own, after the plain ones.
 - **What it held.** `batch.draft` reads the form's Record (`answers.json`, which now names each
-  row's `kind`): each answer the page showed, never a file or a secret. `apply_to(draft=...)`
-  keeps it before each fill, with what the job system's own saved draft shows on the step
+  row's `kind`): each answer the page showed, with its question. Never one only planned, a file, a
+  secret, or an attestation, consent or signature (`send_click.ATTEST`: those stay his to tick or
+  sign). `apply_to(draft=...)` keeps one only where the field asks the same question now
+  (`worker._held`: Claude fill numbers its fields, and a number may name another field), before each fill, with what the job system's own saved draft shows on the step
   (`worker._saved_draft`, the Filler's `resumed`: Workday's steps), as a Resume keeps Lisul's
   (`_Planned.keep`). So nothing on the form is written over. Claude may still plan the form again;
   what the form held wins. A job system that keeps no draft (Greenhouse, Lever, Ashby) is filled
