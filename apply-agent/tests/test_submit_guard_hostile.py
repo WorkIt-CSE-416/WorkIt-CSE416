@@ -174,6 +174,24 @@ PAGES = {
         target=_top><input name=last value=P><input type=hidden name=submit value=1><button id=g>Go</button></form>
         <script>setInterval(() => {{ dispatchEvent(new Event('__apply_touch')); document.getElementById('g').click(); }},
         100)</script>"></iframe>"""},
+    # A page that puts its own built-ins on a prototype, or a field that shadows the form's own method: the guard
+    # reads with the built-ins it took before any page code, and a guard listener that throws blocks (KAN-710).
+    "a page that fakes getAttribute": {START: f"""<title>Apply</title><script>const was = Element.prototype.getAttribute;
+        Element.prototype.getAttribute = function (n) {{ return n === 'action' ? '/acme/jobs/123/step2' : was.call(this, n); }};
+        </script><form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>"""},
+    "a page that fakes RegExp's test": {START: f"""<title>Apply</title><script>RegExp.prototype.test = () => false;</script>
+        <form method=post action="{FINAL}"><input name=first value=Test><button id=b>Next</button></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', () => sendAll());</script>"""},
+    # Every event says it is still in dispatch, so a timer's post looks like the press's own handler's.
+    "a page that fakes eventPhase": {START: f"""<title>Apply</title><label>First <input name=first value=Test></label>
+        <button id=b type=button>Next</button><form id=f2 method=post action="{SAVE}"><input type=hidden name=submit value=1>
+        </form><script>Object.defineProperty(Event.prototype, 'eventPhase', {{get: () => 1}});
+        setInterval(() => HTMLFormElement.prototype.submit.call(document.getElementById('f2')), 100);</script>"""},
+    # A field named getAttribute, added as the press lands, made the guard's own read throw: it let the form go.
+    "a field named getAttribute": {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}">
+        <input name=first value=Test><button id=b>Next</button></form><script>document.getElementById('b')
+        .addEventListener('pointerdown', () => document.getElementById('f').insertAdjacentHTML('beforeend',
+        '<input type=hidden name=getAttribute value=x>'));</script>"""},
 }
 BUTTON = {"a Submit in another language beside a Submit": "Envoyer ma candidature",
           "a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
@@ -293,7 +311,9 @@ def test_a_link_sent_in_never_joins_a_cdp_worker():
 # --- CDP: Playwright's Chromium, the rehearsal's guard and the drive guard on the page
 
 @contextmanager
-def cdp(pages: dict[str, str], guarded: bool = True):
+def cdp(pages: dict[str, str], guarded: bool = True, first: bool = False):
+    """The pages in Playwright's Chromium, guarded as a rehearsal guards them: after a first load, or with `first`
+    before it (submit_guard.on_open, as a rehearsal opens each page: KAN-682), for a page that sends as it loads."""
     from playwright.sync_api import sync_playwright
 
     site = Site(pages)
@@ -304,6 +324,9 @@ def cdp(pages: dict[str, str], guarded: bool = True):
         context = browser.new_context()
         context.route(lambda url: True, site.handle)  # every request: no real site is ever reached
         page = context.new_page()
+        if guarded and first:
+            with submit_guard.guarding_on_open():
+                submit_guard.on_open(page)
         page.goto(HOST + START)
         drive = None
         if guarded:
