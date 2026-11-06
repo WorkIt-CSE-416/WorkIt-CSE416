@@ -8,7 +8,9 @@ and what would have been submitted. Nothing here touches the network.
 
 `accounts` maps an email to the password of an account already there.
 `mail` is "code" or "link": what a new account is verified by.
-`captcha` puts a captcha challenge on the sign-in page."""
+`captcha` puts a captcha challenge on the sign-in page; `invisible_captcha`, an
+invisible hCaptcha that runs on its button (as on AMD's iCIMS email step), on it
+and on the email step (EMAIL_STEP: an email box and Next, as iCIMS' login)."""
 
 import json
 from contextlib import contextmanager
@@ -23,6 +25,7 @@ LOGIN = f"{HOST}/Acme/7431/login"
 REGISTER = f"{HOST}/Acme/7431/register"
 FORM = f"{HOST}/Acme/7431/form"
 VERIFY = f"{HOST}/Acme/7431/verify"
+EMAIL_STEP = f"{HOST}/Acme/7431/email"
 SEARCH = "from:(smartrecruiters.com)"
 CODE = "482915"
 
@@ -92,15 +95,30 @@ function send(event) {
 }
 </script></body></html>"""
 CAPTCHA = '<div class="g-recaptcha"><iframe title="reCAPTCHA"></iframe></div>'
+INVISIBLE_CAPTCHA = ('<script src="https://js.hcaptcha.com/1/api.js" async defer></script>'
+                     '<div class="h-captcha" data-sitekey="10000000-ffff-ffff-ffff-000000000001" data-size="invisible"></div>')
+EMAIL_PAGE = """<!doctype html><html><body><h1>Enter your email</h1>%(captcha)s
+<form id="email-step" onsubmit="next(event)">
+  <label for="email">Email</label><input id="email" name="email" type="email">
+  <button type="submit">Next</button>
+</form>
+<script>
+function next(event) {
+  event.preventDefault();
+  fetch('/api/email-step', {method: 'POST', body: document.getElementById('email').value});
+}
+</script></body></html>"""
 
 
 class FakeAccountsSite:
     def __init__(self, mailbox=None, keychain=None, accounts: dict[str, str] | None = None, mail: str = "code",
-                 captcha: bool = False):
+                 captcha: bool = False, invisible_captcha: bool = False):
         self._mailbox = mailbox
         self._keychain = keychain
         self._mail = mail
         self._captcha = captcha
+        self._invisible = INVISIBLE_CAPTCHA if invisible_captcha else ""
+        self.email_steps: list[str] = []  # the emails sent by the email step's Next
         self.accounts = {email: {"password": p, "verified": True} for email, p in (accounts or {}).items()}
         self.created: list[dict] = []
         self.sign_ins: list[tuple[str, bool]] = []
@@ -141,7 +159,12 @@ class FakeAccountsSite:
         if url == URL:
             return self._html(route, POSTING)
         if url == LOGIN or (url == FORM and not self._signed_in):
-            return self._html(route, SIGN_IN % {"error": "", "captcha": CAPTCHA if self._captcha else ""})
+            return self._html(route, SIGN_IN % {"error": "", "captcha": (CAPTCHA if self._captcha else "") + self._invisible})
+        if url == EMAIL_STEP:
+            return self._html(route, EMAIL_PAGE % {"captcha": self._invisible})
+        if url == f"{HOST}/api/email-step":
+            self.email_steps.append(request.post_data)
+            return route.fulfill(json={})
         if url == FORM:
             return self._html(route, APPLICATION)
         if url == REGISTER and method == "GET":

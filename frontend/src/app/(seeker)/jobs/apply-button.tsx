@@ -1,8 +1,9 @@
 "use client";
 
+import { FileArrowDownIcon } from "@phosphor-icons/react/ssr";
 // import Link from "next/link"; (Pick a Resume, hidden for now)
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ExternalLinkIcon } from "@/components/icons";
 import {
@@ -15,9 +16,10 @@ import {
 } from "@/components/shadcn/dialog";
 import { Button, buttonClasses } from "@/components/ui/button";
 import { type ResumeItem } from "@/lib/resume-actions";
-import { applyWithResume, type SentDownload } from "@/lib/sent-resume-actions";
+import { applyWithResume } from "@/lib/sent-resume-actions";
 
 import { markApplied } from "./actions";
+import { useResumeFileDownload } from "./resume-download";
 import {
   firstChoice,
   loadChoices,
@@ -25,16 +27,10 @@ import {
   ResumeListsSkeleton,
   type Choice,
 } from "./resume-picker";
+import { rememberStage } from "./shown-list";
 
 /** "Did You Apply?"'s own choice: the student applied without a resume. */
 const NO_RESUME = "none";
-
-/** The choice a sent resume came from, as `load` keys them. */
-function sentKey(sent: SentDownload): string {
-  return sent.built_resume_id
-    ? `built:${sent.built_resume_id}`
-    : `uploaded:${sent.uploaded_resume_id}`;
-}
 
 /**
  * "Pick a resume, then Apply" (KAN-220). Apply Now asks which resume the
@@ -49,18 +45,23 @@ function sentKey(sent: SentDownload): string {
  * `window.open` after the request: a browser blocks a new tab that no click
  * opened.
  *
- * "Did You Apply?" (KAN-242). Once the student leaves for the employer's
- * posting, the dialog stays open behind the new tab and asks; Yes marks the
- * job applied (KAN-232), which takes it off their Jobs page. It shows the
- * resume they applied with (KAN-267): the one picked at Apply, else No
- * Resume (Apply Without a Resume), and they can change it, since they may
- * have attached another on the employer's page. A resume other than the one
- * sent is kept as a sent resume for this posting first (`applyWithResume`).
- * Yes names the pick on the application (`markApplied`'s `sentResumeId`),
- * or none, which the tracker then shows. It replaced an
- * Applied button in the page's header, where one misclick marked a job
- * applied with no undo. It asks only a signed-in applicant (`canMarkApplied`)
- * who has not marked this job already (`applied`).
+ * "Did You Apply?" (KAN-242, `DidYouApply`). Once the student leaves for the
+ * employer's posting, the dialog stays open behind the new tab and asks; Yes
+ * marks the job applied (KAN-232), which takes it off their Jobs page. It
+ * shows the resume they applied with (KAN-267): the one tailored to this job,
+ * else the default, and they can change it, since they may have attached
+ * another on the employer's page. The pick is kept as a sent resume for this
+ * posting first (`applyWithResume`). Yes names the pick on the application
+ * (`markApplied`'s `sentResumeId`), or none, which the tracker then shows. It
+ * replaced an Applied button in the page's header, where one misclick marked
+ * a job applied with no undo. It asks only a signed-in applicant
+ * (`canMarkApplied`) who has not marked this job already (`applied`).
+ *
+ * THE PICK CAN BE DOWNLOADED FROM THE DIALOG (KAN-217): with Pick a Resume
+ * hidden, Apply Now opens the employer's form with no resume in hand, so the
+ * dialog's top row names the pick and downloads it (`useResumeFileDownload`)
+ * while the form is open in the other tab. It is the second place a student
+ * downloads a resume file, beside Resumes.
  *
  * EVERY APPLY NOW OPENS THIS DIALOG (KAN-290): the job posting page, the feed
  * card (/jobs, /search). WorkIt cannot see the
@@ -68,12 +69,12 @@ function sentKey(sent: SentDownload): string {
  * whether the student applied; a card's Apply Now once linked straight to the
  * employer and recorded neither.
  *
- * ONLY THE JOB'S OWN PAGE REFRESHES ON A SEND (`showsSent`): it is the one
- * screen that says which resume went. On a card a refresh reran the whole
- * feed, Best Match scoring and all, to redraw nothing. A list that draws its
- * cards in the browser drops a job marked applied itself (`onApplied`), since
- * a refresh redraws only the server's first page (./feed-list); anywhere else
- * a mark refreshes the route.
+ * A JOB MARKED APPLIED LEAVES EVERY LIST AT ONCE (KAN-217): Yes tells the
+ * shown list (`rememberStage`), so the rail beside a job's page and a list
+ * Next kept for Back drop it too, as Save does. A list that draws its cards
+ * in the browser drops it itself as well (`onApplied`), since a refresh
+ * redraws only the server's first page (./feed-list); anywhere else a mark
+ * refreshes the route.
  */
 export function ApplyButton({
   jobId,
@@ -101,83 +102,12 @@ export function ApplyButton({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [choices, setChoices] = useState<Choice[] | null>(null);
-  // const [picked, setPicked] = useState<string | null>(null); (Pick a Resume, hidden for now)
-  const [sent, setSent] = useState<SentDownload | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [asking, setAsking] = useState(false);
-  // "Did You Apply?"'s pick: a choice's key, or NO_RESUME.
-  const [appliedWith, setAppliedWith] = useState(NO_RESUME);
-  // Upload a resume there, the Resumes page's way (./resume-picker): the
-  // uploads, for the limit, and whether a file is on its way.
-  const [uploads, setUploads] = useState<ResumeItem[]>([]);
-  const [uploading, setUploading] = useState(false);
-  const onUploadBusy = useCallback((busy: boolean) => setUploading(busy), []);
 
-  async function load() {
-    setChoices(null);
-    setSent(null);
-    setError(null);
-    const first = firstChoice(await refresh());
-    // setPicked(first?.key ?? null); (Pick a Resume, hidden for now)
-    // With nothing picked at Apply, "Did You Apply?" starts on it.
-    setAppliedWith(first?.key ?? NO_RESUME);
-  }
-
-  /** Reads the list again without blanking it, so an upload in progress
-   *  keeps its place. */
-  async function refresh(): Promise<Choice[]> {
-    const { choices, uploads, error } = await loadChoices(jobId);
-    setChoices(choices);
-    setUploads(uploads);
-    if (error) setError(error);
-    return choices;
-  }
-
-  // Called by the hidden employer link (end of file).
-  // function ask() {
-  //   setAppliedWith(sent ? sentKey(sent) : NO_RESUME);
-  //   setError(null);
-  //   setAsking(true);
-  // }
-
-  // A file uploaded on "Did You Apply?" (or the resume it duplicates)
-  // becomes the pick.
-  async function uploaded(id: string) {
-    await refresh();
-    setAppliedWith(`uploaded:${id}`);
-  }
-
-  async function confirmApplied() {
-    setBusy(true);
-    setError(null);
-    // The sent resume the application names (KAN-267): the one sent at
-    // Apply, one kept now for a different pick, or none.
-    let sentResumeId: string | null = null;
-    const choice = choices?.find((c) => c.key === appliedWith);
-    if (choice && sent && sentKey(sent) === choice.key) sentResumeId = sent.id;
-    else if (choice) {
-      const kept = await applyWithResume(choice.source, jobId);
-      if (!kept.data) {
-        setBusy(false);
-        return setError(kept.error);
-      }
-      sentResumeId = kept.data.id;
-    }
-    const result = await markApplied(jobId, sentResumeId);
-    setBusy(false);
-    if (result.error) return setError(result.error);
+  function marked() {
     setOpen(false);
     if (onApplied) return onApplied();
     // The page's "You applied on …" reads the new mark.
     router.refresh();
-  }
-
-  function askApplied() {
-    setOpen(true);
-    setAsking(true);
-    void load();
   }
 
   return (
@@ -196,7 +126,7 @@ export function ApplyButton({
         rel="noopener noreferrer"
         className={buttonClasses({ size: "sm", className })}
         onClick={() => {
-          if (canMarkApplied && !applied) askApplied();
+          if (canMarkApplied && !applied) setOpen(true);
         }}
       >
         Apply Now
@@ -210,55 +140,13 @@ export function ApplyButton({
             narrow column taller than the window. It still scrolls inside
             itself on a short or narrow window. */}
         <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
-          {asking && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="text-subtitle font-semibold">Did You Apply?</DialogTitle>
-                <DialogDescription>
-                  If you sent your application for {title}, check the resume you sent and mark it
-                  applied. WorkIt takes it off your Jobs page.
-                </DialogDescription>
-              </DialogHeader>
-              {/* One radio group (`applied-with`): every resume in the
-                  list, a file they sent instead (Upload Resume in its row),
-                  or none. */}
-              {choices == null ? (
-                <ResumeListsSkeleton />
-              ) : (
-                <ResumeLists
-                  name="applied-with"
-                  choices={choices}
-                  empty="None yet. Upload the file you sent."
-                  picked={appliedWith}
-                  onPick={setAppliedWith}
-                  upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
-                />
-              )}
-              {/* No Resume is a button, not a section of its own: pressed, it
-                  is the pick (every radio above clears), and Yes then marks
-                  the job applied with no resume. */}
-              {choices != null && (
-                <Button
-                  variant={appliedWith === NO_RESUME ? "default" : "secondary"}
-                  aria-pressed={appliedWith === NO_RESUME}
-                  onClick={() => setAppliedWith(NO_RESUME)}
-                  className="w-full"
-                >
-                  No Resume
-                </Button>
-              )}
-              {error && <p className="text-note text-danger">{error}</p>}
-              <DialogFooter>
-                <Button variant="secondary" onClick={() => setOpen(false)}>
-                  Not Yet
-                </Button>
-                {/* Off until the resume list is in: Yes names the resume picked
-                    there, and before it loads the pick is only a guess. */}
-                <Button onClick={confirmApplied} disabled={busy || choices == null || uploading}>
-                  {busy ? "Saving…" : "Yes, I Applied"}
-                </Button>
-              </DialogFooter>
-            </>
+          {open && (
+            <DidYouApply
+              jobId={jobId}
+              title={title}
+              onClose={() => setOpen(false)}
+              onApplied={marked}
+            />
           )}
         </DialogContent>
       </Dialog>
@@ -266,7 +154,166 @@ export function ApplyButton({
   );
 }
 
+/**
+ * "Did You Apply?" itself, the content of a dialog the caller draws: Apply
+ * Now's above, and Tailor's Your Resume Is Ready once its Open the Application is
+ * clicked (./[jobId]/tailor/ready-to-apply.tsx), so the two ask the same way.
+ * It reads the resume list on mount. Yes keeps the pick as a sent resume,
+ * marks the job applied, tells the shown list, then calls `onApplied`.
+ */
+export function DidYouApply({
+  jobId,
+  title,
+  onClose,
+  onApplied,
+}: {
+  jobId: string;
+  title: string;
+  /** Not Yet. */
+  onClose: () => void;
+  /** After Yes has saved. */
+  onApplied: () => void;
+}) {
+  const [choices, setChoices] = useState<Choice[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  // The pick: a choice's key, or NO_RESUME.
+  const [appliedWith, setAppliedWith] = useState(NO_RESUME);
+  // Upload a resume there, the Resumes page's way (./resume-picker): the
+  // uploads, for the limit, and whether a file is on its way.
+  const [uploads, setUploads] = useState<ResumeItem[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const onUploadBusy = useCallback((busy: boolean) => setUploading(busy), []);
+  const file = useResumeFileDownload();
+
+  /** Reads the list again without blanking it, so an upload in progress
+   *  keeps its place. */
+  const refresh = useCallback(async (): Promise<Choice[]> => {
+    const { choices, uploads, error } = await loadChoices(jobId);
+    setChoices(choices);
+    setUploads(uploads);
+    if (error) setError(error);
+    return choices;
+  }, [jobId]);
+
+  useEffect(() => {
+    let live = true;
+    void loadChoices(jobId).then(({ choices, uploads, error }) => {
+      if (!live) return;
+      setChoices(choices);
+      setUploads(uploads);
+      if (error) setError(error);
+      // Starts on the resume tailored to this job, else the default.
+      setAppliedWith(firstChoice(choices)?.key ?? NO_RESUME);
+    });
+    return () => {
+      live = false;
+    };
+  }, [jobId]);
+
+  // A file uploaded here (or the resume it duplicates) becomes the pick.
+  async function uploaded(id: string) {
+    await refresh();
+    setAppliedWith(`uploaded:${id}`);
+  }
+
+  async function confirmApplied() {
+    setBusy(true);
+    setError(null);
+    // The sent resume the application names (KAN-267): the pick, kept now
+    // as a sent resume for this posting, or none.
+    let sentResumeId: string | null = null;
+    const choice = choices?.find((c) => c.key === appliedWith);
+    if (choice) {
+      const kept = await applyWithResume(choice.source, jobId);
+      if (!kept.data) {
+        setBusy(false);
+        return setError(kept.error);
+      }
+      sentResumeId = kept.data.id;
+    }
+    const result = await markApplied(jobId, sentResumeId);
+    setBusy(false);
+    if (result.error) return setError(result.error);
+    rememberStage(jobId, "applied");
+    onApplied();
+  }
+
+  const picked = choices?.find((c) => c.key === appliedWith);
+
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle className="text-subtitle font-semibold">Did You Apply?</DialogTitle>
+        <DialogDescription>
+          If you sent your application for {title}, check the resume you sent and mark it applied.
+          WorkIt moves it to your Tracker.
+        </DialogDescription>
+      </DialogHeader>
+      {/* The pick, to attach on the employer's form (KAN-217). */}
+      {picked && (
+        <div className="rounded-control border-border-control flex flex-wrap items-center justify-between gap-3 border px-3 py-2">
+          <p className="text-note text-ink min-w-0">
+            Attach <span className="font-medium">{picked.label}</span> on the employer&apos;s form.
+          </p>
+          <Button
+            variant="secondary"
+            size="sm"
+            disabled={file.busy}
+            onClick={() => void file.download(picked.source)}
+          >
+            <FileArrowDownIcon aria-hidden /> {file.busy ? "Downloading…" : "Download"}
+          </Button>
+          {file.error && <p className="text-note text-danger basis-full">{file.error}</p>}
+        </div>
+      )}
+      {/* One radio group (`applied-with`): every resume in the
+          list, a file they sent instead (Upload Resume in its row),
+          or none. */}
+      {choices == null ? (
+        <ResumeListsSkeleton />
+      ) : (
+        <ResumeLists
+          name="applied-with"
+          choices={choices}
+          empty="None yet. Upload the file you sent."
+          picked={appliedWith}
+          onPick={setAppliedWith}
+          upload={{ uploads, onUploaded: uploaded, onBusyChange: onUploadBusy }}
+        />
+      )}
+      {/* No Resume is a button, not a section of its own: pressed, it
+          is the pick (every radio above clears), and Yes then marks
+          the job applied with no resume. */}
+      {choices != null && (
+        <Button
+          variant={appliedWith === NO_RESUME ? "default" : "secondary"}
+          aria-pressed={appliedWith === NO_RESUME}
+          onClick={() => setAppliedWith(NO_RESUME)}
+          className="w-full"
+        >
+          No Resume
+        </Button>
+      )}
+      {error && <p className="text-note text-danger">{error}</p>}
+      <DialogFooter>
+        <Button variant="secondary" onClick={onClose}>
+          Not Yet
+        </Button>
+        {/* Off until the resume list is in: Yes names the resume picked
+            there, and before it loads the pick is only a guess. */}
+        <Button onClick={confirmApplied} disabled={busy || choices == null || uploading}>
+          {busy ? "Saving…" : "Yes, I Applied"}
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
 // --- Pick a Resume, hidden for now ---------------------------------------
+// The state below lived in ApplyButton until "Did You Apply?" became its own
+// component (`DidYouApply`, KAN-217), which now holds the choices; bring
+// `sent` and `sentKey` back there with the rest.
 // Apply Now opened this dialog on "Pick a Resume"; Apply kept the pick as a
 // sent resume (`apply`), then "Your Resume Is Ready" linked to Resumes &
 // Experiences and to the employer's posting (`employerLink`), whose click

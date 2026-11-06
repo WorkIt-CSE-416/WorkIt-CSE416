@@ -15,6 +15,8 @@ import { downloadResumeFile, renderResumePdf, type ResumeFile } from "@/lib/buil
 
 import { saveFile } from "@/lib/save-file";
 
+import { FoldButton } from "./[resumeId]/bar-fold";
+
 type Format = "pdf" | "docx" | "tex";
 
 /**
@@ -31,24 +33,37 @@ export function useResumeDownload(resumeId: string) {
   const [held, setHeld] = useState<(ResumeFile & { missing_characters: string[] }) | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  async function pick(format: Format) {
+  /** Makes the file and saves it; true once the browser has it (false on a
+   *  failure, or a PDF held at the font warning for Download Anyway). Tailor's
+   *  Your Resume Is Ready moves its next step on it. */
+  async function pick(format: Format): Promise<boolean> {
     setBusy(format);
     setError(null);
     setHeld(null);
     if (format !== "pdf") {
       const { data, error } = await downloadResumeFile(resumeId, format);
       setBusy(null);
-      return data ? saveFile(data) : setError(error);
+      if (!data) {
+        setError(error);
+        return false;
+      }
+      saveFile(data);
+      return true;
     }
     const { data, error } = await renderResumePdf(resumeId);
     setBusy(null);
-    if (!data) return setError(error);
+    if (!data) {
+      setError(error);
+      return false;
+    }
     const file = { data: data.pdf, contentType: "application/pdf", fileName: data.file_name };
     // Only a PDF waits at the warning (user story 53).
     if (data.missing_characters.length) {
-      return setHeld({ ...file, missing_characters: data.missing_characters });
+      setHeld({ ...file, missing_characters: data.missing_characters });
+      return false;
     }
     saveFile(file);
+    return true;
   }
 
   function keep() {
@@ -75,20 +90,39 @@ const BUSY: Record<Format, string> = {
 /**
  * One Download for every file: PDF and Word were two buttons. LaTeX is the
  * PDF's own source, for a student who edits it in Overleaf. While a file
- * is being made, the trigger says which one and takes no second pick.
+ * is being made, the trigger says which one and takes no second pick. On
+ * the editor's slim bar its word folds away as the bar narrows (`fold`,
+ * ./[resumeId]/bar-fold.tsx), leaving the glyph and the caret.
  */
-export function DownloadMenu({ download }: { download: ResumeDownload }) {
+export function DownloadMenu({ download, fold }: { download: ResumeDownload; fold?: string }) {
   const { busy, pick } = download;
   const label = busy ? BUSY[busy] : "Download";
+  const caret = <ChevronDownIcon className="text-ink-meta" />;
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger
-        disabled={busy !== null}
-        render={<Button variant="secondary" size="sm" />}
-      >
-        <FileArrowDownIcon aria-hidden /> {label}
-        <ChevronDownIcon className="text-ink-meta" />
-      </DropdownMenuTrigger>
+      {fold ? (
+        <FoldButton
+          label={label}
+          icon={<FileArrowDownIcon aria-hidden />}
+          fold={fold}
+          after={caret}
+          disabled={busy !== null}
+          render={
+            <DropdownMenuTrigger
+              disabled={busy !== null}
+              render={<Button variant="secondary" size="sm" className="shrink-0" />}
+            />
+          }
+        />
+      ) : (
+        <DropdownMenuTrigger
+          disabled={busy !== null}
+          render={<Button variant="secondary" size="sm" />}
+        >
+          <FileArrowDownIcon aria-hidden /> {label}
+          {caret}
+        </DropdownMenuTrigger>
+      )}
       <DropdownMenuContent>
         <DropdownMenuItem onClick={() => pick("pdf")}>PDF</DropdownMenuItem>
         <DropdownMenuItem onClick={() => pick("docx")}>Word</DropdownMenuItem>

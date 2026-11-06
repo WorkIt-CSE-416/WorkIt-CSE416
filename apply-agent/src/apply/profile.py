@@ -23,6 +23,7 @@ OVERRIDE = HOME / "policies.yaml"
 SECRET = re.compile(r"password|passwd|secret|token|api[_ -]?key|private[_ -]?key|credential", re.IGNORECASE)
 # Answers to Missing facts that no profile key holds, by the question's wording.
 ANSWERED = "answered_questions"
+JOINED_FROM = ("identity", "education", "links")  # facts a whole form section shows at once
 
 
 class ApplicantProfile:
@@ -98,6 +99,9 @@ class ApplicantProfile:
         return (self._facts.get(ANSWERED) or {}).get(question.strip())
 
     def set_answered(self, question: str, answer: str) -> None:
+        """Lisul's answer to `question`, kept by its wording; never a page's values joined (KAN-693)."""
+        if joins_facts(self._facts, answer):
+            return
         with self._lock:
             _apply(self._facts, "answered", question.strip(), answer)
             self._changes.append(("answered", question.strip(), answer))
@@ -115,6 +119,9 @@ class ApplicantProfile:
         first, with nothing changed, a question that looks like it asks for a secret."""
         with self._lock:
             _refuse_secrets({question.strip(): None}, f"{ANSWERED}.")
+            if joins_facts(self._facts, answer):
+                raise ValueError(f"'{question.strip()}' was given several of the form's values at once, not one answer:"
+                                 " answer it again")
             self.set_answered(question, answer)
             self.save()
 
@@ -145,6 +152,27 @@ def load_policies(path: Path = POLICIES) -> dict:
     if Path(path).resolve() == POLICIES.resolve() and OVERRIDE.is_file():
         rules |= yaml.safe_load(OVERRIDE.read_text()) or {}
     return rules
+
+
+def joins_facts(facts: dict, answer: Any) -> bool:
+    """Whether `answer` is a form's values joined with "; ", never one answer to one question (KAN-693): two or
+    more of them his own name, contact, school or links facts, or Yes and No at once."""
+    parts = {part.strip().casefold() for part in str(answer).split("; ")}
+    if len(parts) < 2:
+        return False
+    if {"yes", "no"} <= parts:
+        return True
+    known = set()
+
+    def walk(value: Any) -> None:
+        if isinstance(value, dict):
+            for inner in value.values():
+                walk(inner)
+        elif isinstance(value, str | int | float) and not isinstance(value, bool) and str(value).strip():
+            known.add(str(value).strip().casefold())
+    for section in JOINED_FROM:
+        walk(facts.get(section))
+    return len(parts & known) >= 2
 
 
 def _refuse_secrets(tree: dict, prefix: str = "") -> None:

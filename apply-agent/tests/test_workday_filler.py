@@ -22,6 +22,7 @@ from apply.accounts import Accounts
 from apply.claude_fill import OnePage
 from apply.keychain import InMemoryKeychain
 from apply.model import FillError, Handoff, MoreQuestions
+from apply.plain.bridge import PortTimeoutError
 from apply.rescue import Rescue
 from apply.workday import WorkdayFiller
 
@@ -379,6 +380,26 @@ def test_a_step_workday_wont_leave_is_a_handoff_naming_what_it_wants():
             filler.fill(page, questions, {questions[0].name: "Test"})
 
 
+# Field AI's attestation (the engine's research forms), on a Workday step (KAN-676).
+CERTIFY = "I certify that the information provided in this application is true, complete, and accurate to the best of my knowledge."
+
+
+def test_a_required_attestation_stops_the_form_on_its_step_with_one_ask_and_is_never_ticked():
+    steps = [("Voluntary Disclosures", [Field("legalName--firstName", "First Name", "text", True),
+                                        Field("certify", CERTIFY, "checkbox", True)])]
+    keychain = InMemoryKeychain()
+    filler = WorkdayFiller(Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI"))
+
+    with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps) as server, OnePage(server) as site:
+        questions = filler.question_set(CACI_URL, site)
+        with site.open(CACI_URL) as page:
+            with pytest.raises(Handoff) as stopped:
+                filler.fill(page, questions, {questions[0].name: "Test"})
+            assert not page.get_by_label(CERTIFY).is_checked()
+
+    assert str(stopped.value) == f"Tick '{CERTIFY}' yourself on this page, then press Resume: Apply never attests or signs for you."
+
+
 def test_fills_a_follow_up_question_workday_shows_once_its_question_is_answered():
     spouse = "Is your current U.S. work authorization based on your status as a spouse of an H-1B, L-1, or E-1/E-2/E-3 visa holder?"
     steps = [("Application Questions", [
@@ -707,13 +728,22 @@ class _StuckOn(WorkdayFiller):
         super()._put(page, q, box, value, fresh)
 
 
-def _stuck_on_why(rescue_says):
+class _TimedOutOn(_StuckOn):
+    """A Workday Filler whose engine call for one field a plain Worker doesn't answer in time (NVIDIA's, live)."""
+
+    def _put(self, page, q, box, value, fresh=False):
+        if q.label == self._stuck:
+            raise PortTimeoutError("engine.call: no answer from plain Worker 1 in 60 s")
+        WorkdayFiller._put(self, page, q, box, value, fresh)
+
+
+def _stuck_on_why(rescue_says, filler_class=None):
     steps = [("Application Questions", [Field("why", "Why?", "text", True)]),
              ("Voluntary Disclosures", [Field("next", "Next?", "text", False)])]
     keychain = InMemoryKeychain()
     accounts = Accounts(keychain, FakeMailbox(), FakeClock(NOW), "test.person@example.com", "CACI")
     claude = FakeClaude(driver=rescue_says)
-    filler = _StuckOn(accounts, Rescue(claude), "Why?")
+    filler = (filler_class or _StuckOn)(accounts, Rescue(claude) if rescue_says else None, "Why?")
     with FakeWorkdayServer(CACI_FORM, keychain=keychain, steps=steps) as server, OnePage(server) as site:
         [why] = filler.question_set(CACI_URL, site)
         with site.open(CACI_URL) as page:
@@ -741,6 +771,24 @@ def test_a_field_the_filler_fails_on_is_filled_by_claude_and_the_form_goes_on():
 def test_a_field_claude_cannot_fill_either_fails_as_before():
     with pytest.raises(FillError):
         _stuck_on_why(lambda page, schema, prompt, files: {"blocked": True, "why": "no such field", "shown": []})
+
+
+def test_a_field_whose_engine_call_times_out_is_handed_to_claude_and_the_form_goes_on():
+    def fills_it(page, schema, prompt, files):
+        page.locator("[data-automation-id=formField-why] input").fill("Because")
+        return {"blocked": False, "why": "", "shown": ["Because"]}
+
+    filler, _, more = _stuck_on_why(fills_it, _TimedOutOn)
+
+    assert [q.label for q in more.questions] == ["Next?"]
+    [note] = filler.rescued
+    assert note.startswith("Why?: the Filler failed (PortTimeoutError")
+
+
+def test_a_field_whose_engine_call_times_out_unrescued_is_a_fill_error_naming_it():
+    # A rehearsal skips a FillError's field and goes on; the timeout itself had ended the whole Application.
+    with pytest.raises(FillError, match=r"^Why\?: the Fill engine didn't finish it in time"):
+        _stuck_on_why(None, _TimedOutOn)
 
 
 def test_a_step_that_goes_on_only_by_sending_is_left_for_lisul_to_submit(monkeypatch):

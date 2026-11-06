@@ -10,8 +10,9 @@ name: Publish extension to Chrome Web Store
 # stopped taking requests on 2026-10-15.
 #
 # Two jobs:
-# - check-version-bump (every PR touching the extension): autofiller_
-#   extension/store/store.json's version must be strictly higher than
+# - check-version-bump (every PR touching the extension's own files, KAN-669:
+#   the `paths` below): autofiller_extension/store/store.json's version must
+#   be strictly higher than
 #   main's, or the Store API below refuses the re-upload after merge with
 #   no PR left open to fix it from. This is the Store package's own
 #   version (build.mjs writes it over whatever autofiller_extension/
@@ -31,16 +32,28 @@ name: Publish extension to Chrome Web Store
 #   still gates when (or whether) it actually reaches users, same as a
 #   first submission. A failed review needs a human in the Developer
 #   Dashboard, not a retry here.
+#
+# Both triggers below list the extension's own files: what store/build.mjs packages (its PARTS)
+# and store/ itself. test/ and the docs are left out. So is the fill-engine pointer (KAN-669): a
+# pointer PR needs no bump and starts no publish, and the engine it pins ships with the next bump.
+# An edit to this file starts no publish either; publish by hand from main if one is needed.
 on:
   pull_request:
     branches: [main]
     paths:
-      - "autofiller_extension/**"
+      - "autofiller_extension/manifest.json"
+      - "autofiller_extension/icons/**"
+      - "autofiller_extension/fonts/**"
+      - "autofiller_extension/src/**"
+      - "autofiller_extension/store/**"
   push:
     branches: [main]
     paths:
-      - "autofiller_extension/**"
-      - ".github/workflows/publish-extension.yml"
+      - "autofiller_extension/manifest.json"
+      - "autofiller_extension/icons/**"
+      - "autofiller_extension/fonts/**"
+      - "autofiller_extension/src/**"
+      - "autofiller_extension/store/**"
   workflow_dispatch:
 
 concurrency:

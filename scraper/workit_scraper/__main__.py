@@ -20,12 +20,12 @@ from datetime import UTC, datetime
 from enum import Enum, auto
 from pathlib import Path
 
-from workit_scraper import feed, logos, providers, report, store
+from workit_scraper import feed, logos, providers, report, store, web
 from workit_scraper.board_read import ReadStatus, read_board
 from workit_scraper.catalog import BOARDS_CSV, load_boards
 from workit_scraper.discovery_review import validate_catalog
 from workit_scraper.polite import Robots
-from workit_scraper.providers import Board, Job
+from workit_scraper.providers import Board, Job, fetch
 from workit_scraper.providers.systems.workday import WORKDAY_CAP
 from workit_scraper.shortlist import (
     WIDENING_STEPS,
@@ -168,6 +168,7 @@ def _lane(
 
     with ThreadPoolExecutor(MAX_IN_FLIGHT) as pool:
         reads = list(pool.map(read, boards))
+        boards_s = time.monotonic() - started
         results = [(outcome, jobs) for outcome, jobs, _ in reads]
         unread = {board.key: why for board, (*_, why) in zip(boards, reads, strict=True) if why}
         # Read off the list as it came, before `carry` puts back the dates the
@@ -187,14 +188,16 @@ def _lane(
                 return job
             return with_page(job, robots)
 
+        pages_start = time.monotonic()
         paged = list(pool.map(page, listed))
+        pages_s = time.monotonic() - pages_start
     if late:
         print(f"  …  {boards[0].ats}: {len(late):,} postings' pages left for the next run")
     # `with_page` hands back the same posting when it reads nothing.
     pages = sum(1 for was, now in zip(listed, paged, strict=True) if now is not was)
     described = iter(paged)
     results = [(outcome, [next(described) for _ in jobs]) for outcome, jobs in results]
-    return results, time.monotonic() - started, pages, order, unread
+    return results, time.monotonic() - started, pages, order, unread, boards_s, pages_s
 
 
 def scrape(
@@ -243,6 +246,8 @@ def scrape(
                 "postings": sum(len(jobs) for _, jobs in lane_results),
                 "pages": pages,
                 "seconds": round(seconds, 1),
+                "boards_s": round(lb_s, 1),
+                "pages_s": round(lp_s, 1),
                 # Only a provider that pages has these (`newest_first`).
                 **(
                     {
@@ -254,11 +259,13 @@ def scrape(
                     else {}
                 ),
             }
-            for (ats, lane), (lane_results, seconds, pages, order, _) in zip(
+            for (ats, lane), (lane_results, seconds, pages, order, _, lb_s, lp_s) in zip(
                 lanes.items(), by_lane, strict=True
             )
         },
-        unread={key: why for *_, lane_unread in by_lane for key, why in lane_unread.items()},
+        unread={
+            key: why for *_, lane_unread, _bs, _ps in by_lane for key, why in lane_unread.items()
+        },
     )
     # A board we hold postings from that now says it does not exist may have
     # nothing open (`store.update` closes it on the second answer in a row). Not
@@ -355,6 +362,7 @@ def main(argv: list[str] | None = None) -> int:
         run = previous
         print(f"offline: {len(run.jobs)} postings from {JOBS_JSON.name}")
     else:
+        run_start = time.monotonic()
         now = datetime.now(UTC).isoformat()
         boards = load_boards(args.boards)
         decisions = args.boards.with_name("discovery-review.json")
@@ -370,7 +378,11 @@ def main(argv: list[str] | None = None) -> int:
             due = previous.to_read(boards, now, everything=args.full)
             rest = "" if args.full else " (quiet ones rest; --full reads all)"
             print(f"scraping {len(due)} of {len(boards)} boards{rest}")
-            print(f"{len(previous.resting(now)):,} boards rest after going unread\n")
+            print(f"{len(previous.resting(now)):,} boards rest after going unread")
+            print(
+                f"{len(previous.fingerprint_resting(now)):,} boards rest after an unchanged"
+                " fingerprint\n"
+            )
             boards = due
         else:
             print(f"scraping {len(boards)} boards\n")
@@ -391,9 +403,21 @@ def main(argv: list[str] | None = None) -> int:
         # marketing and senior roles included -- would make jobs.json tens of megabytes
         # and tell us nothing we display. `stats.postings` still counts everything
         # scanned, so the funnel on the page stays honest about how wide the net was.
+        classify_start = time.monotonic()
         fresh = [job for job in scanned if classify_with_description(job.title, job.description)]
+        classify_s = time.monotonic() - classify_start
         stats = replace(stats, kept=len(fresh))
-        run = store.update(previous, fresh, read, stats, now, missing=missing)
+        # Hash each board's kept posting IDs so unchanged boards can rest.
+        by_board: dict[str, list[str]] = {}
+        for j in fresh:
+            by_board.setdefault(j.board_key, []).append(j.external_id)
+        fingerprints = {key: store.fingerprint(ids) for key, ids in by_board.items()}
+        # A board read OK with zero kept postings hashes an empty list.
+        for key in read:
+            fingerprints.setdefault(key, store.fingerprint([]))
+        run = store.update(
+            previous, fresh, read, stats, now, missing=missing, fingerprints=fingerprints
+        )
         # Only boards with a job on the page need a logo, and each is read once --
         # except that a newer reader reads the ones that had none again, once, and
         # one with an upload is read once more for its website (`logos.needs_read`).
@@ -411,11 +435,30 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nreading {len(unread)} board pages for logos")
         found, sites = logos.fetch(unread)
         run = replace(run, logos={**run.logos, **found}, websites={**run.websites, **sites})
+        # A board with still no domain is checked once by its own address: a Jibe or
+        # SuccessFactors host, a Workday tenant (`logos.board_address`), proved on
+        # the home page. What fails is flagged for checked_websites.csv below.
+        unchecked = sorted(
+            {
+                (j.ats, j.token, j.company)
+                for j in run.jobs
+                if run.is_listed(j)
+                and j.board_key not in run.addresses
+                and logos.board_address(j.ats, j.token)
+                and not feed.domain(j.board_key, run.logos, run.websites)
+            }
+        )
+        print(f"checking {len(unchecked)} company websites from board addresses")
+        run = replace(run, addresses={**run.addresses, **logos.check_addresses(unchecked)})
+        save_start = time.monotonic()
         store.save(run, JOBS_JSON)
+        save_s = time.monotonic() - save_start
+        total_s = time.monotonic() - run_start
 
     roles = pick([job for job in run.jobs if run.is_listed(job)], is_new=run.is_new)
     report.write_html(roles, run.stats, PAGE_HTML, run.scraped_at, counts_new=run.counts_new)
-    feed.write(roles, run.logos, FEED_JSON, run.websites)
+    feed.write(roles, run.logos, FEED_JSON, run.websites, run.addresses)
+    no_domain = feed.without_domain(roles, run.logos, run.websites, run.addresses)
     found = feed.closings(run, roles)
     feed.write_closings(found, CLOSINGS_JSON)
     if not args.offline:
@@ -423,6 +466,7 @@ def main(argv: list[str] | None = None) -> int:
         steps = widening(scanned)
         missed = len(run.missed_once())
         resting = {key: run.health[key].why for key in run.resting(run.scraped_at)}
+        fp_resting = len(run.fingerprint_resting(run.scraped_at))
         write_metrics(
             run.stats,
             fresh,
@@ -433,9 +477,31 @@ def main(argv: list[str] | None = None) -> int:
             missed=missed,
             resting=resting,
             closings=Counter(found.values()),
+            no_domain=no_domain,
+            web_stats=web.stats(),
+            retries=fetch.retry_count(),
+            classify_s=classify_s,
+            save_s=save_s,
+            total_s=total_s,
+            fp_resting=fp_resting,
         )
-        print_metrics(run.stats, fresh, by_ats, steps=steps, missed=missed, resting=resting)
+        print_metrics(
+            run.stats,
+            fresh,
+            by_ats,
+            steps=steps,
+            missed=missed,
+            resting=resting,
+            fp_resting=fp_resting,
+        )
         print(f"\n{len(found):,} stored postings not in the feed: {_reasons(found)}")
+    shown = sum(int(board["roles"]) for board in no_domain)
+    print(
+        f"\n{len(no_domain):,} boards ({shown:,} roles) have no company domain, so no"
+        " logo; add each to checked_websites.csv after its checks (docs/logos.md):"
+    )
+    for board in no_domain[:10]:
+        print(f"  {board['roles']:>5,}  {board['board']}  ({board['company']})")
 
     print(
         f"\n{run.stats.postings:,} postings -> {len(roles)} distinct roles"
@@ -496,6 +562,20 @@ def unread_by_provider(unread: dict[str, str]) -> dict[str, dict[str, dict[str, 
     }
 
 
+def _peak_memory_kb() -> int | None:
+    """Peak resident memory in KB, or None on platforms without resource.getrusage."""
+    try:
+        import resource  # Unix only
+
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        # macOS reports bytes, Linux reports KB.
+        if sys.platform == "darwin":
+            return usage.ru_maxrss // 1024
+        return usage.ru_maxrss
+    except (ImportError, AttributeError):
+        return None
+
+
 def write_metrics(
     stats: RunStats,
     kept: list[Job],
@@ -507,6 +587,13 @@ def write_metrics(
     missed: int | None = None,
     resting: dict[str, str] | None = None,
     closings: Counter[str] | None = None,
+    no_domain: list[dict[str, object]] | None = None,
+    web_stats: dict[str, int] | None = None,
+    retries: int | None = None,
+    classify_s: float | None = None,
+    save_s: float | None = None,
+    total_s: float | None = None,
+    fp_resting: int | None = None,
 ) -> None:
     """metrics.json: the run's totals and each provider's share, so a change to one
     provider can be measured run against run (the scheduled run keeps it a week),
@@ -516,7 +603,9 @@ def write_metrics(
     the next runs will not ask (`Store.resting`), by why they last went unread;
     with `closings`, the stored postings not in the feed by reason
     (`feed.closings`). Those are totals: this run's closes, by reason, are in the
-    import's report."""
+    import's report. With `no_domain`, the boards whose roles have no
+    `company_domain` (`feed.without_domain`): the list a person works through
+    into checked_websites.csv."""
     totals = {
         key: value for key, value in asdict(stats).items() if key not in ("by_provider", "unread")
     }
@@ -534,6 +623,27 @@ def write_metrics(
         payload["resting"] = unread_by_provider(resting)
     if closings is not None:
         payload["closings"] = {why: closings[why] for why in feed.REASONS}
+    if no_domain is not None:
+        payload["boards_without_domain"] = no_domain
+    if web_stats is not None:
+        payload["requests"] = web_stats["requests"]
+        payload["received_bytes"] = web_stats["received_bytes"]
+    if retries is not None:
+        payload["retries"] = retries
+    timing: dict[str, object] = {}
+    if classify_s is not None:
+        timing["classify_s"] = round(classify_s, 2)
+    if save_s is not None:
+        timing["save_s"] = round(save_s, 2)
+    if total_s is not None:
+        timing["total_s"] = round(total_s, 1)
+    mem = _peak_memory_kb()
+    if mem is not None:
+        timing["peak_memory_kb"] = mem
+    if timing:
+        payload["timing"] = timing
+    if fp_resting is not None:
+        payload["boards_fingerprint_resting"] = fp_resting
     path.write_text(json.dumps(payload, indent=1, sort_keys=True) + "\n", encoding="utf-8")
 
 
@@ -545,6 +655,7 @@ def print_metrics(
     steps: dict[str, int] | None = None,
     missed: int | None = None,
     resting: dict[str, str] | None = None,
+    fp_resting: int | None = None,
 ) -> None:
     columns = ("boards", "ok", "missing", "skipped", "failed", "deferred")
     print(f"\n{'provider':11s}" + "".join(f"{c:>9s}" for c in columns), end="")
@@ -576,6 +687,8 @@ def print_metrics(
             print(f"  {count:>9,}  {step}")
     if missed is not None:
         print(f"\n{missed:,} boards hold a posting missed once; their next complete read decides")
+    if fp_resting is not None:
+        print(f"{fp_resting:,} boards rest after an unchanged fingerprint")
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ Oracle has no passwords: the candidate gives an email address (ticking the
 site's legal disclaimer, never its honeypot box), a returning candidate
 confirms their last name, and Oracle may mail a one-time code, read here from
 Gmail. A code sent by text message is a Handoff, and so is a code that
-doesn't come within about 2 minutes (Apply never clicks Send New Code: it
+doesn't come within about 10 minutes (Apply never clicks Send New Code: it
 goes to Needs you, and Lisul retries himself), a code Oracle
 refuses (it allows 4 tries, then locks for 30 minutes), or an identity
 question other than the last name.
@@ -21,12 +21,14 @@ import time
 from playwright.sync_api import Page
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from apply.accounts import Accounts
+from apply.accounts import HANDS_OFF, Accounts
 from apply.model import Handoff
 
-# Gmail search for Oracle's code mail. The sender is the employer's own
-# address, so the subject is searched; only mail since the request counts.
-MAIL_SEARCH = 'subject:(code OR verification OR verify OR "confirm your identity")'
+# Gmail search for Oracle's code mail: Oracle's own senders (JPMorgan's came from
+# workflow.mail.us2.cloud.oracle.com) or the employer's own address with Oracle's
+# subject (American Express's). Not any code mail: an Amazon or Greenhouse code
+# that came meanwhile is not this one. Only mail since the request counts.
+MAIL_SEARCH = '(from:(oracle.com OR oraclecloud.com) OR subject:"confirm your identity")'
 TIMEOUT = 30.0
 TERMS_WAIT = 3.0
 SMS = re.compile(r"text message|\bsms\b|sent .{0,40}to your (mobile|phone)", re.IGNORECASE)
@@ -35,6 +37,8 @@ WRONG_CODE = re.compile(r"(code|pin) (is )?(incorrect|invalid|expired|wrong)|inc
 
 
 
+# The application form's own pages, once signed in (.../job/<id>/apply/section/1).
+FORM_SECTION = re.compile(r"/apply/section/\d+")
 # The site's cookie banner, which covers the email step's Next button until it is answered (American Express's, live).
 COOKIES = ".cookie-consent-modal"
 DECLINE = re.compile(r"^\s*(reject all|decline( all)?|reject|only (strictly )?necessary)\s*$", re.IGNORECASE)
@@ -54,7 +58,13 @@ def sign_in(page: Page, accounts: Accounts, last_name: str, agree_to_terms: bool
     """From the open posting to its application form. `agree_to_terms` is
     Lisul's policy on privacy and terms boxes (tick_consent_when_true)."""
     email = page.locator("input[type=email]").first
+    if FORM_SECTION.search(page.url):  # a form section has no email box or Apply button to wait for (KAN-680)
+        return
     _until(page, lambda: email.is_visible() or _apply_button(page).is_visible())
+    if _signed_in(page, email):  # Lisul signed in himself on a pause, and pressed Resume (KAN-636)
+        return
+    if getattr(accounts, "hands_off", False):  # a reopened form: Lisul signs in himself, and Apply goes on once he is in (KAN-720)
+        raise Handoff(HANDS_OFF)
     if not email.is_visible():
         _apply_button(page).click()
     email.wait_for(timeout=TIMEOUT * 1000)
@@ -116,6 +126,21 @@ def _agree(page: Page, box) -> None:
         if box.is_checked() and not agree.is_visible():
             return
     raise Handoff("Oracle's legal disclaimer wouldn't stay ticked: finish the application yourself.")
+
+
+def signed_in(page: Page) -> bool:
+    """Whether the application form is open, past the email and its code: sign_in's own check."""
+    return _signed_in(page, page.locator("input[type=email]").first)
+
+
+def _signed_in(page: Page, email) -> bool:
+    """The application form is open already: a section of it, or its own email field, which can't be edited."""
+    if FORM_SECTION.search(page.url):
+        return True
+    try:
+        return email.is_visible() and not email.is_editable()
+    except Exception:
+        return False
 
 
 def _apply_button(page: Page):

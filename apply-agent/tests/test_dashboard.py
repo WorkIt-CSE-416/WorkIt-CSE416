@@ -181,6 +181,8 @@ CALIBRATION = "Calibration run: Application 4 of 10, held so you can judge Claud
      "needs", "Fix an answer before it's sent"),
     ({"status": rehearsal.READY, "why": "Pre-submit check failed. phone reads 555"},
      "needs", "Fix an answer before it's sent"),
+    ({"status": rehearsal.READY, "why": f"Yours to tick: I certify that all of the above information is true; {CALIBRATION}"},
+     "needs", "Tick or sign what is yours before it's sent"),
     ({"status": rehearsal.SIGN_IN, "why": "jobs.example.com wants a password", "company": "Zipline",
       "job_system": "workday"}, "needs", "Sign in to Zipline's Workday site once"),
     ({"status": "handoff", "why": "Claude fill can't finish this form: a captcha"}, "needs", "Finish this one yourself"),
@@ -193,6 +195,7 @@ CALIBRATION = "Calibration run: Application 4 of 10, held so you can judge Claud
     ({"status": "not eligible", "why": "Master's only"}, "ended", "Skipped: you don't qualify (Master's only)"),
     ({"status": "closed", "why": ""}, "ended", "Skipped: no longer taking applications"),
     ({"status": "submitted", "why": ""}, "submitted", "Sent"),
+    ({"status": "submitted", "why": "", "missing": ["Pronouns"]}, "submitted", "Sent"),
     ({}, "idle", "Waiting for the next job"),
 ])
 def test_each_tile_says_at_a_glance_how_its_application_went(caption, tone, label):
@@ -468,7 +471,7 @@ def test_clicks_and_keys_in_a_tile_reach_the_workers_page_in_page_coordinates():
             {"type": "up", "x": 320, "y": 10, "w": 640, "h": 500, "button": "left"},  # let go off it: at its edge
         ):
             urllib.request.urlopen(urllib.request.Request(board.url + "/input/1", data=json.dumps(event).encode(),
-                                                          method="POST"))
+                                                          method="POST", headers=_window(board)))
 
     assert frames.inputs == [
         (1, {"type": "down", "x": 640, "y": 400, "button": "left", "clicks": 1}),
@@ -742,7 +745,8 @@ def test_a_file_picked_in_a_tile_for_its_page_is_kept_by_its_name_and_listed_on_
         board.update(0, company="Appian Corporation", application_id="request-17", status="filling")
         event = {"type": "files", "files": [{"name": "Lisul_Elvitigala_Writing_Sample.pdf",
                                              "data": base64.b64encode(b"%PDF sample").decode()}]}
-        urllib.request.urlopen(urllib.request.Request(board.url + "/input/0", data=json.dumps(event).encode(), method="POST"))
+        urllib.request.urlopen(urllib.request.Request(board.url + "/input/0", data=json.dumps(event).encode(), method="POST",
+                                                      headers=_window(board)))
         board.update(0, files=[{"label": "Resume", "name": resume.name, "path": str(resume)}])  # the plan's files, later
         files = board.state()["tiles"][0]["files"]
 
@@ -1260,6 +1264,28 @@ def test_a_rehearsed_answer_goes_to_its_open_form_but_a_runs_and_an_essays_do_no
         assert board.answered(0) == board.answered(1) == []  # each given once; a run's goes on from its Tracker row
 
 
+@pytest.mark.parametrize("answer_first", [False, True])
+def test_a_form_sent_with_questions_open_shows_as_sent_and_leaves_needs_you(answer_first):
+    # Saronic, 2026-11-04: Lisul sent the held form himself, and its tile still asked its Missing and Essay facts.
+    with Dashboard(1, FakeFrames({}), answer=lambda *a: "Saved.") as board:
+        board.update(0, company="Saronic", posting_url="https://s.example/1", status=rehearsal.READY,
+                     missing=["Pronouns", "Essay fact: what did the boat do?", "Essay fact: who was it for?"],
+                     required={"Pronouns": True}, where={"Pronouns": "About you"})
+        [asking] = board.state()["items"]
+        assert asking["kind"] == "missing fact"
+        if answer_first:
+            post_answer(board, asking, "Pronouns", "he/him")
+        board.update(0, status="submitted", why="you submitted it; it is in the Tracker")
+        [tile], items = board.state()["tiles"], board.state()["items"]
+        with pytest.raises(urllib.error.HTTPError) as late:  # a question answered after the submit
+            post_answer(board, items[0], "Essay fact: who was it for?", "The Navy")
+
+    assert (tile["tone"], tile["label"], tile["detail"]) == ("submitted", "Sent", "you submitted it; it is in the Tracker")
+    assert tile["missing"] == [] and "do" not in tile
+    assert [(i["company"], i["tone"]) for i in items] == [("Saronic", "submitted")]  # no card waits on him
+    assert late.value.code == 404
+
+
 def test_an_optional_question_saved_blank_is_skipped_and_a_file_is_attached_but_neither_kept_as_a_fact():
     saved = []
     with Dashboard(1, FakeFrames({}), answer=lambda item, q, a: saved.append(q) or "Saved.") as board:
@@ -1328,6 +1354,31 @@ def test_while_a_tile_is_controlled_number_keys_go_to_the_page_not_the_tabs(wind
 
         assert window.is_visible("#workers")
     assert frames.inputs == [(0, {"type": "text", "text": "3"})]
+
+
+
+def test_the_tile_s_ask_claude_box_sends_his_words_to_claude_not_to_the_page(window):
+    """Ask Claude (KAN-638): typed in the tile's box, also while the tile is controlled, his message goes to the
+    window, not as keys to the page; Claude's reply then shows in the tile's thread."""
+    frames = TickingFrames({0: jpeg(1280, 800)})
+    with Dashboard(1, frames) as board:
+        board.update(0, company="Acme", posting_url="https://jobs.example.com/acme/1", status="ready to submit",
+                     askable=True)
+        window.goto(board.url + "/#workers")
+        window.click(".tile[data-k='0'] img")
+        window.wait_for_selector(".tile.big")
+        window.fill("#ask-0 input", "page 2's GPA is wrong")
+        window.click("#ask-0 button.go")
+        window.wait_for_selector("#ask-0 .claude.working")
+        [item] = board.asks(0)
+        board.replied(0, item["id"], state="done", reply="Changed the GPA to 3.7.",
+                      changed=[{"field": "GPA", "step": "page 2", "shown": "3.7", "read_back": "Claude's read-back"}],
+                      offers=[{"question": "GPA", "answer": "3.7", "saved": False}])
+        window.wait_for_selector("#ask-0 .offer button")
+
+        assert item["message"] == "page 2's GPA is wrong"
+        assert "Changed GPA (page 2) → 3.7" in window.inner_text("#ask-0")
+    assert frames.inputs == []  # nothing he typed reached the page
 
 
 # Notifications.
@@ -1530,3 +1581,33 @@ def test_the_accounts_tab_copies_a_password_it_never_shows(window):
 def test_a_window_with_no_accounts_tab_shows_none():
     with Dashboard(0, NoFrames()) as board:
         assert "tab-accounts" not in board.page()
+
+
+@pytest.mark.parametrize("plain", [True, False])
+def test_go_to_question_never_raises_a_plain_workers_window(monkeypatch, plain):
+    shown, url = [], "https://jobs.lever.co/a/1/apply"
+    monkeypatch.setattr(dashboard, "GO_TO_WAIT", 0.2)
+    with Dashboard(1, NoFrames(), show=lambda k: shown.append(k) or True, quiet=lambda k: plain) as board:
+        board.update(0, posting_url=url, status="ready to submit")
+        with pytest.raises(dashboard.Refused):  # no held form answers here: only whether it came forward
+            board.go_to({"worker": 0, "posting_url": url}, "Email")
+    assert shown == ([] if plain else [0])  # a plain Worker's window comes forward only by Lisul's Show
+
+
+def _window(board) -> dict:
+    """The headers the Apply window's own page sends with a tile's input."""
+    return {"X-Apply-Token": board.token, "Origin": board.url}
+
+
+def test_a_tiles_input_comes_only_from_the_window_itself():
+    """A press on /input/k counts as Lisul's, so another page's request, or one with no token, reaches no tab."""
+    board_frames = FakeFrames({0: jpeg(1280, 800)})
+    with Dashboard(1, board_frames, now=lambda: datetime(2026, 11, 2, 9)) as board:
+        board.update(0, company="Acme", application_id="a-1", status="filling")
+        press = json.dumps({"type": "down", "x": 10, "y": 10, "w": 640, "h": 500, "button": "left"}).encode()
+        for headers in ({}, {"Origin": "https://evil.example", "Content-Type": "text/plain"},
+                        {"X-Apply-Token": "guessed", "Origin": board.url},
+                        {"X-Apply-Token": board.token, "Origin": "https://evil.example"}):
+            assert _status(board.url + "/input/0", data=press, headers=headers) == 403
+    assert not board_frames.inputs
+

@@ -8,8 +8,9 @@ from conftest import APPLY, FIXTURES, FORMS
 
 from apply import fill_engine
 from apply.answer_bank import AnswerBank
-from apply.model import FillError, Posting, Question
+from apply.model import FillError, Outcome, Posting, Question, Status
 from apply.profile import ApplicantProfile
+from apply.tracker import FileTracker, Row
 
 PROFILE = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
 POSTING = Posting("p", "Acme", "Software Engineer Intern", "https://job-boards.greenhouse.io/acme/jobs/1")
@@ -154,3 +155,86 @@ def test_apply_fill_engine_points_apply_at_another_engine_checkout(tmp_path):
 
 def test_apply_fill_engine_may_start_at_the_home_folder(tmp_path):
     assert engine_bundle(APPLY_FILL_ENGINE="~/fill-engine", HOME=str(tmp_path)) == str(tmp_path / "fill-engine" / "dist" / "engine.js")
+
+
+def test_past_applications_and_interviews_at_the_company_come_from_the_tracker_too():
+    # Rocket Lab's "Have you previously interviewed at Rocket Lab?" (live, 2026-11-04) went to Lisul.
+    rocket_lab = Posting("r", "Rocket Lab", "Software Engineering Intern", "https://job-boards.greenhouse.io/rocketlab/jobs/2")
+    asks = [Question("q1", "Have you previously applied to Rocket Lab?", "select", True, ("Yes", "No")),
+            Question("q2", "Have you previously interviewed at Rocket Lab?", "select", True, ("Yes", "No"))]
+    plan = lambda: fill_engine.plan(asks, rocket_lab, PROFILE).answers
+    assert plan() == {"q1": "No", "q2": "No"}
+    rows = FileTracker()
+    # This Posting's own row is not a past application.
+    rows.add(Row("a1", "Rocket Lab", "Intern", rocket_lab.url, "greenhouse", Status.SUBMITTED))
+    rows.add(Row("a2", "Rocket Lab", "Intern", "https://job-boards.greenhouse.io/rocketlab/jobs/1", "greenhouse", Status.HELD))
+    assert plan() == {"q1": "No", "q2": "No"}
+    # An earlier one sent: applied, and an interview there is Lisul's to say...
+    rows.update("a2", status=Status.SUBMITTED)
+    assert plan() == {"q1": "Yes"}
+    # ...till his Outcome records one.
+    rows.edit_as_lisul("a2", outcome=Outcome.INTERVIEW)
+    assert plan() == {"q1": "Yes", "q2": "Yes"}
+
+
+def test_a_changed_bundle_on_disk_is_reloaded_before_the_next_posting(tmp_path, monkeypatch):
+    # The long-lived Node read the bundle once; a merged engine fix must not need a restart (KAN-645).
+    bundle = tmp_path / "engine.js"
+    bundle.write_bytes(fill_engine.ENGINE.read_bytes())
+    monkeypatch.setattr(fill_engine, "ENGINE", bundle)
+    monkeypatch.setattr(fill_engine, "_nodes", {})
+    monkeypatch.setattr(fill_engine, "_loaded", {})
+    assert fill_engine.text_of("<p>one</p>") == "one"
+    node = fill_engine._nodes[0]
+    assert not fill_engine.fresh()  # nothing changed: the same Node
+    bundle.write_bytes(bundle.read_bytes() + b"\nFillEngine.reloadedForTest = true;\n")
+    assert fill_engine.fresh()
+    assert node.poll() is not None and 0 not in fill_engine._nodes
+    assert fill_engine.call_without_page("textOf", "<p>two</p>") == "two"
+    assert fill_engine._nodes[0] is not node
+
+
+def test_amds_icims_profile_dates_title_phone_type_and_graduation_are_planned_from_the_right_facts():
+    # AMD's iCIMS Candidate Profile (rehearsal 2026-11-06, KAN-700): the job's split Start Year got the internship's
+    # start as a full date, Title a banked "Mr.", and Phones: Type and Did You Graduate? were Missing facts.
+    profile = ApplicantProfile.load(FIXTURES / "planner-profile.yaml", APPLY / "policies.default.yaml")
+    profile.set("experience_facts.employment_history",
+                [{"employer": "Acme Rail", "title": "Software Engineer Intern", "start": "2026-06", "end": "2026-08"}])
+    months = ("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
+    days = tuple(str(d) for d in range(1, 32))
+    questions = [Question("q6", "Phones: Type", "select", True, ("Mobile",)),
+                 Question("q21", "Did You Graduate?", "select", False, ("In Progress", "Not Received", "Received")),
+                 Question("q25", "Employer", "text"),
+                 Question("q27", "Work Experience: Region (State, Province, County)", "select"),
+                 Question("q28", "Title", "text"),
+                 Question("q29", "Start Date (Month / Day / Year): Month", "select", False, months),
+                 Question("q30", "Start Date (Month / Day / Year): Day", "select", False, days),
+                 Question("q31", "Start Date (Month / Day / Year): Year", "text")]
+    bank = AnswerBank()
+    bank.answer("Title", "Mr.", date(2026, 11, 5))
+    planned = fill_engine.plan(questions, POSTING, profile, bank, today=date(2026, 11, 6))
+    assert [planned.answers.get(n) for n in ("q6", "q21", "q28", "q29", "q30", "q31")] == [
+        "Mobile", "In Progress", "Software Engineer Intern", "Jun", None, "2026"]
+    assert "q30" in planned.blanks
+
+MONTHS = ("January", "February", "March", "April", "May", "June", "July", "August", "September", "October",
+          "November", "December")
+
+
+def _tal_education(section: str) -> list[Question]:
+    # Bank of America's TAL.net (live 2026-11-05, KAN-685): the step's Start date, read as two selects, came to
+    # the Question set after the previous step's role ranking, so the questions before it were a job's words.
+    return [Question("q1", "Role preference: Software Engineer", "select", True, ("1st choice", "2nd choice")),
+            Question("q2", "Role preference: Mainframe Analyst", "select", True, ("1st choice", "2nd choice")),
+            Question("q3", "Start date: Month", "select", True, MONTHS, section=section),
+            Question("q4", "Start date: Year", "select", True, tuple(str(y) for y in range(1925, 2037)), section=section)]
+
+
+def test_a_bare_start_date_under_the_steps_education_heading_is_the_degrees_start(tmp_path):
+    started = ApplicantProfile({**PROFILE._facts, "education": {**PROFILE._facts["education"], "start_date": "2024-08"}},
+                               tmp_path, PROFILE._policies)
+    under = fill_engine.plan(_tal_education("current / most recent university education"), POSTING, started)
+    assert (under.answers.get("q3"), under.answers.get("q4")) == ("August", "2024")
+    # Without its heading the questions before it decide, and "Role preference" reads as a job's: left to ask.
+    bare = fill_engine.plan(_tal_education(""), POSTING, started)
+    assert (bare.answers.get("q3"), bare.answers.get("q4")) == (None, None)

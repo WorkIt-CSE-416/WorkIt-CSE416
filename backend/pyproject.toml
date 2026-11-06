@@ -26,6 +26,7 @@ dependencies = [
     "supabase>=2.31.0",
     "uvicorn[standard]>=0.53.0",
     "workit-scout",
+    "workit-scraper",
 ]
 
 [tool.uv]
@@ -39,6 +40,7 @@ python-preference = "only-managed"
 # A copy, not editable: Python skips editable installs' .pth files when macOS
 # flags them hidden. ../scout/CLAUDE.md has the details.
 workit-scout = { path = "../scout" }
+workit-scraper = { path = "../scraper" }
 
 [tool.vercel]
 # Where Vercel finds the ASGI app when this folder is deployed as its own
@@ -50,6 +52,7 @@ entrypoint = "app.main:app"
 dev = [
     "pdfminer-six>=20260107",
     "pytest>=9.1.1",
+    "pytest-xdist>=3.8.0",
     "ruff>=0.16.8",
 ]
 

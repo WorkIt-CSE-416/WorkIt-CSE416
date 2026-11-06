@@ -18,13 +18,16 @@ export type Keyword = { keyword: string; kind: "required" | "preferred" };
 export type TailorSource = { built_resume_id: string } | { uploaded_resume_id: string };
 
 /** The picked resume's keyword match before a run. `tailored_resume_id`:
- *  the posting's tailored resume, when it has one (a run then replaces it). */
+ *  the posting's tailored resume, when it has one (a run then replaces it).
+ *  `in_experiences`: the missing keywords the student's Experiences already
+ *  show, though this resume does not (KAN-587); absent from an older API. */
 export type TailorMatch = {
   job_posting_id: string;
   tailored_resume_id: string | null;
   weak_match: boolean;
   matched: Keyword[];
   missing: Keyword[];
+  in_experiences?: string[];
 };
 
 /** One change a run saved, with what it replaced, for the editor to mark

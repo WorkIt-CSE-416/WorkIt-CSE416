@@ -52,8 +52,9 @@ _kept: OrderedDict[tuple, tuple[float, HomeMatches]] = OrderedDict()
 
 async def home_version(db: AsyncSession, applicant_id: uuid.UUID) -> tuple:
     """What a kept result was made from, read in one query: the bank's
-    updated_at, the newest job posting change, and a hash of the jobs this
-    applicant marked applied."""
+    updated_at, the newest job posting change, and a hash of the jobs on
+    this applicant's Tracker (saved, applied and after), which
+    Top Matches leaves out: a Save changes the key."""
     applied = (
         select(func.md5(func.coalesce(func.string_agg(
             cast(Job_Application.job_id, Text),
@@ -61,7 +62,7 @@ async def home_version(db: AsyncSession, applicant_id: uuid.UUID) -> tuple:
         ), "")))
         .where(
             Job_Application.applicant_id == applicant_id,
-            Job_Application.stage.not_in(dto.BEFORE_APPLIED),
+            Job_Application.stage.not_in(dto.ON_THE_JOBS_PAGE),
         )
         .scalar_subquery()
     )
@@ -107,9 +108,10 @@ async def home_matches(
         db,
         account,
         bank,
-        # The applied jobs stay out, as GET /jobs/recommended leaves them out
-        # for a signed-in applicant (read_filters).
-        JobFilters(applied_by=account.id),
+        # The tracked jobs (saved, applied and after) stay out, as GET
+        # /jobs/recommended leaves them out for a signed-in applicant
+        # (read_filters).
+        JobFilters(tracked_by=account.id),
         {
             "top": None,
             "auto_apply": AUTO_APPLY_SUPPORTED,

@@ -34,8 +34,8 @@ def _account(account_type: AccountType) -> AuthenticatedAccount:
     )
 
 
-def test_applied_jobs_are_left_out_for_their_applicant():
-    (clause,) = matching(JobFilters(applied_by=APPLICANT))
+def test_tracked_jobs_are_left_out_for_their_applicant():
+    (clause,) = matching(JobFilters(tracked_by=APPLICANT))
     sql = _sql(clause)
     assert sql.startswith("NOT (EXISTS (SELECT")
     assert "job_applications.job_id = job_postings.id" in sql
@@ -43,7 +43,7 @@ def test_applied_jobs_are_left_out_for_their_applicant():
 
 
 def test_signed_out_lists_every_job():
-    assert matching(JobFilters(applied_by=None)) == []
+    assert matching(JobFilters(tracked_by=None)) == []
 
 
 def _seen_filters(monkeypatch) -> list[JobFilters]:
@@ -60,7 +60,7 @@ def _seen_filters(monkeypatch) -> list[JobFilters]:
 def test_feed_without_a_token_filters_nothing(no_database, monkeypatch):  # noqa: F811
     seen = _seen_filters(monkeypatch)
     assert TestClient(app).get("/jobs").status_code == 200
-    assert seen[0].applied_by is None
+    assert seen[0].tracked_by is None
 
 
 def test_feed_with_a_bad_token_is_still_public(no_database, monkeypatch):  # noqa: F811
@@ -72,14 +72,14 @@ def test_feed_with_a_bad_token_is_still_public(no_database, monkeypatch):  # noq
     seen = _seen_filters(monkeypatch)
     res = TestClient(app).get("/jobs", headers={"Authorization": "Bearer stale"})
     assert res.status_code == 200
-    assert seen[0].applied_by is None
+    assert seen[0].tracked_by is None
 
 
 def test_feed_with_an_applicant_token_hides_their_jobs(no_database, monkeypatch):  # noqa: F811
     app.dependency_overrides[get_signed_in_applicant_id] = lambda: APPLICANT
     seen = _seen_filters(monkeypatch)
     assert TestClient(app).get("/jobs").status_code == 200
-    assert seen[0].applied_by == APPLICANT
+    assert seen[0].tracked_by == APPLICANT
 
 
 @pytest.mark.parametrize("account_type", ["company", None])

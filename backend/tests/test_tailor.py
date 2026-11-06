@@ -304,9 +304,25 @@ async def test_the_match_before_a_run_reads_the_source_and_saves_nothing(student
     assert _words(body["matched"]) == ["Python", "Docker"]
     assert _words(body["missing"]) == ["Go", "Kubernetes"]
     assert body["weak_match"] is False and body["tailored_resume_id"] is None
+    assert body["in_experiences"] == []
     # The keywords were cached already: no model call, and nothing saved.
     assert fake.prompts == []
     assert [r["job_posting_id"] for r in await student.resumes()] == [None]
+
+
+async def test_the_match_names_the_missing_keywords_the_experiences_already_show(
+    student, database, use_model
+):
+    # KAN-587: Kubernetes is in the bank but hidden on this resume, and Go is
+    # nowhere. Only Kubernetes is grouped as already shown; both stay missing.
+    await student.skill("Kubernetes")
+    posting = await _seed_posting(database)
+    use_model(reply())
+
+    body = (await student.match(posting)).json()
+
+    assert _words(body["missing"]) == ["Go", "Kubernetes"]
+    assert body["in_experiences"] == ["Kubernetes"]
 
 
 async def test_a_keyword_the_student_does_not_pick_is_never_added(student, database, use_model):
@@ -677,6 +693,39 @@ async def test_a_run_saves_the_tailored_resume_and_leaves_the_source(student, da
     assert "Wrote billing services in python" in base and "Kubernetes" not in base
     bank = (await student.client.get(f"{student.me}/bank")).json()
     assert bank["entries"][0]["bullets"][1]["text"] == "Wrote billing services in python"
+
+
+async def _stage(database, applicant_id, posting: str) -> str | None:
+    async with database() as session:
+        return await session.scalar(
+            text("SELECT stage::text FROM job_applications WHERE applicant_id = :a AND job_id = :j"),
+            {"a": applicant_id, "j": posting})
+
+
+async def test_a_run_saves_the_job_to_the_tracker(student, database, use_model):
+    # KAN-217: a tailored job leaves the Jobs page for the Tracker.
+    posting = await _seed_posting(database)
+    use_model(reply(rewords=[("b2", "Built Python billing services")]))
+
+    assert (await student.tailor(posting)).status_code == 200
+    assert await _stage(database, student.id, posting) == "saved"
+
+
+async def test_a_run_keeps_a_later_stage(student, database, use_model):
+    posting = await _seed_posting(database)
+    assert (await student.client.post(f"/jobs/{posting}/applied")).status_code == 200
+    use_model(reply(rewords=[("b2", "Built Python billing services")]))
+
+    assert (await student.tailor(posting)).status_code == 200
+    assert await _stage(database, student.id, posting) == "applied"
+
+
+async def test_a_failed_run_saves_no_job(student, database, use_model):
+    posting = await _seed_posting(database)
+    use_model(rate_limited())
+
+    assert (await student.tailor(posting)).status_code == 503
+    assert await _stage(database, student.id, posting) is None
 
 
 async def test_a_new_tailored_resume_takes_the_sources_page_settings(student, database, use_model):

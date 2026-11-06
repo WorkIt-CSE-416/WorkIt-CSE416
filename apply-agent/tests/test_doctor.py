@@ -235,6 +235,14 @@ def test_no_worker_profiles_at_all_fails(tmp_path):
     assert found.level == doctor.FAIL
 
 
+def test_the_worker_extensions_folder_is_not_a_worker_profile(tmp_path):
+    profiles = tmp_path / "profiles"
+    (profiles / "worker-extension").mkdir(parents=True)
+    found = {c.name: c.level for c in doctor.diagnose(machine(tmp_path, profiles=profiles))}
+    assert found["Worker profiles"] == doctor.FAIL
+    assert "worker-extension" not in found
+
+
 def test_gmail_set_up_is_ok(tmp_path):
     asked = []
     found = check(machine(tmp_path, mailbox=lambda address: asked.append(address) or FakeMailbox()), "Gmail")
@@ -611,3 +619,45 @@ def test_an_apply_accounts_host_whose_wrapper_is_gone_warns(tmp_path):
     wrapper.unlink()
 
     assert check(m, "Apply accounts host").level == doctor.WARN
+
+
+def plain_seed(profiles: Path, installed=True, developer=True) -> Path:
+    """A plain seed profile, its Preferences as Chrome writes them after Load unpacked of the worker extension."""
+    from apply.plain.extension import EXTENSION_ID
+
+    folder = profiles / "worker-extension"
+    folder.mkdir(parents=True, exist_ok=True)
+    (folder / "manifest.json").write_text("{}")
+    prefs = {"extensions": {"ui": {"developer_mode": developer},
+                            "settings": {EXTENSION_ID: {"path": str(folder)}} if installed else {}}}
+    (profiles / "plain-seed" / "Default").mkdir(parents=True)
+    (profiles / "plain-seed" / "Default" / "Preferences").write_text(json.dumps(prefs))
+    return profiles
+
+
+def test_plain_worker_mode_checks_the_plain_seed_and_its_extension_not_the_cdp_worker_profiles(tmp_path):
+    plain = profile(tmp_path, worker_mode="plain", plain_chrome="chrome")
+    m = machine(tmp_path, profile=plain, profiles=plain_seed(tmp_path / "profiles"))
+
+    found = {c.name: c for c in doctor.diagnose(m)}
+
+    assert "Worker profiles" not in found and not checks_named(m, "worker-")
+    assert found["Plain seed"].level == doctor.OK and "worker extension is installed" in found["Plain seed"].detail
+    assert doctor.run(m, io.StringIO()) == 0
+
+
+def test_a_plain_seed_without_the_worker_extension_fails_with_how_to_seed_it(tmp_path):
+    plain = profile(tmp_path, worker_mode="plain", plain_chrome="chrome")
+
+    (tmp_path / "other").mkdir()
+    missing = check(machine(tmp_path, profile=plain, profiles=tmp_path / "none"), "Plain seed")
+    bare = check(machine(tmp_path / "other", profile=plain, profiles=plain_seed(tmp_path / "p", installed=False)),
+                 "Plain seed")
+
+    assert missing.level == bare.level == doctor.FAIL and "apply plain seed" in missing.fix
+    assert "isn't installed" in bare.detail
+
+
+def test_protected_worker_mode_checks_both_kinds_of_worker(tmp_path):
+    m = machine(tmp_path, profile=profile(tmp_path, worker_mode="protected", plain_chrome="chrome"))
+    assert checks_named(m, "worker-") and checks_named(m, "Plain seed")

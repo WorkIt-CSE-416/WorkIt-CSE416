@@ -1,0 +1,12 @@
+{
+  "manifest_version": 3,
+  "name": "Apply Worker (private)",
+  "version": "0.2.0",
+  "description": "Drives one of Apply's plain Worker Chromes for Apply on this Mac. Private: never published.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqflsBqNCgZLEr9sqw1ry0S8QSKQEfV4TMpByGa0Z5ehXbfZs/6QPeRAzLfjfigIIQNePiv3MTxOhq+LLxT5FzTPCGRyEmei68Xcl2tD3SHbsrvt7f6rzsET4s4PivecBEV4/XbXsZw0fykOnPcmlwzjnFoGruzdFywSEOZFIH7WPbNQIZ8UemKCJqprfe9jI29cfwJGqGZNPpGFo7od7ugZaa/7DaOr2nu9Ik81wCA0Q9ExdjQaE2NRoUQGaROU9ESppnjDxfwJ4aprkVjqsD3dLZMzrBoKCnOl6Q+GW9g73k+ugvccKuPZHl/gfEeKcWiCXro+8oOlpdXGFEoqDiwIDAQAB",
+  "minimum_chrome_version": "135",
+  "background": {"service_worker": "background.js", "type": "module"},
+  "permissions": ["nativeMessaging", "tabs", "scripting", "userScripts", "webNavigation", "storage",
+                  "declarativeNetRequestWithHostAccess", "webRequest", "system.display"],
+  "host_permissions": ["<all_urls>"]
+}

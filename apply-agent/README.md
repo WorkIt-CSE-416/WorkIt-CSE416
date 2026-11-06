@@ -11,7 +11,7 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 - [uv](https://docs.astral.sh/uv/) (`brew install uv`).
 - Claude Code, logged in with your own Claude plan: `claude auth login`.
   Apply's essays use your plan's usage.
-- Read access to the private `WorkIt-CSE-416/fill-engine` repo (the Fill
+- Read access to the private `workitjobs/fill-engine` repo (the Fill
   engine is a git submodule). git must sign in to GitHub without a prompt:
   run `gh auth login` and then `gh auth setup-git` once.
 
@@ -20,7 +20,7 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 1. Clone with the submodule:
 
    ```sh
-   git clone --recurse-submodules https://github.com/WorkIt-CSE-416/WorkIt-CSE416.git
+   git clone --recurse-submodules https://github.com/workitjobs/workit.git
    ```
 
    If you cloned without it, run `git submodule update --init` in the
@@ -29,7 +29,7 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 2. Install Apply. The last line is only for the tests:
 
    ```sh
-   cd WorkIt-CSE416/apply-agent
+   cd workit/apply-agent
    uv sync
    uv run playwright install chromium
    ```
@@ -37,8 +37,10 @@ never submits.** Apply runs on macOS only. Before you change code here, read
 3. Check the setup: `uv run apply doctor`. Each line says ok, warn or fail,
    with a fix. On a new Mac, two lines fail: "Applicant profile" (step 4
    fixes it) and "Worker profiles" (step 6 fixes it; after step 4 doctor
-   lists each Worker profile, `worker-1` and on). Fix every other fail
-   first. The warn lines are for optional features.
+   lists each Worker profile, `worker-1` and on). With `worker_mode: plain`
+   in `policies.yaml`, doctor checks "Plain seed" instead: `uv run apply
+   plain seed` fixes it. Fix every other fail first. The warn lines are for
+   optional features.
 
 ## First rehearsal: Test Person
 

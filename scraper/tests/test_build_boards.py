@@ -161,19 +161,22 @@ class TestResolve:
 
     def test_a_careers_page_maps_to_the_board_that_holds_its_posting(self) -> None:
         web = Web({self.GH.format("waymo", "8189848"): b"{}"})
-        assert build_boards.greenhouse_board(self.WAYMO, ROBOTS, web) == "waymo"
+        url, company = self.WAYMO.link, self.WAYMO.company
+        assert build_boards.greenhouse_board(url, company, ROBOTS, web) == "waymo"
         assert web.asked == [self.GH.format("waymo", "8189848")]
 
     def test_a_board_only_its_page_names_is_proved_the_same_way(self) -> None:
         listing = Listing("https://www.zipline.com/careers?gh_jid=77", "Zipline", True)
         page = b'<script src="https://boards.greenhouse.io/embed/job_board/js?for=flyzipline">'
         web = Web({listing.link: page, self.GH.format("flyzipline", "77"): b"{}"})
-        assert build_boards.greenhouse_board(listing, ROBOTS, web) == "flyzipline"
+        result = build_boards.greenhouse_board(listing.link, listing.company, ROBOTS, web)
+        assert result == "flyzipline"
 
     def test_a_name_no_board_confirms_is_never_kept(self) -> None:
         listing = Listing("https://www.zipline.com/careers?gh_jid=77", "Zipline", True)
         page = b'<a href="https://job-boards.greenhouse.io/someoneelse">'
-        assert build_boards.greenhouse_board(listing, ROBOTS, Web({listing.link: page})) is None
+        web = Web({listing.link: page})
+        assert build_boards.greenhouse_board(listing.link, listing.company, ROBOTS, web) is None
 
     def test_an_icims_page_maps_to_the_tenant_whose_sitemap_lists_it(self) -> None:
         listing = Listing(
@@ -182,12 +185,13 @@ class TestResolve:
         page = b'<a href="https://careers-keysight.icims.com/jobs/51813/login">Apply</a>'
         sitemap = b"<urlset><loc>https://careers-keysight.icims.com/jobs/51813/x/job</loc></urlset>"
         web = Web({listing.link: page, "https://careers-keysight.icims.com/sitemap.xml": sitemap})
-        assert build_boards.icims_board(listing, ROBOTS, web) == "careers-keysight"
+        result = build_boards.icims_board(listing.link, listing.company, ROBOTS, web)
+        assert result == "careers-keysight"
 
     def test_a_sitemap_without_the_posting_proves_nothing(self) -> None:
         listing = Listing("https://jobs.keysight.com/jobs/51813?icims=1", "Keysight", True)
         web = Web({"https://careers-keysight.icims.com/sitemap.xml": b"<urlset></urlset>"})
-        assert build_boards.icims_board(listing, ROBOTS, web) is None
+        assert build_boards.icims_board(listing.link, listing.company, ROBOTS, web) is None
 
     def test_a_short_link_is_followed_to_its_board(self) -> None:
         short = Listing("https://go.vansh.nyc/o", "Acme", True)

@@ -527,9 +527,8 @@ then sees every Worker's tabs.
 - A small window parked at the screen's bottom edge works: Chrome's 500x375
   minimum, which macOS keeps about 40 px on screen, gives 61 frames in 3 s,
   screenshots in 0.03 s (full page 0.35 s), and typing works. But the page then
-  reports `outerWidth` 500 under an `innerWidth` of 1280, a mismatch bot checks
-  may notice. It needs `apply signals` evidence before it is used. Dock icons
-  stay either way.
+  reports `outerWidth` 500 under an `innerWidth` of 1280, which a normal window
+  never does, so it is not used. Dock icons stay either way.
 
 **Third pass: what does work (all measured on Chrome 155):**
 

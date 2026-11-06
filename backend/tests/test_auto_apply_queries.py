@@ -135,13 +135,14 @@ def test_mark_applied_turns_a_queued_job_applied_and_keeps_a_first_date():
     assert "sent_resume_id" not in sql
 
 
-def test_the_feed_hides_applied_jobs_only():
-    # Interviewing, offer and rejected were applied too (KAN-413), asked as
-    # NOT IN the stages before applied, so the query never names a value a
-    # database without a7d3e5f1c2b4 lacks
-    (clause,) = matching(JobFilters(applied_by=APPLICANT))
+def test_the_feed_hides_saved_and_applied_jobs_and_keeps_auto_apply_s():
+    # Saved jobs live on the Tracker (KAN-217); interviewing,
+    # offer and rejected were applied too (KAN-413). Asked as NOT IN the
+    # stages that stay, so the query never names a value a database without
+    # a7d3e5f1c2b4 lacks
+    (clause,) = matching(JobFilters(tracked_by=APPLICANT))
     sql = _sql(clause)
-    assert "job_applications.stage NOT IN ('saved', 'queued', 'needs_you', 'skipped')" in sql
+    assert "job_applications.stage NOT IN ('queued', 'needs_you', 'skipped')" in sql
     for later in ("interviewing", "offer", "rejected"):
         assert later not in sql
 

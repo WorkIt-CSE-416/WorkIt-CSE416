@@ -226,7 +226,7 @@ export function PersonalDetails({
             aria-describedby="headline-hint"
           />
           <p id="headline-hint" className="text-note text-ink-meta">
-            The line under your name on My Profile
+            The line under your name on your Profile
           </p>
         </div>
 

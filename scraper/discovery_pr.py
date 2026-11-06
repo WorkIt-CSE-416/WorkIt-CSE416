@@ -2,6 +2,8 @@
 
 Run from a main checkout. Only CSV/JSON data is read from the proposal branch;
 all code runs from this checkout. Without --publish, no remote changes occur.
+Every source goes through the PR, the open-jobs pool included: there a person
+checks the sampled boards the review page marks (docs/adr/0007).
 """
 
 from __future__ import annotations
@@ -23,7 +25,19 @@ PREFIX = "codex/board-discovery-"
 CATALOG = "scraper/boards.csv"
 LEDGER = "scraper/discovery-review.json"
 REVIEW = "scraper/discovery-review.md"
-FILES = (CATALOG, LEDGER, REVIEW)
+#: Where careers-page resolution resumes (`discover_boards --resolve-offset`).
+#: It rides on the proposal branch with the other review files and reaches main
+#: when the PR merges.
+RESOLUTION_STATE = "scraper/discovery-resolution.json"
+FILES = (CATALOG, LEDGER, REVIEW, RESOLUTION_STATE)
+#: Days in one pass of the open-jobs pool: each day reads the boards whose key
+#: hashes to it (`discover_boards.on_day`), and a pool board without an
+#: early-career posting is asked again a pass later.
+POOL_DAYS = 16
+#: A guard on a run's time, never meant to bite: the 15,532 pool boards of
+#: 2026-11-01 come to 930 to 1,005 a day, and one a day past it would wait a
+#: whole pass. At the 2026-10-29 sample's 0.4 seconds a board, ~8 minutes a run.
+POOL_LIMIT = 1200
 
 
 def command(args: list[str], cwd: Path) -> str:
@@ -81,7 +95,7 @@ def assert_data_only(root: Path) -> None:
         raise ValueError("Review files must be regular files, not symbolic links")
 
 
-def read_ledger(path: Path) -> dict:
+def read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else {}
 
 
@@ -95,7 +109,19 @@ def write_update(worktree: Path, base_content: bytes, update) -> None:
     )
 
 
-def publish(root: Path, worktree: Path, repository: str, branch: str, pr: dict | None) -> None:
+def publish(
+    root: Path,
+    worktree: Path,
+    repository: str,
+    branch: str,
+    pr: dict | None,
+    *,
+    proposes: bool = True,
+) -> None:
+    """Push the review files to the proposal branch, and open its PR when there is
+    something to review. With only the resolution cursor moved (`proposes` False)
+    the branch keeps the cursor and no PR opens: an empty review is noise, and a
+    cursor left behind would resolve the same careers pages every day."""
     # A reviewer may have changed the PR during slow network reads.
     latest_prs = pull_requests(root, repository)
     latest = current_pr(latest_prs)
@@ -126,6 +152,9 @@ def publish(root: Path, worktree: Path, repository: str, branch: str, pr: dict |
     git(worktree, "push", "origin", f"HEAD:refs/heads/{branch}")
     if pr:
         print(f"Updated {pr['html_url']}")
+        return
+    if not proposes:
+        print(f"Saved the resolution cursor on {branch}; nothing to review yet")
         return
     body = worktree / "discovery-pr-body.txt"
     body.write_text(
@@ -216,22 +245,44 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
             prior = reconcile(
                 base,
                 load_boards(worktree / CATALOG),
-                read_ledger(worktree / LEDGER),
+                read_json(worktree / LEDGER),
                 {"candidates": [], "generated_at": now.isoformat()},
             )
             write_update(worktree, base_content, prior)
+            resolution_path = worktree / RESOLUTION_STATE
+            resolution_state = read_json(resolution_path)
+            if not isinstance(resolution_state, dict):
+                raise ValueError("resolution state must be an object")
+            resolution_offset = resolution_state.get("next_offset", 0)
+            if type(resolution_offset) is not int or resolution_offset < 0:
+                raise ValueError("resolution next_offset must be a nonnegative integer")
             result = discover_boards.main(
                 [
                     "--channel",
                     "curated",
                     "--channel",
                     "hn",
+                    "--channel",
+                    "openjobs",
+                    "--resolve",
+                    "--resolve-limit",
+                    str(discover_boards.RESOLVE_LIMIT),
+                    "--resolve-seconds",
+                    str(discover_boards.RESOLVE_SECONDS),
+                    "--resolve-offset",
+                    str(resolution_offset),
                     "--months",
                     "1",
                     "--limit",
                     "20",
                     "--offset",
                     str(now.date().toordinal() * 20),
+                    "--pool-limit",
+                    str(POOL_LIMIT),
+                    "--pool-days",
+                    str(POOL_DAYS),
+                    "--pool-day",
+                    str(now.date().toordinal()),
                     "--boards",
                     str(worktree / CATALOG),
                     "--exclude",
@@ -245,13 +296,23 @@ def run(root: Path, repository: str, *, publishing: bool = False) -> int:
             )
             update = reconcile(base, prior.boards, prior.ledger, report)
             validate_catalog(update.boards, update.ledger)
-            if not pr and not update.added and update.ledger == main_ledger:
+            next_resolution_state = resolution_state
+            if report.get("resolution") is not None:
+                next_offset = report["resolution"]["next_offset"]
+                if type(next_offset) is not int or next_offset < 0:
+                    raise ValueError("reported resolution next_offset must be nonnegative")
+                next_resolution_state = {"next_offset": next_offset}
+            proposes = bool(update.added) or update.ledger != main_ledger
+            if not pr and not proposes and next_resolution_state == resolution_state:
                 print("No new candidates for review")
                 return result
             write_update(worktree, base_content, update)
             (worktree / REVIEW).write_text(render_review(update, base), encoding="utf-8")
+            resolution_path.write_text(
+                json.dumps(next_resolution_state, indent=2) + "\n", encoding="utf-8"
+            )
             if publishing:
-                publish(root, worktree, repository, branch, pr)
+                publish(root, worktree, repository, branch, pr, proposes=proposes)
             else:
                 print(f"Preview: {update.added} new proposals; no PR published")
             return result

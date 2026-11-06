@@ -608,8 +608,9 @@ class FakeClaude:
         raise AssertionError(f"FakeClaude doesn't know this call: {sorted(wanted)}")
 
     def drive(self, *, page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
-              max_turns: int, max_tokens: int) -> Drive:
-        self.calls.append({"model": model, "system": system, "prompt": prompt, "schema": schema, "files": files})
+              max_turns: int, max_tokens: int, hook: tuple[str, ...] = ()) -> Drive:
+        self.calls.append({"model": model, "system": system, "prompt": prompt, "schema": schema, "files": files,
+                           **({"hook": hook} if hook else {})})
         if self._driver is None:
             raise AssertionError("FakeClaude was given no driver for a drive")
         tokens = self._drive_tokens.pop(0) if self._drive_tokens else 10_000
@@ -755,6 +756,13 @@ class RecordingBoard:
     def run(self, **fields: object) -> None:
         with self._lock:
             self.runs.append(fields)
+
+    def add_tile(self, worker: int) -> int:
+        """One more tile, for a link sent into Worker `worker` (Dashboard.add_tile); its number."""
+        with self._lock:
+            self.captions.setdefault(len(self.captions), {})
+            self.shown = getattr(self, "shown", {}) | {len(self.captions) - 1: worker}
+            return len(self.captions) - 1
 
     def wait_for_start(self, timeout: float) -> None:
         self.run(start="pressed")  # Lisul presses Start at once

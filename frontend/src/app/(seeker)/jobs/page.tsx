@@ -35,6 +35,7 @@ import {
   getJobsView,
   getRecommendedPage,
   getSavedFilters,
+  drawnAt,
   getTailoredJobIds,
   isApplicant,
   type FeedPage,
@@ -175,6 +176,7 @@ async function SplitFeed({
         jobs={jobs}
         more={more}
         stages={byJob}
+        drawnAt={drawnAt()}
       />
       {first ? (
         <div className="hidden @4xl/main:contents">
@@ -250,6 +252,7 @@ function Results({
         tailored={tailored}
         canMarkApplied={canMarkApplied}
         source={plain ? "feed" : "recommended"}
+        drawnAt={drawnAt()}
       />
     </>
   );
@@ -263,6 +266,8 @@ export default async function JobsPage({ searchParams }: PageProps<"/jobs">) {
   // awaits the rest with its first page.
   const locations = getJobLocations();
   const facets = getJobFacets();
+  // Dated before the stages are read (./listings, drawnAt).
+  drawnAt();
   const stages = getApplicationStages();
   const tailored = getTailoredJobIds();
   const applicant = isApplicant();

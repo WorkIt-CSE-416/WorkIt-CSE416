@@ -24,12 +24,15 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable, Iterator
+from contextlib import ExitStack
 from datetime import datetime
 from pathlib import Path
 
 from apply import send_click, stuck, trace
 from apply.adapters import Drive, SetupError, UsageLimitHit, UsageReading
 from apply.browsers import cdp_endpoint
+from apply.plain.page import PortPage
+from apply.plain.tools import ToolServer
 
 # Runs the claude binary: (argv, stdin, environment) -> stdout.
 Run = Callable[[list[str], str, dict], str]
@@ -194,26 +197,34 @@ class ClaudeCLI:
         self._spent.tokens = self.spent() + tokens
 
     def drive(self, *, page, model: str, system: str, prompt: str, schema: dict, files: list[Path],
-              max_turns: int, max_tokens: int) -> Drive:
+              max_turns: int, max_tokens: int, hook: tuple[str, ...] = ()) -> Drive:
         """Claude works the Worker's page with Playwright MCP as its only tools,
         attached to the Worker's own browser. It runs in an empty folder holding
         only `files`, which bounds what it can attach. Every turn's tokens
         (cache reads included) count toward `max_tokens`; past either cap,
         claude and its MCP server are stopped. A click Claude names as the
-        button that sends is refused before it runs (apply.send_click)."""
-        mcp = {"mcpServers": {"playwright": {"command": shutil.which("npx") or "npx", "args": [
-            "-y", PLAYWRIGHT_MCP, "--cdp-endpoint", self._endpoint(page), "--image-responses", "omit",
-        ]}}}
-        argv = _argv(model, system, schema, extra=[
-            "--mcp-config", json.dumps(mcp),
-            "--allowedTools", ",".join(f"mcp__playwright__{t}" for t in BROWSER_TOOLS),
-            "--disallowedTools", ",".join(f"mcp__playwright__{t}" for t in NO_BROWSER_TOOLS),
-            "--settings", send_click.settings(sys.executable),  # a click on the button that sends is refused
-        ])
+        button that sends is refused before it runs (apply.send_click), run
+        with `hook`'s flags (Ask Claude's).
+
+        On a plain Worker's page (a PortPage: no CDP), the `playwright` server
+        is Apply's own (apply.plain.mcp), with Playwright MCP's tool names
+        and inputs, run on the page through the Worker's port
+        (apply.plain.tools)."""
         NEUTRAL.mkdir(exist_ok=True)
-        with tempfile.TemporaryDirectory(dir=NEUTRAL) as folder:
+        with tempfile.TemporaryDirectory(dir=NEUTRAL) as folder, ExitStack() as stack:
             for file in files:
                 shutil.copy(file, Path(folder) / file.name)
+            if isinstance(page, PortPage):
+                server = stack.enter_context(ToolServer(page, Path(folder), sys.executable, hook)).mcp_server()
+            else:
+                server = {"command": shutil.which("npx") or "npx", "args": [
+                    "-y", PLAYWRIGHT_MCP, "--cdp-endpoint", self._endpoint(page), "--image-responses", "omit"]}
+            argv = _argv(model, system, schema, extra=[
+                "--mcp-config", json.dumps({"mcpServers": {"playwright": server}}),
+                "--allowedTools", ",".join(f"mcp__playwright__{t}" for t in BROWSER_TOOLS),
+                "--disallowedTools", ",".join(f"mcp__playwright__{t}" for t in NO_BROWSER_TOOLS),
+                "--settings", send_click.settings(sys.executable, hook),  # a click on the button that sends is refused
+            ])
             return self._session(argv, prompt, _env(), Path(folder), max_turns, max_tokens)
 
     def research(self, *, model: str, system: str, prompt: str, schema: dict, max_turns: int,

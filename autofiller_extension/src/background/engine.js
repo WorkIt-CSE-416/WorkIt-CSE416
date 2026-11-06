@@ -771,7 +771,7 @@ export async function questionsToWrite({ url, profile, bank = {}, today, fetchTe
     return null;
   }
   const { plan } = await planQuestions({ job, url, questions, profile, bank, today, fetchText: fetchOnce, jobType });
-  return planRows({ plan }).written.map((q) => ({
+  return planRows({ plan, questions }).written.map((q) => ({
     name: q.name.slice(0, WRITTEN_NAME_MAX),
     label: q.label.slice(0, WRITTEN_LABEL_MAX),
     required: Boolean(q.required),
@@ -842,13 +842,16 @@ export function planRows({ plan, questions = [] }) {
   const drafts = plan.drafts ?? [];
   const toClaude = (q) => q.kind !== "file" && !tooManyOptions(q);
   const byName = new Map(questions.map((q) => [q.name, q]));
+  // A follow-up whose question is still to be answered (the engine's Plan.waiting, KAN-620): the student's Claude
+  // writes it beside that question, and fill/moot leaves it blank when the answer doesn't call for it.
+  const waiting = Object.keys(plan.waiting ?? {}).map((name) => byName.get(name)).filter(Boolean);
   const handed = Object.entries(plan.handed ?? {}).filter(([name]) => byName.has(name));
   const notes = (plan.handoffs ?? []).filter((text) => !handed.some(([, h]) => h.handoff === text));
   if (plan.not_eligible) notes.push(`You may not meet this requirement: ${plan.not_eligible}`);
   return {
     written: [
       ...plan.essays.map((q) => ({ ...row(q), max_length: q.maxLength ?? null })),
-      ...drafts.filter(toClaude).map((q) => ({ ...row(q), max_length: q.maxLength ?? null, ...choice(q) })),
+      ...[...drafts, ...waiting].filter(toClaude).map((q) => ({ ...row(q), max_length: q.maxLength ?? null, ...choice(q) })),
     ],
     yours: [...plan.missing, ...drafts.filter((q) => !toClaude(q))].map(row),
     notes,

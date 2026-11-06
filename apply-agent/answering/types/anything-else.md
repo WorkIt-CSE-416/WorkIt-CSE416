@@ -39,7 +39,7 @@ The new fact in the first sentence, then the meaning in one clause if the source
 **Topic label** ("your motivation to apply", "notable accomplishments", "interest in X"): the new fact must be on that topic. An accomplishment or a reason to apply is allowed here, as long as no other answer on the form used it.
 **Clarify label** ("clarify any answers"): clarify only what needs it.
 
-**Optional box: blank by default** (Lisul, 2026-11-04). An optional catch-all box stays empty unless the sources give a fact that is both new and relevant. New: not on the resume (a project's results and numbers from the Story bank are on it), not in another answer on this form, not in the cover letter. Relevant to this employer and role: a project close to the job that the resume leaves out, a link the form didn't ask for, or an availability or scheduling note the form never asked (terms, a start date). A repeated resume bullet is filler and slightly harmful: Voleon's "Additional information" got a Micromouse firmware paragraph its resume already gave. With nothing new and relevant, leave the answer empty and never ask @NAME@: Apply reports the box as blank on purpose. A required box always gets a fact; when none exists, the required slot asks @NAME@.
+**Only a required box reaches you** (Lisul, 2026-11-04). Apply leaves an optional catch-all box blank on purpose, always, and never asks @NAME@ for it: even a new and relevant fact there was more than Lisul wanted (Voleon's "Additional information"). A required box always gets a fact that is new: not on the resume (a project's results and numbers from the Story bank are on it), not in another answer on this form, not in the cover letter. When none exists, the required slot asks @NAME@.
 
 ## Rules
 

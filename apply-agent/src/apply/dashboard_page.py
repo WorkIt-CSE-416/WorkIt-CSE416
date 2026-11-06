@@ -11,10 +11,10 @@ PAGE = """<!doctype html><meta charset="utf-8"><meta name="viewport" content="wi
 const workers = {workers};
 const TOKEN = '{closing}';
 // The Sent row's links are the window's own: a click there never takes control of the tile.
-document.addEventListener('mousedown', e => { if (e.target.closest('.sent')) e.stopPropagation(); }, true);
+document.addEventListener('mousedown', e => { if (e.target.closest('.sent, .askclaude')) e.stopPropagation(); }, true);
 // One event at a time, in order: sent at once, a burst of keys could reach the page shuffled.
 let chain = Promise.resolve();
-const send = (k, event) => (chain = chain.then(() => fetch(`/input/${k}`, {method: 'POST', body: JSON.stringify(event)}))
+const send = (k, event) => (chain = chain.then(() => fetch(`/input/${k}`, {method: 'POST', headers: {'X-Apply-Token': TOKEN}, body: JSON.stringify(event)}))
   .then(r => r.status === 200 ? r.json() : null).catch(() => null));
 // A trackpad sends dozens of wheel events a second: they go as one every 50 ms.
 let wheel = null;
@@ -125,6 +125,7 @@ const copy = async (k, cut) => {
   if (cut) send(k, {type: 'key', key: 'Backspace'});
 };
 document.addEventListener('keydown', e => {
+  if (e.target.closest && e.target.closest('.askclaude')) return;  // typing to Claude, not to the page
   if (controlled === null || e.isComposing || MODIFIER_KEYS.includes(e.key)) return;
   if (e.key === 'Escape' && menu) { closeMenu(); return; }
   if (e.key === 'Escape') { send(controlled, {type: 'key', key: 'Escape'}); control(null); return; }
@@ -137,13 +138,14 @@ document.addEventListener('keydown', e => {
   else send(controlled, {type: 'key', key: e.key, modifiers: MODIFIERS.filter(m => e.getModifierState(m))});
 });
 document.addEventListener('paste', e => {
-  if (controlled === null) return;
+  if (controlled === null || (e.target.closest && e.target.closest('.askclaude'))) return;
   e.preventDefault();
   send(controlled, {type: 'text', text: e.clipboardData.getData('text')});
 });
 setInterval(async () => {
   let state;
   try { state = await (await fetch('/state?front=' + (document.hasFocus() ? 1 : 0))).json(); } catch (e) { return; }
+  if (state.tiles.length > workers) { location.reload(); return; }  // a link sent in (--into): its tile too
   renderInbox(state);
   state.tiles.forEach((c, k) => {
     const banner = document.getElementById('banner-' + k);
@@ -186,13 +188,78 @@ setInterval(async () => {
     paused.hidden = !resume;
     if (resume) {
       paused.querySelector('button').disabled = !resume.ok;
+      paused.querySelector('button').textContent = resume.label || 'Resume';
       paused.querySelector('.why').textContent = resume.why || 'Fixed it on the page? Resume goes on from there.';
     }
+    drawAsk(k, c);
+    const capture = document.getElementById('capture-' + k);
+    capture.hidden = !c.capture;
+    capture.textContent = capture.title = c.capture || '';
     const bar = document.getElementById('file-' + k);
     bar.hidden = !c.file;
     bar.querySelector('input').multiple = c.file === 'selectMultiple';
   });
 }, 1000);
+// Ask Claude (KAN-638): Lisul tells Claude what is wrong on the held form, and Claude fixes it there. One thread per
+// Application, shared with `apply ask` in a terminal. A fact he stated is saved to his answers only on his click.
+const askLine = (t) => {
+  const lines = [make('div', {className: 'you', textContent: `You${t.via === 'terminal' ? ' (terminal)' : ''}: ${t.message}`})];
+  if (t.state === 'waiting' || t.state === 'working') {
+    lines.push(make('div', {className: 'claude working', textContent: 'Claude is working on the form…'}));
+    return make('div', {className: 'turn'}, lines);
+  }
+  lines.push(make('div', {className: 'claude' + (t.state === 'failed' ? ' error' : ''), textContent: `Claude: ${t.reply || ''}`}));
+  for (const c of t.changed || []) lines.push(make('div', {className: 'did', textContent:
+    `Changed ${c.field}${c.step ? ' (' + c.step + ')' : ''} → ${c.shown} · ${c.read_back}`}));
+  for (const c of t.couldnt || []) lines.push(make('div', {className: 'did error', textContent: `Couldn't: ${c}`}));
+  for (const w of t.waiting || []) lines.push(make('div', {className: 'did needs', textContent: `Yours to do: ${w}`}));
+  (t.offers || []).forEach((o, index) => {
+    const save = make('button', {className: 'tonal', textContent: o.saved ? 'Saved' : 'Save to my answers', disabled: !!o.saved,
+      title: 'Later forms answer this question from your Answer bank', onclick: async () => {
+        save.disabled = true;
+        try {
+          const reply = await fetch('/ask/remember', {method: 'POST', body: JSON.stringify({ask: t.id, index}),
+            headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+          const data = await reply.json();
+          toast(reply.ok ? data.message : data.error || 'Not saved.');
+          if (!reply.ok) save.disabled = false;
+        } catch (e) { toast('Apply is not answering: is it still running?'); save.disabled = false; }
+      }});
+    lines.push(make('div', {className: 'offer'}, `Remember for later forms? ${o.question} → ${o.answer} `, save));
+  });
+  return make('div', {className: 'turn'}, lines);
+};
+const drawAsk = (k, c) => {
+  const bar = document.getElementById('ask-' + k), thread = c.thread || [];
+  if (!bar) return;
+  bar.hidden = !c.askable && !thread.length;
+  const busy = thread.some(t => t.state === 'waiting' || t.state === 'working');
+  const input = bar.querySelector('input'), button = bar.querySelector('button.go');
+  input.disabled = button.disabled = !c.askable || busy;
+  input.placeholder = c.askable ? 'Tell Claude what to fix on this form, e.g. "page 2’s GPA is wrong"' : 'The form is no longer held for you';
+  const drawn = JSON.stringify(thread);
+  if (bar.dataset.thread !== drawn) {
+    bar.dataset.thread = drawn;
+    const list = bar.querySelector('.thread');
+    list.replaceChildren(...thread.map(askLine));
+    list.scrollTop = list.scrollHeight;  // the latest reply in view
+  }
+};
+document.addEventListener('submit', async (e) => {
+  const bar = e.target.closest && e.target.closest('.askclaude');
+  if (!bar) return;
+  e.preventDefault();
+  const input = bar.querySelector('input'), k = bar.id.replace('ask-', '');
+  if (!input.value.trim()) return;
+  input.disabled = true;
+  try {
+    const reply = await fetch('/ask', {method: 'POST', body: JSON.stringify({id: `tile-${k}`, message: input.value}),
+      headers: {'Content-Type': 'application/json', 'X-Apply-Token': TOKEN}});
+    const data = await reply.json();
+    if (!reply.ok) throw new Error(data.error || 'Not sent.');
+    input.value = '';
+  } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); input.disabled = false; }
+}, true);
 // A Mac app outlives its last window: say the window closed, so Apply quits its Chrome too.
 addEventListener('pagehide', () => navigator.sendBeacon('/closed', '{closing}'));
 </script>
@@ -580,7 +647,7 @@ const resume = async (id, button) => {
     toast(data.message); refresh();
   } catch (err) { toast(err.message || 'Apply is not answering: is it still running?'); button.disabled = false; }
 };
-const resumeButton = (item) => make('button', {className: 'primary', textContent: 'Resume', disabled: !item.resume.ok,
+const resumeButton = (item) => make('button', {className: 'primary', textContent: item.resume.label || 'Resume', disabled: !item.resume.ok,
   title: item.resume.ok ? 'Apply goes on from the page as you left it; it never presses Submit' : item.resume.why,
   onclick: (e) => resume(item.id, e.target)});
 // A tile's own Resume (Live tab), by its Worker's number; the click doesn't enlarge the tile.
@@ -937,8 +1004,9 @@ const drawRun = (state) => {
   start.disabled = run.start !== 'ready';
   start.textContent = run.start === 'ready' ? `Start filling all ${forms}` : `Getting ${forms} forms ready…`;
   start.onclick = () => { start.disabled = true; fetch('/start', {method: 'POST', body: TOKEN}).then(refresh); };
-  line.className = run.paused_until || run.capped ? 'paused' : '';
-  line.textContent = run.paused_until ? `Paused: Claude's usage limit is reached. Picks up again at ${at(run.paused_until)}.`
+  line.className = run.paused_until || run.capped || run.unchecked ? 'paused' : '';
+  line.textContent = run.unchecked ? run.unchecked  // KAN-621: a check that couldn't run is never silent
+    : run.paused_until ? `Paused: Claude's usage limit is reached. Picks up again at ${at(run.paused_until)}.`
     : run.capped ? `Today's limit reached (${run.cap}). ${run.tomorrow} more go tomorrow.`
     : ctx.workers ? [filling(state) ? `${filling(state)} filling` : '', run.queued ? `${run.queued} queued` : '',
                      sent(state) ? `${sent(state)} sent` : 'nothing sent yet', run.cap ? `${run.today} of ${run.cap} today` : ''].filter(Boolean).join(' · ')
@@ -1319,6 +1387,7 @@ STYLE = r"""
   .banner.failed { background: var(--bad-tint); color: var(--bad); }
   .caption { padding: 6px 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--muted); }
   .sent { display: flex; flex-wrap: wrap; gap: 4px 12px; padding: 0 14px 6px; font-size: 12px; color: var(--muted); cursor: default; }
+  .capture { padding: 0 14px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: var(--needs); cursor: default; }
   .sent .doc { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .sent a, .sent button { height: auto; padding: 0; border: 0; border-radius: 0; background: none; font: 500 12px/1.4 var(--sans); color: var(--brand); }
   .detail { display: none; flex: none; max-height: 40%; overflow: auto; padding: 12px 16px; white-space: pre-line; background: var(--well); }
@@ -1343,6 +1412,20 @@ STYLE = r"""
   .written .why.error { color: var(--error, #b00020); }
   .resumebar { display: flex; align-items: center; gap: 12px; padding: 0 14px 8px; font-size: 12px; color: var(--muted); }
   .resumebar button { height: 30px; }
+  .askclaude { flex: none; padding: 0 14px 8px; font-size: 12px; cursor: default; user-select: text; -webkit-user-select: text; }
+  .askclaude .thread { max-height: 9em; overflow: auto; }
+  .tile.big .askclaude .thread { max-height: 22vh; }
+  .tile:not(.big) .askclaude .turn:not(:last-child) { display: none; }  /* a small tile shows the latest only */
+  .askclaude .turn { padding: 4px 0; border-top: 1px solid var(--line); }
+  .askclaude .you { color: var(--muted); }
+  .askclaude .claude.working { color: var(--tint-ink); }
+  .askclaude .error { color: var(--bad); }
+  .askclaude .needs { color: var(--needs); }
+  .askclaude .offer { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .askclaude .offer button { height: 26px; }
+  .askclaude form { display: flex; gap: 8px; padding-top: 4px; }
+  .askclaude input { flex: 1; min-width: 0; height: 30px; }
+  .askclaude button.go { height: 30px; }
   .filebar { position: absolute; left: 10px; right: 10px; bottom: 10px; z-index: 3; display: flex; align-items: center; gap: 8px;
              padding: 6px 6px 6px 16px; border: 1px solid var(--line-soft); border-radius: 10px; background: var(--panel); color: var(--ink);
              white-space: nowrap; overflow: hidden; text-overflow: ellipsis; box-shadow: var(--lift-high); }

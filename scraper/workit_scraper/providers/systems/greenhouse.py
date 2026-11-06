@@ -14,6 +14,7 @@ from workit_scraper.providers.text import (
     _described,
     _page,
     _work_style,
+    json_name,
     plain_text,
 )
 
@@ -128,4 +129,7 @@ PROVIDER = Provider(
     logo_pattern=re.compile(
         r'"(https://[\w-]*recruiting\.cdn\.greenhouse\.io/external_greenhouse_job_boards/logos/[^"]+)"'
     ),
+    # The board's own record: {"name": "HelloFresh", "content": ...}.
+    name_url="https://boards-api.greenhouse.io/v1/boards/{token}",
+    read_name=json_name,
 )

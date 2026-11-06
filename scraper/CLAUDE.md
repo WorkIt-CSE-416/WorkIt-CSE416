@@ -20,6 +20,11 @@ buffers output sent to a file, and the log stays empty until the run ends. A
 full run takes about 10 minutes. `--offline` re-renders in seconds from
 `jobs.json` with no network, but finds no new facts (see Card facts).
 
+**The backend installs this package as `workit-scraper`** (`backend/pyproject.toml`,
+`[tool.uv.sources]`), so `app/scraper/worker.py` calls provider readers through
+`asyncio.to_thread`. The scraper stays stdlib-only; the backend uses it as a
+library. A change to a provider's reader signature would break the worker.
+
 ## How it fits together
 
 ```
@@ -110,6 +115,9 @@ parts are `model` (Board, Page, Job, Provider, the errors), `fetch` (requests,
    - its board page has a square logo: `logo_page` and `logo_pattern`, and the
      image host in `frontend/next.config.ts` (see Logos). If it names only the
      company's website: `logo_page` and a rule in `logos.extract` (Workday).
+   - it names a board's company on a page robots.txt allows: `name_url` and
+     `read_name`, and its board page in `discovery_channels.POOL_PAGES`, so
+     open-jobs' pool boards on it can be proposed (ADR 0007).
 3. Its name and domain in `hiringSystems` in
    `frontend/src/app/(landing)/data.ts`: the landing page lists the hiring
    systems WorkIt reads, and that list must match `PROVIDERS`.
@@ -450,7 +458,8 @@ compare a lane's requests a second with its pace before adding any. Quiet boards
 had a kept posting is read on one run in `QUIET_EVERY`, staggered by key over
 the run's three-hour slot (`RUN_EVERY`), and always after `QUIET_LONGEST` (a
 day), so a first posting there can appear about nine hours late; `--full` reads
-every board. A board with any kept posting ever is read every run. **Stagger by
+every board. A board with any kept posting ever is read every run, unless its
+kept postings have not changed (below, KAN-502). **Stagger by
 run slot, never by day:** until 2026-10-26 it was by day, so a day's eight runs
 read one third eight times, the next two days none of it, and a first posting
 waited up to two days for the same number of requests. `RUN_EVERY` must match the
@@ -514,6 +523,21 @@ delay a close: "no such board" closes on its second answer, before the third.
 sweep fit in one run. The page's "postings scanned" counts what this run read,
 so it is lower on a run that rested quiet boards or ran out of Workday time.
 
+**A board whose kept postings have not changed rests too** (KAN-502,
+`store.fingerprint`, `store.fingerprint_rest`). After each complete read,
+`__main__` hashes the sorted `external_id` values of the postings
+`classify_job` kept, with `zlib.crc32`. When the hash matches the previous
+read's, `unchanged_reads` increments and the board rests: 4 hours after the
+first unchanged read, doubling each time to a 24-hour cap. A changed hash
+resets the count to zero. `--full` overrides fingerprint rest (reads every
+working board); health rest still blocks `--full` (broken boards stay broken).
+The fingerprint fields live on `BoardReads`; an old store without them loads
+cleanly through `_known`. **Only a board with a kept posting ever rests this
+way** (`store.update`'s `hot`): a quiet board's kept postings are always none,
+so it would hash the same empty list on every read, and on top of the stagger
+it was read once a day, not every nine hours. A company's first posting was
+then about a day late (found in review, 2026-11-04).
+
 ## `boards.csv` is a seed, not a conclusion
 
 Discovery collects ATS board candidates from public curated lists and other
@@ -527,7 +551,10 @@ before merging them. Postings are always scraped from the employer.
   a durable ledger prevents removed proposals from being re-added. The rules
   are below; operation is documented in `docs/discovery.md`.
   `build_boards.py` remains a manual legacy importer; do not restore it to the
-  scheduled scrape, which would bypass review.
+  scheduled scrape, which would bypass review. KAN-446 had it commit straight to
+  main; review found that a wrong name (a careers page, an agency, a parent
+  company) would reach job cards at the next scrape with no one looking, so the
+  PR stayed, the open-jobs pool included (2026-11-04).
 - **A board on a provider's second host is still its board.** Greenhouse's EU
   boards (`job-boards.eu.greenhouse.io`) answer on the same
   `boards-api.greenhouse.io`, but its apply-link pattern missed the `.eu.` and dropped 26
@@ -545,15 +572,30 @@ before merging them. Postings are always scraped from the employer.
   a short link by where it leads, a careers page with `?gh_jid=` by the
   Greenhouse board that holds that posting's number, one with `icims` by the
   tenant whose sitemap lists it. Never a guess: a board under the wrong name
-  puts another company's name on real cards. It asks a few hundred hosts, so it
-  runs on request, never in the scheduled run: run it on a laptop, read the
-  diff of `boards.csv` and commit it. Its tests are built cases (`TestResolve`);
-  the first real run's diff is its live check.
+  puts another company's name on real cards. The resolve functions live in
+  `board_resolve.py`, shared by `build_boards.py` (manual) and
+  `discover_boards.py --resolve` (daily). `discovery_pr.py` passes `--resolve`
+  so the daily workflow resolves unmatched evidence before extracting
+  candidates; `build_boards.py --resolve` still works for manual runs. Its
+  tests are built cases (`TestResolve` in `test_build_boards.py`, resolve
+  tests in `test_discover_boards.py`).
 - **The internship lists are renamed each season** (`Summer2026-Internships` →
   `Summer2027-Internships`). GitHub serves the old address too, but update
   `SOURCES` each season: a list that starts a new repo instead would go unread.
 
 ## Discovery review contract
+
+Indirect-link resolution is bounded separately from board validation:
+`board_resolve.resolve_links` owns grouping, three-attempt retries and deadline
+checks for both commands. Discovery defaults to 100 groups / 120 seconds and
+resumes from `discovery-resolution.json` on the proposal branch (on main once
+its PR merges); never restore per-posting resolution loops before those bounds.
+The next offset rides on the proposal branch with new boards, and is pushed
+there even when nothing new was found, with no PR opened: left behind, every
+run would resolve the same pages again.
+Short links stay separate by URL because one company's links can name different
+boards. Budget exhaustion keeps completed discoveries and still writes the report
+and publishes successes. Operation and counters: `docs/discovery.md`.
 
 `discover_boards.py` collects candidate boards on demand and through the daily
 `discovery_pr.py` workflow, separately from the three-hour scrape. It uses the
@@ -568,6 +610,23 @@ scraper standard-library-only.
 - Search URLs without company attribution remain `needs_company` in the report.
   Do not turn their slugs or search snippets into company names: every downstream
   card trusts boards.csv. Supply a verified URL and company through the CLI.
+- **The one exception is the open-jobs pool** (`--channel openjobs`, ADR 0007):
+  open-jobs' frozen list of boards, which names none. It goes through the same
+  review PR; only how much a person checks differs. A pool board is proposed only when it lists a posting
+  `shortlist.pick` keeps, under the name its own hiring system gives it
+  (`Provider.read_name`); one its system does not name stays `needs_company`.
+  **So does one named like a careers page or a program**
+  (`board_read.NOT_A_COMPANY`): Greenhouse gave 25 of 242 sampled boards such
+  a name ("Careers at KKR", "Referrals Only"), and a pool board takes its name
+  straight onto every card. **Each pool board has a fixed day of the pass**
+  (`--pool-days`, `--pool-day`, `discover_boards.on_day`: a stable hash of
+  its key). Never pick the day's boards by an offset modulo the pool's size:
+  the size changes as boards join `boards.csv`, and that read about 77% of the
+  pool in a 16-day pass. `--pool-limit` is only a guard on a run's time, kept
+  above the largest day. These are the pool's own, apart from `--limit`'s
+  20 a day, and the review marks a tenth of each run's pool boards, at least
+  five, for a person to check (`discovery_review.sampled`). Never name a pool
+  board from anything else: a slug, a page's other text, a search result.
 - Candidate URLs must match an actual provider host, not an embedded URL in a
   query/path or a lookalike hostname. Preserve Oracle token case and Lever region.
   `board_keys` matches from the host over the path and the query, since Jibe
@@ -584,13 +643,15 @@ scraper standard-library-only.
   Unsupported ATS URLs are reported; adding readers is a separate provider change.
 
 Usage and credentials: `docs/discovery.md`. How open-jobs and freehire find
-their boards, and what of it WorkIt could take: `docs/research-open-jobs-freehire.md`
-(2026-10-28, ideas not yet taken).
+their boards, what WorkIt took from them and the 500-board pool sample:
+`docs/research-open-jobs-freehire.md`.
 
 Shared boundaries: `providers/urls.py` owns board URL recognition for both
 commands; `board_read.py` owns the robots/pacing/read result; `catalog.py` owns
-CSV serialization and atomic writes. The collector and legacy builder share these modules, never each other or the
-scrape entry point. The PR orchestrator calls the collector entry point. Keep provider failures distinguishable from empty success.
+CSV serialization and atomic writes. The collector and legacy builder share these
+modules, never each other or the scrape entry point. The discovery orchestrator
+calls the collector entry point. Keep provider failures distinguishable from
+empty success.
 
 `discovery_sources.py` declares each curated source's application URL field.
 Do not scan arbitrary metadata recursively: company homepages are not ATS leads.
@@ -605,7 +666,9 @@ approval, merge, or push to main is permitted. Keep its default a local preview;
 publishing needs explicit `--publish`. Main changes merge into the proposal
 branch without force pushes; conflicts fail visibly. A closed, unmerged PR
 pauses publishing until reopened. Merge that PR with its rejection ledger
-retained to finish the cycle; the next proposal then starts a new cycle.
+retained to finish the cycle; the next proposal then starts a new cycle. A run
+that only moved the resolution cursor pushes the branch and opens no PR; the
+first run with a proposal opens it on that same branch.
 
 `discovery-review.json` stores observations and durable review decisions. A
 developer's removal of a proposed CSV row means rejection; never re-add it on
@@ -686,6 +749,20 @@ more. A row goes into
 `checked_websites.csv` only after its checks (`docs/logos.md`, Checked
 websites): a script for the site and its name, a person for every failure.
 
+**A board with still no domain is checked once by its own address**
+(`logos.board_address`, `logos.check_addresses`, `Store.addresses`): a Jibe or
+SuccessFactors host is on the company's own site (`careers.garmin.com`), and a
+Workday tenant is the name the company chose (`sbdinc`, so `sbdinc.com`, only a
+guess). The scraper reads the home page, `www.` first, and keeps the domain only
+when the page shows it is the company's (`logos.names_company`); a guess needs
+the company's whole name, two words or more, in the page's title, since
+`denver.com` is Denver Media and `nexstar.com` a web host. **What is left is
+flagged every run**: `metrics.json`'s `boards_without_domain` and the log list
+each board whose roles go out with no domain, most roles first. A person works
+down that list into `checked_websites.csv`; never into the database, which the
+next import overwrites. On 2026-11-04 the check proved 133 of 404 boards (1,941
+of the 7,089 jobs with no domain).
+
 ## The page
 
 One self-contained HTML table (`# · Position Title · Date · Apply · Work Model
@@ -753,6 +830,13 @@ the design they serve and its next steps):
   was only a line in the log.
 - **`resting`**: the boards the next runs will not ask (`Store.resting`), in the
   same shape as `unread`, by why each last went unread.
+- **`boards_without_domain`**: each board whose roles go out with no
+  `company_domain`, so no Brandfetch logo, with its company, its roles and
+  whether its address was tried (`feed.without_domain`): the list a person
+  works through into `checked_websites.csv` (Logos).
+- **`boards_fingerprint_resting`**: how many boards the next runs will not ask
+  because their kept postings have not changed (`Store.fingerprint_resting`,
+  KAN-502). Compare it run against run to see what the rest saves.
 
 `build_boards.py` prints the unread apply links by cause, with their top hosts
 (`unread_cause`, `unread_hosts`). That table is where a new reader pays off:
