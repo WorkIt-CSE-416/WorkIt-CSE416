@@ -135,7 +135,7 @@ jobs:
     needs: [changes, engine]
     if: needs.changes.outputs.apply == 'true' && needs.engine.outputs.set == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apply-agent
@@ -217,6 +217,11 @@ jobs:
             tests/test_tracker_record.py \
             tests/test_worker_date.py \
             tests/test_workit_login.py
+      # The submit guard's hostile pages (KAN-666): their no-browser and CDP cases, on Playwright's
+      # Chromium. The plain Worker cases skip here (no Chrome for Testing on Linux).
+      - run: uv run playwright install --with-deps chromium
+      - name: Submit guard hostile pages
+        run: uv run pytest -q tests/test_submit_guard_hostile.py
 
   # The API's Cloudflare Worker (KAN-169): a type error here would otherwise
   # surface only when the deploy on main fails.
