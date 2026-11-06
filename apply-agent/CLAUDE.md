@@ -67,7 +67,7 @@ this folder's `CLAUDE.md` for its area.
 - `docs/captchas-and-bot-blocks.md`: a captcha wait, a block's handoff, or `captcha.py`.
 - `docs/sign-in.md`: a sign-in page, an Employer account or its password, the Accounts tab, or `apply preflight`.
 - `docs/apply-window.md`: the window's lifetime, its Dock keeper, or what a Record keeps.
-- `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, and the open-forms list (`batch.py`).
+- `docs/restart-recovery.md`: what survives a restart of the Mac: Workers' sign-ins across a quit, and the open-forms list (`batch.py`), and `apply preflight --open`.
 - `docs/plain-workers/guide.md`: `apply/plain/`, `worker_mode`, `--into`, or the worker extension.
 - `docs/plain-workers/PROTOCOL.md`: a message between Apply and the worker extension.
 - `docs/research/`: the research behind plain Workers and Employer account sign-in. Each note's Status line says what was built.

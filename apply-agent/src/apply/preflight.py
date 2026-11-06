@@ -191,3 +191,40 @@ def _plan(ordered: list[Site], workers: int, mode: str) -> list[str]:
                   "(PORT is the window's):"]
         lines += [f"  uv run apply rehearse --into PORT:{browser} {link}" for browser, link in later]
     return lines
+
+
+# --- `apply preflight --open` (KAN-721): the open forms' sign-ins, after `apply reopen`
+
+SIGNING_IN = "needs sign-in"  # a tile's status at a sign-in (rehearsal.SIGN_IN)
+
+
+def open_report(forms: list[dict], tiles: list[dict]) -> str:
+    """Which open forms' sites wait on Lisul's sign-in. `forms` is the open-forms list (apply.batch); `tiles`, the
+    captions of the running Apply windows' tiles. A tile at a sign-in waits on him now; a form no window shows yet
+    says what its job system will probably ask. It opens no page."""
+    if not forms:
+        return "No open form on the list (apply.batch): nothing to sign in to."
+    shown = {}
+    for tile in tiles:
+        for key in (tile.get("posting_url"), tile.get("application_id")):
+            if key:
+                shown[key] = tile
+    now: dict[str, list[str]] = {}
+    later: dict[str, list[str]] = {}
+    for form in forms:
+        tile = shown.get(form.get("posting_url")) or shown.get(form.get("application_id"))
+        site = site_of(form.get("posting_url") or form["link"])
+        where = f"Browser {int(form.get('worker') or 0) + 1}"
+        name = f"{form.get('company') or form['link']} ({where})"
+        if tile is not None:
+            if tile.get("status") == SIGNING_IN:
+                now.setdefault(site, []).append(name)
+        elif NEEDS.get(form.get("job_system") or "", (Need.UNKNOWN, ""))[0] in (Need.YES, Need.MAYBE):
+            later.setdefault(site, []).append(name)
+    lines = [f"Open forms: {len(forms)}. It opened no page."]
+    lines += ["", "Sign in now, on the form's own page; Apply goes on by itself once you are in:"]
+    lines += [f"  {i}. {site}: {', '.join(names)}" for i, (site, names) in enumerate(now.items(), 1)] or ["  None."]
+    if later:
+        lines += ["", "No window shows these yet; their sites will probably ask you to sign in (apply reopen):"]
+        lines += [f"  - {site}: {', '.join(names)}" for site, names in later.items()]
+    return "\n".join(lines)
