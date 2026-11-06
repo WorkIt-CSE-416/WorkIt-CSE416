@@ -33,7 +33,7 @@ from apply.plain import window_capture
 from apply.plain.bridge import OUT_OF_DATE, Connection, PortError, PortTimeoutError
 from apply.plain.page import POLL, PortPage, file_payloads
 
-FOREIGN = "This tile's browser connection came from another Worker's Chrome, so the tile shows nothing from it."
+FOREIGN = "This tile's browser connection isn't from this Worker's own Chrome, so the tile shows nothing from it."
 INPUT_WAIT = 5.0  # s a tile event may take on the page before the window gives up on it
 WATCH_EVERY = 0.5  # s between looks for Workers that connected or went away
 FIRST_FRAME = 3.0  # s a filmed tile may wait for its first frame before the extension's frames show
@@ -52,10 +52,12 @@ class PortFrames:
         """`capture`: "native" (ScreenCaptureKit when allowed, else the extension's frames) or
         "extension" (default: window_capture.mode(), $APPLY_TILE_CAPTURE). `chrome(k)` is the PID of the
         Chrome that has Worker k's profile open (launcher: browsers.chrome_pid): a Connection from any
-        other Chrome shows nothing on Worker k's tile and takes none of its input (KAN-717)."""
+        other Chrome, or whose Chrome can't be told (either PID unknown), shows nothing on Worker k's tile and takes
+        none of its input until it can (KAN-717). Without `chrome` (tests), no Connection is checked."""
         self._workers = workers
         self._connection = connection
         self._chrome = chrome or (lambda worker: None)
+        self._strict = chrome is not None
         self._foreign: set[int] = set()  # Workers whose Connection is another Chrome's
         self._capture = capture or window_capture.mode()
         self._allowed: bool | None = None  # Screen Recording permission, looked at once
@@ -209,7 +211,7 @@ class PortFrames:
             self._notes[worker] = window_capture.permission_note()
             return False
         pid = window_capture.chrome_of(connection.relay.get("host_pid"))
-        if pid is None or pid != (self._chrome(worker) or pid):
+        if pid is None or (self._strict and pid != self._chrome(worker)):
             return False
         self._filmed[worker] = {"began": time.monotonic(), "frame": 0.0, "shown": 0.0}
         self._streams[worker] = window_capture.WindowStream(pid, lambda frame, worker=worker: self._filmed_frame(worker, frame))
@@ -256,6 +258,9 @@ class PortFrames:
         connection = self._connection(worker)
         if connection is not None and connection.closed.is_set():
             connection = None
+        if connection is not None and connection is self._watched.get(worker) and worker in self._foreign \
+                and not self._foreign_to(worker, connection):
+            self._watched.pop(worker)  # its Chrome can be told now, and it is this Worker's: set it up below
         if connection is self._watched.get(worker):
             if connection is not None and (stream := self._streams.get(worker)) and (why := self._blank(worker, stream)):
                 self._unfilm(worker)  # the extension's frames from now on
@@ -275,7 +280,7 @@ class PortFrames:
             self._foreign.add(worker)
             self._notes[worker] = FOREIGN
             print(f"Plain Worker {worker + 1}'s tile: {FOREIGN}", file=sys.stderr)
-            self._watched[worker] = connection  # not looked at again: its tile shows none of its frames
+            self._watched[worker] = connection  # looked at again each turn: its tile shows none of its frames till then
             return
         connection.on("tile.frame", lambda message, worker=worker: self._keep(worker, message))
         connection.on("tile.shown", lambda message, worker=worker: self._aim(worker, message))
@@ -286,10 +291,13 @@ class PortFrames:
         self._watched[worker] = connection
 
     def _foreign_to(self, worker: int, connection: Connection) -> bool:
-        """Whether `connection` comes from a Chrome that isn't Worker `worker`'s (both PIDs known, and not the same)."""
+        """Whether `connection` may not be Worker `worker`'s: its Chrome (the host's parent) isn't the one with the
+        Worker's profile open, or either PID can't be told. Fails closed (KAN-717)."""
+        if not self._strict:
+            return False
         expected = self._chrome(worker)
         found = window_capture.chrome_of(connection.relay.get("host_pid")) if expected else None
-        return bool(expected and found and found != expected)
+        return not (expected and found and found == expected)
 
     def _read_errors(self, worker: int) -> None:
         """The field error Worker `worker`'s shown page shows, every ERRORS_EVERY s (apply.stuck)."""

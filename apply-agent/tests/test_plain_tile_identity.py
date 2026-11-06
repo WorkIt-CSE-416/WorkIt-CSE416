@@ -152,6 +152,20 @@ def test_a_connection_from_another_workers_chrome_shows_nothing_on_the_tile(help
         assert frames.notice(0) == tile.FOREIGN
 
 
+def test_a_connection_whose_chrome_is_told_later_is_set_up_then(helper):
+    """Its Chrome's PID unknown at first: nothing until it is known and is this Worker's, then its frames."""
+    known = threading.Event()
+    helper.setattr(window_capture, "chrome_of", lambda host_pid: CHROMES.get(host_pid) if known.is_set() else None)
+    nvidia, _ = two_workers()
+    with PortFrames(1, [nvidia].__getitem__, capture="extension", chrome={0: 1000}.get) as frames:
+        time.sleep(1)
+        before = frames.frame(0), list(nvidia.started)
+        known.set()
+        after = seen(frames, 0, 1.5)
+
+    assert before == (None, []) and after == [nvidia.frames[5]] and frames.notice(0) == ""
+
+
 def get(url: str) -> bytes:
     with urllib.request.urlopen(url) as response:
         return response.read() if response.status == 200 else b""

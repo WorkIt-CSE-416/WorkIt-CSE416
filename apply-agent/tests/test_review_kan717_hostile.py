@@ -207,6 +207,19 @@ def test_a_page_chosen_window_title_doesnt_pass_for_another_tabs(window, tab):
     assert window_capture.title_matches(window, tab) is False
 
 
+# --- 5. PortFrames's PID check when a PID is unknown
+
+@pytest.mark.parametrize(("chrome", "host"), [(lambda k: 1000, None), (lambda k: None, 2000)])
+def test_a_connection_whose_chrome_cant_be_told_takes_no_input(monkeypatch, chrome, host):
+    monkeypatch.setattr(window_capture, "chrome_of", lambda host_pid: host)
+    worker = Worker()
+    with PortFrames(1, lambda k: worker, capture="extension", chrome=chrome) as frames:
+        time.sleep(0.8)
+        worker.send("tile.frame", tab=1, data=B64)
+        frames.input(0, {"type": "down", "x": 1, "y": 1})
+    assert worker.started == [] and worker.inputs == []
+
+
 # --- 7. on a real plain Worker: what a page at a PUBLIC address can do (Chrome's Local Network Access applies)
 
 PUBLIC = {"Content-Security-Policy": "treat-as-public-address"}
