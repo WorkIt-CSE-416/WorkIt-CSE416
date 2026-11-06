@@ -103,6 +103,11 @@ PAGES = {
             try {{ document.getElementById('f').submit(); }} catch (e) {{}}
           }}, ms);
         }});</script>"""},
+    # A step list's link (TAL.net's Progress Tracker posts the page, KAN-692) whose script posts the application.
+    "a step list's link that sends": {START: f"""<title>Apply</title><nav><ul><li><a id=b role=button href="#">Next</a></li>
+        </ul></nav><form id=f method=post action="{FINAL}"><input name=first value=Test></form>{SEND_ALL}
+        <script>document.getElementById('b').addEventListener('click', (e) => {{ e.preventDefault(); sendAll();
+          document.getElementById('f').submit(); }});</script>"""},
 }
 BUTTON = {"a profile pop-up that is the application": "Submit", "a profile pop-up that turns into the application": "Submit",
           "a one-page form in a modal": "Continue", "an application that makes an account": "Continue",
@@ -163,8 +168,13 @@ def ask_press(page, drive, name):
             "", guard=drive)
 
 
+def ask_press_listed(page, drive, name):
+    """Ask Claude's press of a step in the form's list of steps (KAN-692): the name Claude gives, as ask.ask presses it."""
+    press_step(page, drive, name, listed=True)
+
+
 PATHS = {"plain code's Next": plain_next, "the profile click": profile_click, "the account click": account_click,
-         "Ask Claude's press": ask_press}
+         "Ask Claude's press": ask_press, "Ask Claude's press of a listed step": ask_press_listed}
 
 
 def _settle(page, ms=3000) -> None:
@@ -260,6 +270,59 @@ def test_without_the_guard_each_hostile_page_sends(page_name):
         _then(page, page_name)
         _settle(page)
     assert site.applications()
+
+
+# Ask Claude's press of a listed step (KAN-692) against a TAL.net-like form, whose final Submit posts to the same
+# save_page as each step's save: only the body (submit=1) tells them apart. The adversarial review's pages: none
+# may send the form's own button.
+SAVE = "/acme/jobs/123/save_page"
+_FORM = f'<form id=f method=post action="{SAVE}"><input name=first value=Test>'
+LISTED_SENDS = {
+    "a Submit in another language": (f"<title>Declaration</title>{_FORM}<ul class=actions><li>"
+                                     "<button name=submit value=1>Envoyer ma candidature</button></li></ul></form>",
+                                     "Envoyer ma candidature"),
+    "a Submit named Done": (f"<title>Declaration</title>{_FORM}<ul><li><button name=submit value=1>Done</button></li>"
+                            "<li><button name=save value=1>Save</button></li></ul></form>", "Done"),
+    "a tracker button beside the Submit": (f"<title>Declaration</title>{_FORM}<nav><ul><li><button name=goto value=2>"
+                                           "Inclusion</button></li><li><a href='#'>Help</a></li></ul></nav>"
+                                           "<button name=submit value=1>Submit</button></form>", "Inclusion"),
+    "a label only CSS shows": ("<style>#b::before{content:'Submit application'}</style><span id=l hidden>Declaration</span>"
+                               f"{_FORM}<ul><li><button id=b aria-labelledby=l name=submit value=1></button></li>"
+                               "<li><a href='#'>Help</a></li></ul></form>", "Declaration"),
+    "a name that starts as a step's": (f"{_FORM}<ul><li><button name=submit value=1>Declaration and lodge</button></li>"
+                                       "<li><a href='#'>Help</a></li></ul></form>", "Declaration"),
+    "a form in a list": (f"<ol><li>{_FORM}<button name=submit value=1>Save my application</button></form></li>"
+                         "<li><a href='#'>Help</a></li></ol>", "Save my application"),
+    "a link around a Submit": (f"{_FORM}<nav><ul><li><a href='#o'>Languages</a></li><li><a href='#'>"
+                               "<button name=submit value=1>Inclusion</button></a></li></ul></nav></form>", "Inclusion"),
+    "a link around a Submit's label": (f"{_FORM}<button id=s name=submit value=1 style='position:absolute;left:-9999px'>Go"
+                                       "</button></form><nav><ul><li><a href='#o'>Languages</a></li><li><a href='#'>"
+                                       "<label for=s>Inclusion</label></a></li></ul></nav>", "Inclusion"),
+    "a link holding a frame's Submit": ("<nav><ul><li><a href='#o'>Languages</a></li><li><a href='#' aria-label='Inclusion'>"
+                                        "<iframe style='border:0' srcdoc=\"<form method=post action='/acme/jobs/123/save_page' "
+                                        "target=_top style='margin:0'><input type=hidden name=first value=Test><button name=submit "
+                                        "value=1 style='width:300px;height:150px'>Inclusion</button></form>\"></iframe></a></li></ul></nav>",
+                                        "Inclusion"),
+    "a link in an aria-labelled Submit": (f"<nav><ul><li><a href='#' id=b aria-label='Submit application'>Inclusion</a></li>"
+                                          f"<li><a href='#'>Help</a></li></ul></nav>{_FORM}</form><script>document.getElementById('b')"
+                                          ".addEventListener('click', () => { const i = document.createElement('input'); i.name = 'submit';"
+                                          " i.value = '1'; document.getElementById('f').append(i); document.getElementById('f').submit(); });"
+                                          "</script>", "Inclusion"),
+}
+
+
+@pytest.mark.parametrize("page_name", list(LISTED_SENDS))
+def test_ask_claudes_listed_press_never_sends_a_tal_like_form(page_name):
+    html, name = LISTED_SENDS[page_name]
+    bodies = []
+    with cdp({START: html}) as (page, drive, _):
+        page.on("request", lambda r: r.method == "POST" and bodies.append(r.post_data or ""))
+        try:
+            ask_press_listed(page, drive, name)
+        except Handoff:
+            pass
+        _settle(page, 1500)
+    assert [b for b in bodies if "submit=1" in b] == []
 
 
 HELD = {START: f"""<title>Apply</title><form id=f method=post action="{FINAL}"><input name=first value=Test>
@@ -383,7 +446,8 @@ def plain(pages: dict[str, str]):
         yield page, DriveGuard(page), site
 
 
-@pytest.mark.parametrize("path", ["plain code's Next", "the profile click", "the account click"])
+@pytest.mark.parametrize("path", ["plain code's Next", "the profile click", "the account click",
+                                  "Ask Claude's press of a listed step"])
 @pytest.mark.parametrize("page_name", list(PAGES))
 def test_no_click_path_sends_a_hostile_page_on_a_plain_worker(page_name, path):
     with plain(PAGES[page_name]) as (page, drive, site):

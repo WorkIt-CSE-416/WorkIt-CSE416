@@ -883,6 +883,88 @@ def test_ask_stops_pressing_at_its_cap(monkeypatch):
         assert posts == ["/app/2"]
 
 
+# A TAL.net eform (Bank of America, live 2026-11-06): each Progress Tracker link posts the page to save_page,
+# then opens its step. The last step, Declaration, has the Submit.
+TAL_FORM = "https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4/user-1/candidate/eform/123"
+TAL_STEPS = ["Languages", "How did you hear about us?", "Inclusion", "Declaration"]
+
+
+def _tal_page(n):
+    tracker = "".join(f'<li><a href="#" onclick="document.getElementById(\'goto\').value={i};'
+                      f'document.getElementById(\'eform\').submit();return false">{name}'
+                      f'<span class="sr-only"> Item {"completed" if i < n else "not completed"}</span></a></li>'
+                      for i, name in enumerate(TAL_STEPS, 1))
+    last = n == len(TAL_STEPS)
+    return (f'<title>{TAL_STEPS[n - 1]}</title><nav aria-label="Progress Tracker"><ul>{tracker}</ul></nav>'
+            f'<form id="eform" method="post" action="{TAL_FORM}/save_page"><input type="hidden" id="goto" name="goto" value="">'
+            f'<input type="hidden" name="page" value="{n}"><label>Field {n} <input name="f{n}"></label>'
+            + ('<label><input type="checkbox" name="agree"> I agree</label><button name="submit">Submit</button>' if last
+               else '<button>Save and Continue</button>') + '</form>')
+
+
+@contextmanager
+def _tal(start):
+    from urllib.parse import parse_qs
+
+    from playwright.sync_api import sync_playwright
+
+    from apply.submit_guard import rearm
+    posts = []
+
+    def serve(route):
+        if route.request.method == "POST":
+            form = parse_qs(route.request.post_data or "")
+            posts.append(form)
+            if "submit" in form:
+                return route.fulfill(body="<p>Thank you for applying</p>", content_type="text/html")
+            at = int(form["page"][0])
+            n = int((form.get("goto") or [at + 1])[0])
+            return route.fulfill(body=_tal_page(n), content_type="text/html")
+        return route.fulfill(body=_tal_page(int(route.request.url.rsplit("/", 1)[1])), content_type="text/html")
+
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.route(f"{TAL_FORM}/**", serve)
+        page.goto(f"{TAL_FORM}/page/{start}")
+        guard(page)
+        drive = DriveGuard(page)
+        lift(page)  # held for Lisul
+        rearm(page)  # the Ask message: hold() puts both guards back on
+        yield page, drive, posts
+        browser.close()
+
+
+def test_ask_moves_between_tal_net_pages_by_the_progress_tracker():
+    # Bank of America (2026-11-06): Claude's click of a Progress Tracker link posts the page, so the guard blocked
+    # it, and Ask Claude couldn't go back to page 10 or on to the Declaration. Plain code presses the link it names.
+    with _tal(3) as (page, drive, posts):
+        reply = _asked(page, drive, "recheck How did you hear about us?, then open the Declaration", [
+            (lambda p: p.get_by_role("link", name="How did you hear about us?").click(),
+             _said(press="How did you hear about us?")),
+            (lambda p: None, _said(press="Declaration")),
+            (lambda p: None, _said(reply="Rechecked page 2; the Declaration is open.")),
+        ])
+        assert [(f["page"], f["goto"]) for f in posts] == [(["3"], ["2"]), (["2"], ["4"])]
+        assert page.title() == "Declaration" and reply.couldnt == []
+
+
+def test_ask_s_progress_tracker_press_never_posts_the_declaration():
+    # The Declaration's form has the Submit: a tracker link from there posts that form, so the guard blocks it.
+    from apply import claude_fill
+    with _tal(4) as (page, drive, posts), pytest.MonkeyPatch.context() as mp:
+        mp.setattr(claude_fill, "STEP_SHOWS_MS", 800)
+        reply = _asked(page, drive, "open Inclusion", [(lambda p: None, _said(press="Inclusion"))])
+        assert posts == [] and page.title() == "Declaration" and "didn't press 'Inclusion'" in reply.couldnt[0]
+
+
+@pytest.mark.parametrize("named", ["Submit", "Field 3"])
+def test_ask_s_press_of_a_step_needs_a_step_list_entry_that_never_sends(named):
+    with _tal(3) as (page, drive, posts):
+        reply = _asked(page, drive, "go on", [(lambda p: None, _said(press=named))])
+        assert posts == [] and "didn't press" in reply.couldnt[0]
+
+
 # Every step form's URL Apply has met live or saved (KAN-656), and the Next that posts from it. None may be stopped.
 TAL = "https://bankcampuscareers.tal.net/vx/lang-en-GB/mobile-0/brand-4"
 REAL_STEPS = {

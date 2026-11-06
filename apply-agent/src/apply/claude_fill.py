@@ -681,12 +681,13 @@ def _profile_step(page: Page, name: str) -> Locator | None:
     return None
 
 
-def press_step(page: Page, guard, name: str, back: bool = False) -> None:
-    """Plain code's own click on a step's Next (or `back`: its Back), which goes through the guards where it posts
-    natively: a button that sends, a form that has one and the final application URLs stay blocked (KAN-639).
-    Waits for the step it leads to; a Handoff says why it didn't."""
+def press_step(page: Page, guard, name: str, back: bool = False, listed: bool = False) -> None:
+    """Plain code's own click on a step's Next (or `back`: its Back; or `listed`: a step in the form's list of
+    steps, TAL.net's Progress Tracker), which goes through the guards where it posts natively: a button that
+    sends, a form that has one and the final application URLs stay blocked (KAN-639). Waits for the step it
+    leads to; a Handoff says why it didn't."""
     before = _fields_shown(page)
-    button = _the_back(page, name) if back else _the_next(page, name)
+    button = _the_back(page, name) if back else _the_listed(page, name) if listed else _the_next(page, name)
     # Plain code's own check: never Claude's word for it. A Back leaves the review page, so only its words count.
     words = _sends_or_reviews(page, button)
     if words and not (back and words == REVIEW_WORDS):
@@ -715,6 +716,41 @@ def _the_back(page: Page, name: str):
     found = [b for b in page.get_by_role("button", name=name, exact=True).all() if b.is_visible()]
     if len(found) != 1:
         raise Handoff(f"The form shows {len(found)} buttons named {name!r}, so Apply didn't press one. Do it yourself.")
+    return found[0]
+
+
+# An entry in a list of a form's steps (TAL.net's Progress Tracker: each step's link posts the page to save_page,
+# then opens that step, KAN-692): in a nav or a list of more than one entry, and never a form's own button (a
+# submit, or any button of a form), nor one holding or held by a control or label, which would post that
+# form with no check of its other buttons. A link can post only by script (form.submit(), requestSubmit()),
+# where the guard still blocks a form with a button that sends.
+STEP_ENTRY = """el => {
+  if ((el.tagName === 'BUTTON' || el.tagName === 'INPUT') && (el.type !== 'button' || el.form)) return false;
+  // A click on it must land on it alone: never a control, a label (one that clicks a submit) or a frame inside it, nor a control or label around it.
+  if (el.querySelector('button, input, select, textarea, label, iframe, frame, object, embed') || el.parentElement?.closest('button, label')) return false;
+  const list = el.closest('nav, [role=navigation], ol, ul, [role=list], [role=tablist]');
+  return !!list && list.querySelectorAll('a[href], [role=link], [role=tab], button[type=button]').length > 1;
+}"""
+
+
+def _the_listed(page: Page, name: str):
+    """The one entry in the form's list of steps that Claude named: of exactly that name, else the one whose name
+    starts with it (a tracker's "Declaration Item not completed"). A name that sends (Claude's, or the entry's own
+    as the page names it), none, or two that differ is a Handoff: no click."""
+    if not name.strip() or SENDS.search(name):
+        raise Handoff(f"Claude named {name!r} as a step of the form, which may send it. Fill it in yourself.")
+    starts = re.compile(rf"^\s*{re.escape(name.strip())}(?!\w)", re.IGNORECASE)
+    for match in ({"name": name, "exact": True}, {"name": starts}):
+        found = [el for role in ("link", "button", "tab") for el in page.get_by_role(role, **match).all()
+                 if el.is_visible() and el.evaluate(STEP_ENTRY) is True]
+        if found:
+            break
+    if not found:
+        raise Handoff(f"Claude fill found no step named {name!r} in the form's list of steps. Fill it in yourself.")
+    if len({el.aria_snapshot() for el in found}) > 1:
+        raise Handoff(f"The form's list of steps shows more than one {name!r}, so Apply didn't press one. Do it yourself.")
+    if SENDS.search(found[0].aria_snapshot()):
+        raise Handoff(f"The form's step {name!r} is named as one that sends, so Apply didn't press it. Do it yourself.")
     return found[0]
 
 
@@ -939,7 +975,7 @@ def _on_step(page: Page, shown: dict[str, object]) -> dict[str, object]:
 
 
 def _fields_shown(page: Page) -> str:
-    shown = [page.url]
+    shown = [page.url.removesuffix("#")]  # a step link's href="#" whose post the guard blocked: still the same step
     for frame in page.frames:
         try:
             shown.append(frame.evaluate(FIELDS_SHOWN))
