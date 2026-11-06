@@ -160,6 +160,9 @@ class Rehearsed:
     # The Pre-submit review's problems with a legal or eligibility answer (verify.LEGAL), as (field, why): each
     # holds Submit on the held page until Lisul dismisses it (on the page or in the window).
     legal: tuple[tuple[str, str], ...] = ()
+    # (label, answer) of each answer that came after its step was saved without it (KAN-687): the hold fills each
+    # on its own step once, through the window's in-place fill, and lists it as left blank till then.
+    left_behind: tuple[tuple[str, object], ...] = ()
 
     def holding(self) -> str:
         """What holds Submit on the held page now: each legal problem Lisul hasn't dismissed; "" for none."""
@@ -299,7 +302,10 @@ def rehearse(
                 time.sleep(0.5)
             return False
 
-        answers = lambda: [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
+        def answers() -> list[tuple[str, object]]:
+            """Lisul's answers from the window, after each answer the fill left behind (KAN-687), once."""
+            behind, done.left_behind = list(done.left_behind), ()
+            return behind + [(q, a) for q, a in adapters.board.answered(n) if q in done.missing]
         fill = lambda page, q, a: _fill_answer(page, q, a, adapters, profile, n, done, out)
         # Each answer Claude wrote has its "Add context and regenerate", on the page and in the window (KAN-599).
         redo = _Redo(lambda: done, adapters, profile, n, site, out)
@@ -1033,10 +1039,12 @@ def _summary(posting: Posting, result: Result, site: "_Kept", tokens: int, secon
     answered = [q for q in filled.questions if filled.readback.get(q.name) not in (None, "", [])] if filled else []
     return Rehearsed(
         posting, outcome, why, site.title(),
-        len(answered), len(filled.questions) if filled else 0, result.missing, tokens, seconds,
+        len(answered), len(filled.questions) if filled else 0,
+        result.missing + tuple(label for label, _ in result.left_behind if label not in result.missing), tokens, seconds,
         problems=tuple(map(str, result.problems)), questions=tuple(filled.questions) if filled else (),
         where=dict(result.where),
         legal=tuple((f.field, f.why) for f in result.verification.holds_submit) if result.verification else (),
+        left_behind=tuple(result.left_behind),
     )
 
 

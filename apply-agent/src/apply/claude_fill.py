@@ -326,6 +326,8 @@ class ClaudeFill:
         self._picked: Readback = {}  # the dropdown choices plain code picked
         self._readback: Readback = {}  # every field filled so far, on every step
         self._put: dict = {}  # the answer each field was filled with
+        self._found_at: dict[str, int] = {}  # the step each question the fill found was on (unlisted), by name
+        self._asked: tuple[dict[str, str], Answers] = ({}, {})  # the labels and answers of the last fill() call
         self._guard: DriveGuard | None = None  # on the page from Claude's first drive
         self._waited_for_box = False  # the form, filled, waited for Lisul to do its captcha's box
         self._page_gates = page_gates
@@ -370,6 +372,20 @@ class ClaudeFill:
             raise NotAPosting(why or "the page is no one job posting")
         return questions
 
+    def _passed(self, name: str) -> bool:
+        """Whether the question `name` was found on a step the fill has gone past (KAN-687): its answer came
+        late (Lisul's, from the window), and a later step never shows its field. A question the read pass
+        listed has no step of its own: it may show on any step, so it is never passed."""
+        return name in self._found_at and self._found_at[name] < self._steps
+
+    @property
+    def left_behind(self) -> list[tuple[str, object]]:
+        """(label, answer) of each answer whose question's step went by before it came (`_passed`), never
+        put on the form: the Worker holds the form for it, and a rehearsal fills it on its step once held."""
+        labels, answers = self._asked
+        return [(labels[name], value) for name, value in answers.items()
+                if name in labels and value != "" and self._passed(name) and name not in self._put]
+
     @property
     def shown_so_far(self) -> Readback:
         """What each field filled so far shows, on every step: a Handoff's Record keeps it."""
@@ -394,6 +410,7 @@ class ClaudeFill:
         the page is on, with only the answers not yet on the form."""
         labels = {q.name: q.label for q in questions}
         kinds = {q.name: q.kind for q in questions}
+        self._asked = (labels, answers)
         if self._waited_for_box and not captcha.shows(page):  # Lisul did the captcha on the filled form
             self._waited_for_box = False
             return dict(self._readback)
@@ -415,7 +432,8 @@ class ClaudeFill:
             self._readback.update(picked)
             todo = {name: value for name, value in answers.items()
                     if name not in self._attached and name not in self._picked and self._put.get(name, _UNSET) != value
-                    and value != ""}  # nothing to type: a blank answer only invites a mix-up with its neighbour
+                    and value != ""  # nothing to type: a blank answer only invites a mix-up with its neighbour
+                    and not self._passed(name)}  # its step went by without it: it is filled there once held
             fields = [{"field": name, "question": labels[name], "answer": value.name if isinstance(value, Path) else value}
                       for name, value in todo.items()]
             files = [value for value in todo.values() if isinstance(value, Path)]
@@ -446,7 +464,9 @@ class ClaudeFill:
             # Known by its label with or without its help text, as either session may give it.
             unlisted = _new_questions(page, questions, done.get("unlisted") or [])
             if unlisted:
-                raise MoreQuestions(_with_sections(page, _with_options(page, self._questions(unlisted))))
+                found = _with_sections(page, _with_options(page, self._questions(unlisted)))
+                self._found_at |= {q.name: self._steps for q in found}
+                raise MoreQuestions(found)
             # What this step shows, checked by plain code before Next saves it (KAN-652).
             shown = {labels[name]: self._readback.get(name) for name in todo if name in labels}
             if wrong := cant_be_right(_on_step(page, shown), sections=_sections(page, shown)):
