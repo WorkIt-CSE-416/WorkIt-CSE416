@@ -6,6 +6,7 @@ job system records a Submission."""
 import _thread
 import json
 import threading
+import time
 from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import datetime
@@ -938,6 +939,30 @@ def test_fill_again_on_a_held_page_fills_its_form_once_more_in_the_same_browser(
     assert filler.fills == 2
     assert sum("ready to submit" in line for line in lines) == 2  # a summary line for each fill
     assert submissions == []
+
+
+def test_fill_again_from_the_window_fills_its_form_once_more_with_no_click_on_the_page(monkeypatch, tmp_path):
+    from apply.dashboard import Dashboard, NoFrames, Refused
+
+    filler = Counted(GreenhouseFiller())
+    monkeypatch.setitem(FILLERS, "greenhouse", filler)
+    lisul_on_the_held_page(monkeypatch, lambda n: [])  # he clicks nothing there
+    profile = ApplicantProfile.load(profile_with(tmp_path))
+
+    with FakeJobServer(ARC_FORM) as fake, Dashboard(1, NoFrames()) as board:
+        def press() -> None:  # as `apply fill-again` does, from outside the Worker's page
+            while True:
+                try:
+                    board.fill_again("tile-0")
+                    return
+                except Refused:
+                    time.sleep(0.2)  # not held yet
+        threading.Thread(target=press, daemon=True).start()
+        hold_until(fake, profile, lambda lines: sum("ready to submit" in line for line in lines) == 2,
+                   with_adapters={"board": board})
+        submissions = fake.submissions
+
+    assert filler.fills == 2 and submissions == []
 
 
 def test_a_field_the_filler_cannot_fill_is_reported_and_the_rest_still_filled(tmp_path):

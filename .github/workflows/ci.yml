@@ -184,9 +184,11 @@ jobs:
             tests/test_gmail.py \
             tests/test_graduate_only.py \
             tests/test_into.py \
+            tests/test_preflight.py \
             tests/test_keychain_contract.py \
             tests/test_mail_command.py \
             tests/test_matches.py \
+            tests/test_network_block.py \
             tests/test_notification.py \
             tests/test_outside_us.py \
             tests/test_phone_push.py \
@@ -199,6 +201,7 @@ jobs:
             tests/test_regenerate.py \
             tests/test_repair_requests.py \
             tests/test_requests.py \
+            tests/test_resume_check.py \
             tests/test_sameness.py \
             tests/test_schedule.py \
             tests/test_send_click.py \

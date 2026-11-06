@@ -69,9 +69,8 @@ company_cap: 3
 # damage. A run that reaches it stops taking Matches, says so, and leaves the
 # rest for tomorrow; Requests and approved Holds go ahead past it (an approved
 # Hold submitted today still counts). 25 covers the Calibration run's 10 plus
-# a normal day's new internship Postings, stays half of JobCopilot's 50 a day
-# and nowhere near the mass volume Greenhouse and Ashby detect, and leaves the
-# Max plan room for the applicant's own Claude work.
+# a normal day's new internship Postings, and leaves the Max plan room for the
+# applicant's own Claude work.
 daily_cap: 25
 
 # Employers' own limits on one candidate's applications, stricter in the long
@@ -153,23 +152,22 @@ calibration_run: 10
 max_unreviewed_uses: null
 
 # Workers' Chrome runs headless (true: no window; the applicant watches every
-# Worker in the dashboard) or headed (false: a visible window per Worker, as other
-# auto-apply tools run). Runs and rehearsals both follow it. Each Tracker row
-# notes which ran, beside the Bot signals the job system showed, so `apply
-# signals` can compare the two before this is decided. Headed
-# (2026-10-17), after all three watched headless submits were blocked.
+# Worker in the dashboard) or headed (false: a visible window per Worker). Runs
+# and rehearsals both follow it. Each Tracker row notes which ran, beside the Bot
+# signals the job system showed, so `apply signals` can compare the two. Headed
+# since 2026-10-17.
 worker_headless: false
 
 # Which kind of Worker fills a form (KAN-606, KAN-614): cdp (Chrome driven by
 # Playwright over the DevTools protocol, as today), plain (a plain Chrome with no
 # CDP and no automation flags, driven through the private worker extension), or
-# protected (plain only for plain_worker_hosts and each host a bot block was seen
-# on, kept in plain-hosts.json in the data folder; cdp for the rest). cdp until
+# protected (plain only for plain_worker_hosts and the hosts in plain-hosts.json in
+# the data folder; cdp for the rest). cdp until
 # plain Workers reach parity and run side by side for a week.
 worker_mode: cdp
 
-# The protected hosts (and their subdomains) that worker_mode: protected fills in
-# plain Workers.
+# The hosts (and their subdomains) that worker_mode: protected fills in plain
+# Workers.
 plain_worker_hosts:
   - jobs.lever.co
   - smartrecruiters.com
@@ -213,6 +211,13 @@ schedule:
 # pushed to this private git repo of your own, and its Tracker link opens it
 # on GitHub. Unset, Records stay in the data folder's records/ and doctor says so.
 records_remote: null
+
+# Resume check: if your accepted resume lives in a GitHub repo, name it in your own
+# policies.yaml, and `apply doctor` and each start of `apply rehearse` and `apply
+# run` compare files.resume_pdf with it (`gh api`). A different file stops the
+# run; `gh` being offline only warns. Unset: no check. For example:
+# resume_source: {repo: you/resume, path: final/resume.pdf, branch: main}
+resume_source: null
 
 # Repairs (GLOSSARY: Repair): after each run or rehearsal, Claude fixes
 # Apply's own code for what went wrong, in a worktree of its own, and the fix

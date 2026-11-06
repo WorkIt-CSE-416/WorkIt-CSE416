@@ -351,6 +351,17 @@ WorkIt one time per run or rehearsal, through `WorkIt.applications`.
 `tests/fake_tracker.py`. `tests/test_rehearse.py -k "already_applied or
 could_not_run or force_rehearses"` rehearses in Chromium.
 
+## The resume check (KAN-663)
+
+`src/apply/resume_check.py` compares `files.resume_pdf` with policies.yaml's
+`resume_source` (`repo`, `path`, `branch`, default `main`) by git blob sha.
+The default is unset, and then nothing runs and doctor prints no line. A
+different file stops `apply rehearse`, `apply run` and `approve-pass` at
+their start, with one line that names both shas. In doctor, it is a fail. If
+`gh` can't answer, it is a warning and the run goes on. The repo's sha is
+kept for 10 minutes in `resume-source.json` in the data folder. A link sent
+with `--into` joins a run that was checked at its start.
+
 ## The tailored resume is the Sent resume (KAN-547)
 
 A student can tailor a resume to a job posting on WorkIt (Tailor,
@@ -814,12 +825,12 @@ challenge there, as data, not in a Filler.
   blocked as "a form submission".
 - A captcha's challenge in a frame that shows a Bot block (next section)
   is no captcha: `captcha.shows` is False there.
-- Apply never solves a captcha or gets around a block in code.
+- Apply never evades bot detection and never touches a captcha. It hands
+  captchas and blocks to the student.
 
 **Bot blocks go to the student's own Chrome (KAN-590).** A Bot block
 (`GLOSSARY.md`) is a page that refuses the Worker's Chrome, with nothing
-to solve. Simplify and Jobright work on such forms only because they run in
-the user's own browser, and no tool gets past DataDome.
+to solve. The student finishes the form in their everyday Chrome.
 
 - `captcha.BLOCKS` holds each block's words, as data: DataDome's "We
   detected unusual activity from your device or network" (in its
@@ -843,8 +854,7 @@ the user's own browser, and no tool gets past DataDome.
   `Adapters.everyday` adapter; tests pass a list's `append`) and pushes
   "Finish <Company> in your Chrome: the extension fills it" (ntfy, only
   with `phone_push` on). Never open it over DevTools (CDP), and never in a
-  profile under `APPLY_PROFILES`: the job system must see the student's
-  own browser.
+  profile under `APPLY_PROFILES`: the student fills this form themselves.
 - Rehearsal: Apply opens nothing by itself. The Needs you item (kind
   `blocked`) has Open in my Chrome (`POST /everyday`, with the window's
   token), and only that press opens it. A live run's block, read back from
@@ -885,10 +895,8 @@ Claude stops at one (`SAYS_CAPTCHA`).
 - An invisible captcha can also pass the browser a token that the job
   system then turns down, with no challenge to do: Lever's "There was an
   error verifying your application" (Simbe Robotics, 2026-11-03).
-  hCaptcha's script probes for the DevTools connection that Playwright
-  keeps on every Worker page, so `NOT_WEBDRIVER` does not hide it, and
-  Apply does not try to. It is a Bot block (above). A second Submit from
-  the Worker's Chrome gets the same notice.
+  Apply does not try to change that answer. It is a Bot block (above). A
+  second Submit from the Worker's Chrome gets the same notice.
 - A rehearsal keeps each captcha wait in its history ("Paused: do the
   captcha", "Resumed: the captcha is done"), on the tile and in the Record,
   and a `captcha` event in the Trace. A wait that timed out leaves only
@@ -941,7 +949,7 @@ On a plain Worker's page (a PortPage, `apply-agent/docs/plain-workers/PROTOCOL.m
   port or a pipe. Then Google's sign-in refuses Sign in with Google ("This
   browser or app may not be secure", KLA, 2026-11-03). So each Worker's
   Chrome starts with `--disable-blink-features=AutomationControlled`
-  (`browsers.NOT_WEBDRIVER`). Do not remove it. The keychain flags already
+  (`browsers.NOT_WEBDRIVER`). The keychain flags already
   match the Chrome that Lisul signs the profile in with.
 - On Workday, Apply signs in or makes the account with email and password,
   even where the tenant offers Sign in with Google: Google asked for a
@@ -1351,9 +1359,9 @@ Each fake opens a new tab. `FakeWorkdayServer(plain=True)`, the default when
 - `cdp` (the default): CDP Workers, as before.
 - `plain`: every form on a plain Worker (`PlainSite`). `apply rehearse` and `apply run` use it.
 - `protected`: plain only for `plain_worker_hosts` (jobs.lever.co, smartrecruiters.com,
-  apply.workable.com, and their subdomains) and each host a bot block was seen on. `captcha.blocked`
-  adds that host to `APPLY_HOME/plain-hosts.json`, so the posting's next form goes plain. The block
-  itself is still handed off, as before. The other forms use CDP Workers (`RoutedSite`).
+  apply.workable.com, and their subdomains) and the hosts in `APPLY_HOME/plain-hosts.json`, which
+  `captcha.blocked` writes. A block itself is always handed off to the student. The other forms use
+  CDP Workers (`RoutedSite`).
 
 What changes on a plain Worker:
 
@@ -1410,6 +1418,37 @@ uv run apply rehearse --into <application id> <link>  # the Worker that fills th
   fix needs no Chrome restart.
 - Tests: `tests/test_into.py` (in CI). The live check is in the PR: one rehearsal, a second
   posting sent in, one Chrome PID, the job site's session cookie on the second form's requests.
+
+## Fill again from outside the page: `POST /fill-again` and `apply fill-again` (KAN-672)
+
+Agents and Lisul can press Fill again without a click in the Worker's page:
+
+```
+uv run apply fill-again 54321            # the window's port, when it holds one form
+uv run apply fill-again <application id>  # the form on that tile
+```
+
+- `POST /fill-again` takes `X-Apply-Token` and `{"id": "tile-0"}`. `Dashboard.fill_again` accepts it only
+  while the tile's `askable` is on: a rehearsal's held or paused page, before Lisul presses Submit. Else it
+  is a 409 or a 404 with the why.
+- `_Kept.hold` takes it at its next turn (`Board.fill_again_asked`) and returns AGAIN, as the page's button
+  does. The form fills anew under the same guards. It never submits.
+- A port with several held forms is refused, and the error lists their Application IDs. `into.fill_again`
+  never guesses. The command then waits for the new fill to stop and prints how it stopped.
+- Tests: `tests/test_into.py` (in CI), `tests/test_rehearse.py -k fill_again` (Chromium).
+## `apply preflight`: the sign-ins and the plan for a batch (KAN-668)
+
+`uv run apply preflight <links...> [--workers N]` (`src/apply/preflight.py`) says what a batch will
+need before any form opens. **It opens no page and reads no job site.** The job system comes from the
+link and the engine's `jobOf` (Node, with no fetch); `test_preflight.py` fails on any socket.
+
+- A site is what one sign-in covers: a Workday tenant, a wall's domain (`walls.site`), or the host.
+- Each site says Sign-in (`preflight.NEEDS`: yes, maybe, no, can't tell), Keychain (`Keychain.sites`:
+  attributes only, never a password) and Profile (`WorkerBrowsers.signed_in`, with Worker profiles on disk).
+- "Sign-ins to do first" lists only what Lisul must do. A site with a Keychain password, or an account
+  Apply can make with Gmail, goes under "Apply does these itself".
+- The plan puts sites that may need Lisul first, while he is there. Its pacing is turns, one site to a
+  Worker, and later links `--into` the same Worker. It has no timed waits: a delay only imitates a person.
 
 ## The worker extension's copy and vendor sets (KAN-645)
 
@@ -1484,6 +1523,13 @@ into it and the window shows "Sample data".
   CI never runs the Filler tests (`test_*_filler.py`, `test_claude_fill.py`
   and the other files that open Chromium). Run the ones that your change
   touches on your Mac, with `-k`.
+- **No test reaches past loopback** (`tests/network_block.py`, KAN-662). A
+  socket or name lookup to another host raises `NetworkBlocked`, Chrome
+  started by a test resolves other hosts to nothing, and Playwright's own
+  requests are refused. The test then fails, even if it swallowed the error.
+  A test that goes live on purpose names its hosts:
+  `@pytest.mark.live_network("example.com")`. A program that a test starts
+  other than Chrome (`curl`, `gh`) is not covered, so fake those.
 - **Prove a fix on the real form.** Rehearse the job posting that showed the
   bug (`uv run apply rehearse <url>`) and read its record. A rehearsal never
   submits. A unit test that passes is not the check that matters; the live

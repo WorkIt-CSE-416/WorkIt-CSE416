@@ -312,7 +312,8 @@ def rehearse(
 
         def holds() -> dict:
             """What holds Submit on the held page (Rehearsed.holding), with its note, for hold()."""
-            return {"held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
+            return {"fill_again": lambda: adapters.board.fill_again_asked(n),
+                    "held": lambda: done.holding(), "dismiss": lambda: done.dismiss_holds(),
                     "note": lambda: (done.warning(), done.wrong())}
 
         def paused(stopped: Rehearsed, blocked: Callable[[object], str]) -> bool:
@@ -1074,7 +1075,7 @@ class _Kept:
              challenged: Callable[[], None] = lambda: None, refused: Callable[[str], None] = lambda why: None,
              redo: "_Redo | None" = None,
              tend: Callable[[object], None] = lambda page: None, ask: "_Ask | None" = None,
-             held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
+             fill_again: Callable[[], bool] = lambda: False, held: Callable[[], str] = lambda: "", dismiss: Callable[[], None] = lambda: None,
              note: "Callable[[], tuple[str, bool]] | None" = None) -> str:
         """Each answer Lisul gives in the window meanwhile, of `answers()`,
         `fill(page, question, answer)` puts on the page. Keep the page open where it stopped until `release` is set or its
@@ -1085,7 +1086,8 @@ class _Kept:
         or another page has opened or the confirmation is gone: then it stays
         his to close. Its note shows `warning`, red when an answer is `wrong`. When a
         press of his brings a step asking for an emailed code, `code` types it
-        in and presses nothing. AGAIN when he presses Fill again: fill the form anew.
+        in and presses nothing. AGAIN when he presses Fill again, or `fill_again()` says it was asked
+        from outside the page (`POST /fill-again`) before his Submit: fill the form anew.
         A paused rehearsal passes `resume(page)`, whether Lisul pressed Resume and
         it can go on: then RESUME, with the page still his until rearm().
         A captcha that shows after a press of his calls `challenged()`, once:
@@ -1149,7 +1151,7 @@ class _Kept:
                     blocked, self._dismissed = False, True
                     applied_dismissed(self._page)
                     hand_over()
-                if again:
+                if again or (fill_again() and not pressed):
                     return AGAIN
                 if resume and not pressed and resume(self._page):
                     return RESUME
