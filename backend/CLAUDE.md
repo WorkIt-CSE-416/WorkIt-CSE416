@@ -782,7 +782,15 @@ Find files with a directory listing; these are the rules for where code goes.
   upload owns (`bank_entries.resume_id`, `bank_skills.resume_id`), then
   writes the whole reading as the upload's own, with no `find_duplicate`
   across resumes: the same job on two uploads is two rows, and Generate,
-  Tailor's ranking, Scout and the recommender read both (accepted). A
+  Tailor's ranking, Scout and the recommender read both (accepted).
+  **Generate shows one copy of each** (`built_resumes.base_choices`, pure,
+  tested without a database): a second entry by `copy_key` and a second
+  skill by name (`bank.skill_key`, ignoring case and the spaces around
+  it, KAN-504) get a hidden choice row. With both skills shown the page
+  printed "Python" twice, Fit cut both, and Cut From Resume listed it
+  twice. Resumes generated before it still show both copies; the editor's
+  Experiences picker takes both off with one untick and puts one back
+  (`frontend/CLAUDE.md`). A
   re-read replaces, so the student's edits to that upload's entries and
   their places on built resumes go, with no warning. Deleting an upload
   deletes its rows (cascade). Upload flushes the `Resume` row first (the

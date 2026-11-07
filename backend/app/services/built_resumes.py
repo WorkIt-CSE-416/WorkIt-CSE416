@@ -57,7 +57,7 @@ from app.schemas.built_resume import (
 )
 from app.services import fit_page, postings, tailor
 from app.services import keywords as kw
-from app.services.bank import Bank, NotFound, copy_key, get_entry, load_bank
+from app.services.bank import Bank, NotFound, copy_key, get_entry, load_bank, skill_key
 from app.services.fit_page import Cut
 from app.services.postings import LISTED
 from app.services.resume_render import (
@@ -116,23 +116,37 @@ class DuplicateResume(Exception):
         self.resume = resume
 
 
-async def generate(
-    session: AsyncSession, applicant_id: uuid.UUID, name: str | None = None, *, refuse_duplicate: bool = False
-) -> Built_Resume:
-    """A base resume with every bank entry, bullet and skill, in the bank's
-    order (the fixed section order, newest first), except a copy of an entry
-    already on it (`copy_key`), which waits hidden in "Not on This Resume":
-    two copies of one job sent a resume to two pages. With no name it is
-    "Resume #N" (`next_name`). With `refuse_duplicate`, raises
-    DuplicateResume before writing anything when the student already has a
-    resume that prints the same."""
-    bank = await load_bank(session, applicant_id)
+def base_choices(bank: Bank) -> Choices:
+    """What Generate writes, pure: every bank entry, bullet and skill, shown,
+    in the bank's order (the fixed section order, newest first), except a
+    copy, which waits hidden with a choice row. A copy of an entry already
+    on it (`copy_key`): two copies of one job sent a resume to two pages. A
+    skill whose name is already on it (`skill_key`, KAN-504): two uploads
+    each held "Python", the resume printed it twice, and Fit to One Page then
+    cut both, so Cut From Resume listed it twice."""
     choices = all_chosen(bank)
     seen: set[tuple] = set()
     for entry in bank.entries:
         if copy_key(entry.row) in seen:
             choices.entries[entry.row.id] = dataclasses.replace(choices.entries[entry.row.id], shown=False)
         seen.add(copy_key(entry.row))
+    names: set[str] = set()
+    for skill in bank.skills:
+        if skill_key(skill) in names:
+            choices.skills[skill.id] = dataclasses.replace(choices.skills[skill.id], shown=False)
+        names.add(skill_key(skill))
+    return choices
+
+
+async def generate(
+    session: AsyncSession, applicant_id: uuid.UUID, name: str | None = None, *, refuse_duplicate: bool = False
+) -> Built_Resume:
+    """A base resume of `base_choices`: the whole bank, each copy hidden.
+    With no name it is "Resume #N" (`next_name`). With `refuse_duplicate`,
+    raises DuplicateResume before writing anything when the student already
+    has a resume that prints the same."""
+    bank = await load_bank(session, applicant_id)
+    choices = base_choices(bank)
     if refuse_duplicate and (same := await same_resume(session, applicant_id, bank, build_view(bank, choices))):
         raise DuplicateResume(same)
 

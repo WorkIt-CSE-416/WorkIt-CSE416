@@ -396,7 +396,11 @@ two Projects, one Leadership):
 - `Cut.kind` is `bullet`, `entry` or `skill`; the response's `undo` holds
   skills too, and the editor's Cut From Resume lists them in a Skills
   group beside the entries and bullets, so everything Fit cut can be put
-  back there.
+  back there. Fit cuts skills by id, so on a resume that printed two
+  copies of one name it can cut both; the list shows the name once and
+  puts back one copy (KAN-504, `frontend/docs/screens.md`, Cut From
+  Resume). Generate shows one copy of a name, so a new resume never
+  prints one twice.
 - Tests: `tests/test_fit_page.py` (the plan, the check, and real renders:
   one page in at most three renders, at most one cut too many) and
   `tests/test_resume_editor.py`.

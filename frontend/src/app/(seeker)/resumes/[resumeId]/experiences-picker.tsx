@@ -450,7 +450,7 @@ export function CutPicker({
 }
 
 /** The skills Fit cut, a card for each group as the resume prints them,
- *  each skill with its own tick. */
+ *  each name once with its own tick (`cutSkills`). */
 function CutSkills({
   skills,
   onApply,
@@ -469,17 +469,15 @@ function CutSkills({
         <li key={group} className="ring-warning/25 bg-panel rounded-xl px-3 py-2.5 ring-1">
           {group && <p className="text-note text-ink-meta mb-1.5 break-words">{group}</p>}
           <ul className="text-body text-ink-muted flex flex-col gap-1">
-            {rows.map(({ skill, on }) => (
-              <li key={skill.id} className="flex items-start gap-2 break-words">
+            {rows.map((row) => (
+              <li key={row.skill.id} className="flex items-start gap-2 break-words">
                 <Checkbox
-                  checked={on}
-                  onCheckedChange={(next) =>
-                    onApply({ skills: [{ skill_id: skill.id, shown: next }] })
-                  }
-                  aria-label={`${skill.name} on this resume`}
+                  checked={row.on}
+                  onCheckedChange={(next) => onApply(pickSkill(row, next))}
+                  aria-label={`${row.skill.name} on this resume`}
                   className={CUT_PICK}
                 />
-                <span className="min-w-0 flex-1">{skill.name}</span>
+                <span className="min-w-0 flex-1">{row.skill.name}</span>
               </li>
             ))}
           </ul>

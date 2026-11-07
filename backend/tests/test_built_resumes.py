@@ -255,6 +255,42 @@ async def test_generate_leaves_a_copy_of_an_entry_off(student):
     assert len(hidden) == 1
 
 
+def test_generate_shows_each_skill_name_once():
+    # KAN-504: two copies of a name (case and spaces aside) are one skill; the
+    # first in the bank's order shows and the rest wait hidden, with rows.
+    from types import SimpleNamespace
+
+    from app.services.built_resumes import base_choices
+
+    names = ("Go", "Python", " python", "PYTHON ", "Rust")
+    skills = [SimpleNamespace(id=uuid.uuid4(), name=n, group="Languages") for n in names]
+    choices = base_choices(SimpleNamespace(entries=[], skills=skills))
+    assert [choices.skills[s.id].shown for s in skills] == [True, True, False, False, True]
+
+
+async def test_generate_shows_a_skill_two_uploads_hold_once(student, monkeypatch):
+    # KAN-504: each upload owns its skills (ADR 0005), so two uploads each
+    # held Python. Generate showed both, the resume printed it twice, and
+    # Fit to One Page then cut both, so Cut From Resume listed it twice.
+    monkeypatch.setattr("app.routers.resumes.get_supabase", lambda: _FakeSupabase())
+    monkeypatch.setattr("app.routers.resumes._extract", _no_text)
+    client, me = student
+    uploads = []
+    for _ in range(2):
+        res = await _upload(client, me)
+        assert res.status_code == 200, res.text
+        uploads.append(res.json()["id"])
+    for upload, name in zip(uploads, ("Python", "PYTHON")):
+        res = await client.post(f"{me}/bank/skills?resume_id={upload}", json={"name": name, "group": "Languages"})
+        assert res.status_code == 201, res.text
+    resume_id = await _generate(client, me)
+
+    lines = _docx_lines((await client.get(f"{me}/built-resumes/{resume_id}/docx")).content)
+    assert [line.lower() for line in lines if line.startswith("Languages")] == ["languages: python"]
+    choices = (await client.get(f"{me}/built-resumes/{resume_id}/choices")).json()
+    assert sorted(s["shown"] for s in choices["skills"]) == [False, True]
+
+
 async def test_generate_refuses_a_resume_the_student_already_has(student):
     """KAN-267: a second Generate with nothing changed made a copy."""
     client, me = student

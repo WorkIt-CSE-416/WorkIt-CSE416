@@ -3269,7 +3269,12 @@ student who opened a resume from Experiences landed on another view.
   and comes back as the copy Fit cut. An entry Fit only trimmed is its name
   as a label and a tick on each cut bullet or coursework line, with none of
   the entry's other details: it is still on the page, and drawn whole it
-  read as an entry that was cut. A tick goes through the same save as any pick, so Undo takes it
+  read as an entry that was cut. **A skill shows its name once** (KAN-504,
+  `skillCopies`, as the picker shows it): two uploads can each hold
+  "Python", a resume that showed both printed it twice, and Fit cut both,
+  which listed it twice. A tick puts back the first copy Fit cut, and only
+  it, so the page prints the name once; an untick takes off every copy
+  that prints. A tick goes through the same save as any pick, so Undo takes it
   back. A row stays once it is back, ticked, so a wrong tick can be undone
   here too. The list is every fit in the tab, read from each fit's `undo`
   body (`addCuts`), kept in sessionStorage per resume (`fit-cuts.ts`): a

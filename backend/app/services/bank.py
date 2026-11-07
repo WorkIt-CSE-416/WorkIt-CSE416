@@ -113,6 +113,14 @@ def copy_key(entry: Bank_Entry) -> tuple:
     )
 
 
+def skill_key(skill: Bank_Skill) -> str:
+    """What makes two skills copies of one: the name, ignoring case and the
+    spaces around it, as the editor's lists read it (KAN-504). Each upload
+    owns its own skills (ADR 0005), so two uploads can each hold "Python";
+    a resume shows the name once."""
+    return skill.name.strip().lower()
+
+
 def copy_group(entry: Bank_Entry) -> str:
     """`copy_key` as one string, for the API: entries that are copies of one
     share it. The browser groups by it and holds no copy of the rule."""

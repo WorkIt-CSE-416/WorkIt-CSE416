@@ -2229,7 +2229,16 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   keeps it, and puts each item back as an ordinary pick. Unlike Undo's
   steps it may outlive the page: it is read against the resume's choices
   each time, so an item already back only shows ticked
-  (`docs/screens.md`, Cut From Resume). It is on Tailor's page too, in the
+  (`docs/screens.md`, Cut From Resume). **A skill name shows once in both
+  of the editor's lists and on the Experiences page** (KAN-504): every one
+  groups copies through `skillCopies` (`experiences/holdings.ts`, the name
+  ignoring case and the spaces around it, which the API's `bank.skill_key`
+  matches), never a grouping of its own. A tick shows one copy and an
+  untick hides every copy that prints (`pickSkill`), so a name never
+  prints twice through them; Cut From Resume's tick shows the first copy
+  Fit cut. Two uploads each holding "Python" (ADR 0005) put both copies on
+  a generated resume until then, so the page printed it twice, Fit cut
+  both and Cut From Resume listed it twice. It is on Tailor's page too, in the
   column beside the page (`Side`), since Fit is. **A revert never waits for a
   compile** (KAN-524): `apply` drops a change's card and marks at the click,
   draws a reworded line's old words over the page (`wordsBack`) and puts the

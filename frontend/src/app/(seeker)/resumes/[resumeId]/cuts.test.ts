@@ -12,7 +12,9 @@ import {
   cutSkills,
   isBack,
   mergeChoices,
+  pickSkill,
   pickerEntries,
+  pickerSkills,
   restoreCutEntry,
 } from "./model.ts";
 
@@ -96,6 +98,60 @@ test("each skill Fit cut is listed, and Cut From Resume stays until it is back",
     cutSkills(bank, all, cuts).map((s) => [s.skill.id, s.on]),
     [["go", true]],
   );
+});
+
+/** Two uploads each hold Python (ADR 0005), in two cases. The resume showed
+ *  both copies, printed "Python, Python", and Fit cut both (KAN-504). */
+const twoCopies = {
+  ...bank,
+  skills: [
+    { id: "py-a", name: "Python", group: "Languages", resume_ids: ["a"] },
+    { id: "go", name: "Go", group: "Languages", resume_ids: [] },
+    { id: "py-b", name: " python ", group: "Languages", resume_ids: ["b"] },
+  ],
+} as unknown as Bank;
+const bothCut: Choices = {
+  ...choices,
+  skills: ["py-a", "go", "py-b"].map((skill_id, position) => ({
+    skill_id,
+    shown: skill_id === "go",
+    position,
+  })),
+};
+const pythonCut = addCuts(NO_CUTS, {
+  skills: [
+    { skill_id: "py-b", shown: true },
+    { skill_id: "py-a", shown: true },
+  ],
+});
+
+test("a skill Fit cut in two copies is one row, and comes back as one copy", () => {
+  const [row, ...rest] = cutSkills(twoCopies, bothCut, pythonCut);
+  assert.equal(rest.length, 0);
+  assert.equal(row.skill.id, "py-a");
+  assert.equal(row.on, false);
+  // A tick shows one copy, so the page prints the name once
+  assert.deepEqual(pickSkill(row, true), { skills: [{ skill_id: "py-a", shown: true }] });
+  assert.equal(cutLeft(twoCopies, bothCut, pythonCut), true);
+
+  // An untick takes off every copy that prints, or one would stay
+  const bothBack: Choices = {
+    ...bothCut,
+    skills: bothCut.skills.map((s) => ({ ...s, shown: true })),
+  };
+  const [back] = cutSkills(twoCopies, bothBack, pythonCut);
+  assert.equal(back.on, true);
+  assert.deepEqual(pickSkill(back, false).skills, [
+    { skill_id: "py-a", shown: false },
+    { skill_id: "py-b", shown: false },
+  ]);
+  assert.equal(cutLeft(twoCopies, bothBack, pythonCut), false);
+});
+
+test("the Experiences picker and Cut From Resume list a name once alike", () => {
+  const names = (rows: { skill: { name: string } }[]) => rows.map((r) => r.skill.name.trim());
+  assert.deepEqual(names(pickerSkills(twoCopies, bothCut)), ["Python", "Go"]);
+  assert.deepEqual(names(cutSkills(twoCopies, bothCut, pythonCut)), ["Python"]);
 });
 
 test("a second fit adds to the first, each id once", () => {

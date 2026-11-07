@@ -2,7 +2,7 @@ import type { Bank, BankEntry, Bullet, Skill } from "@/lib/bank-actions";
 import type { ChoicesUpdate, Choices, RenderBox } from "@/lib/built-resume-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 
-import { ALL, rowsOf, type BankRow } from "../../experiences/holdings.ts";
+import { ALL, rowsOf, skillCopies, type BankRow } from "../../experiences/holdings.ts";
 import { unmarked } from "./text-marks.ts";
 
 /**
@@ -354,16 +354,11 @@ export function pickerEntries(bank: Bank, choices: Choices): PickedEntry[] {
   });
 }
 
-/** The skills, a name once: uploads can each hold one, and the page would
- *  print it twice. */
+/** The skills, a name once (`skillCopies`): uploads can each hold one, and
+ *  the page would print it twice. A tick shows one copy, the row's `skill`. */
 export function pickerSkills(bank: Bank, choices: Choices): PickedSkill[] {
   const skill = new Map(choices.skills.map((c) => [c.skill_id, c]));
-  const names = new Map<string, Skill[]>();
-  for (const s of bank.skills) {
-    const name = s.name.trim().toLowerCase();
-    names.set(name, [...(names.get(name) ?? []), s]);
-  }
-  return [...names.values()].map((held) => {
+  return skillCopies(bank.skills).map((held) => {
     const shown = held.filter((s) => skill.get(s.id)?.shown);
     const first = shown[0] ?? held[0];
     return {
@@ -493,17 +488,33 @@ export function restoreCutEntry(row: CutEntry, changes: ChoicesUpdate): ChoicesU
   };
 }
 
-/** One skill Fit cut, and whether it is on the page again. It is the skill
- *  Fit cut, not the picker's row of its copies, so it comes back as itself. */
-export type CutSkill = { skill: Skill; on: boolean };
+/** One skill name Fit cut, a picker row (`pickSkill` ticks it): on while
+ *  any copy prints. Its `skill` is the first copy Fit cut, so a tick puts
+ *  back the copy the page printed, and only that one. */
+export type CutSkill = PickedSkill;
 
-/** Cut From Resume's skills, in the bank's order. Like an entry's row, one
- *  stays once it is back, ticked. */
+/**
+ * Cut From Resume's skills, a name once, in the bank's order (KAN-504). A
+ * resume that showed two copies of a name printed it twice, Fit cut both,
+ * and each was a row of its own. A tick puts one copy back, so the page
+ * prints the name once; an untick takes off every copy that prints, as the
+ * picker's does. Like an entry's row, one stays once it is back, ticked.
+ */
 export function cutSkills(bank: Bank, choices: Choices, cuts: FitCuts): CutSkill[] {
   const shown = new Map(choices.skills.map((c) => [c.skill_id, c.shown]));
-  return bank.skills
-    .filter((s) => cuts.skills.includes(s.id))
-    .map((skill) => ({ skill, on: shown.get(skill.id) === true }));
+  return skillCopies(bank.skills).flatMap((held) => {
+    const first = held.find((s) => cuts.skills.includes(s.id));
+    if (!first) return [];
+    const shownIds = held.filter((s) => shown.get(s.id) === true).map((s) => s.id);
+    return [
+      {
+        skill: first,
+        copies: held.filter((s) => s !== first),
+        on: shownIds.length > 0,
+        shownIds,
+      },
+    ];
+  });
 }
 
 /** True while anything Fit cut is still off the page: Cut From Resume's
