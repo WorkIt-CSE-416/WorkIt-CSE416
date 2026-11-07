@@ -303,12 +303,67 @@ of the router so the router stays the HTTP layer. Two extractors:
     names read 17 places glued ("scanning2,000+", a number against the word
     before or after it) and now reads them spaced; another pdfTeX resume
     gains spaces around its "|" separators; the Google Docs and Word resumes
-    read the same. Overleaf's pdfTeX is where the glue comes from: Tectonic
-    (XeTeX) and Chrome PDFs already kept every space.
-  - **Ceilings:** text inside a Form XObject is not walked, and a glued
-    token is split everywhere it appears on that page. A re-upload of a
-    resume this fixes has a new `text_hash`, so the duplicate check lets it
-    through once.
+    read the same. Overleaf's pdfTeX is where the glue comes from: Chrome
+    PDFs already kept every space, and Tectonic (XeTeX) kept every space
+    twice (next rule).
+  - **Ceilings:** a glued token is split everywhere it appears on that
+    page. A re-upload of a resume this fixes has a new `text_hash`, so the
+    duplicate check lets it through once.
+- **A gap is counted in the font's own word space** (`pdf_spaces.word_spaces`,
+  after KAN-303). A font that draws no space glyph, as no TeX font does,
+  gives pypdf no space width, and it guesses one. xdvipdfmx (Tectonic, which
+  renders WorkIt's own resumes, and Overleaf's XeLaTeX) writes `/DW 280` on
+  its fonts, so layout mode took a space as 0.14 em and every TeX word space
+  (0.33 em) read as two spaces, which the parser reads as a column gap: "Computer
+  Science" saved as "Computer", "Stony Brook, NY" as "Brook, NY" with "Stony"
+  on the title. Plain mode guesses 0.2 em and spaces any kern of half that,
+  even one that tightens: "T echnical Skills" was no heading. Now
+  `page_texts` measures each such font's word space on the page, the median
+  of the gaps of `SPACE_EM` (0.15 to 0.6 em) before its runs, and gives it
+  to layout mode (through the page's `_layout_mode_fonts`, the private API
+  the tests check) and, as one width for the page, to plain mode
+  (`space_width`). A word space reads as one space and a right-aligned date
+  or city stays two.
+  - **Each font its own.** Bold Latin Modern spaces words 0.38 em, and 0.51
+    after "St.": against the regular font's 0.33 that read as a column gap.
+    A font with no gaps of its own takes the page's median.
+  - **Only fonts with no space glyph** (pypdf's own test,
+    `_guessed_space`), and only on a page that leaves more such gaps than it
+    draws space characters. Google Docs and Word draw a space glyph after
+    each word: their uploads read byte for byte as before. The pdfTeX
+    uploads keep every word; four gaps (after a bullet, after a bold
+    "Name:") read one space instead of two.
+- **Text in a form is read once, where it shows** (`services/pdf_forms.py`).
+  A form (a Form XObject the page draws) shows only what falls in its box.
+  A Google Docs upload had been through an editor built on MuPDF, which
+  deleted a band across the page by drawing the whole page twice, each copy
+  boxed to the part it shows: plain mode read every form whole, so the
+  resume read twice and every entry imported twice; layout mode and the gap
+  walk never look inside a form, so they read nothing. `inline_forms` writes
+  each form into the page's own content stream and keeps a text-showing
+  operator only when its line starts inside the box of every form around it.
+  A page with no form is left as it is, unparsed.
+  - **A text object left with nothing to show loses its text and its moves,
+    and keeps its font and spacing**, which outlast its ET. Layout mode
+    resets its text position at an ET only after shown text, so a `BT ...
+    ET` left with moves alone shifted every line after it.
+- **Every Unicode space separator reads as a space** (`_tidy_lines`, PDF and
+  DOCX alike). A Google Docs upload kept a no-break space (U+00A0) inside its
+  name; ftfy keeps it, and the parser's patterns spell a space " ".
+- **What these change in `text_hash`:** it folds whitespace and applies NFKC,
+  so a space count or a no-break space never changes it. A resume whose words
+  change (read once instead of twice, a XeTeX word that read split, "Col
+  lege") gets a new hash, and the duplicate check lets its re-upload through
+  once.
+- **Still open: plain mode can win on text drawn out of order.** On the
+  twice-drawn upload, the editor had also redrawn three lines (the name and
+  two body lines) at the end of the content stream. Plain mode reads in
+  stream order, so a skills label stood alone on its line there, one heading
+  more than layout mode, which reads the label with its list. Plain mode
+  wins, and the name lands in the first job's bullet (before, as a
+  Projects entry). Comparing distinct section names would choose layout
+  mode: of the nine PDFs checked it changes only this one, but no two-column
+  resume was at hand to check it against.
 - **`extract_docx_text`** -- python-docx, iterating paragraphs and tables in
   document order. Restores bullet markers that Word stores as numbering
   properties. Deduplicates merged table cells.

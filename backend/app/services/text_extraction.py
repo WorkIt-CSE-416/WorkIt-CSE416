@@ -11,7 +11,8 @@ import statistics
 import zipfile
 from io import BytesIO
 
-from app.services.pdf_spaces import gapped_words, restore_spaces
+from app.services.pdf_forms import inline_forms
+from app.services.pdf_spaces import page_texts
 from app.utils.resume_parser import count_sections
 
 logger = logging.getLogger(__name__)
@@ -38,11 +39,11 @@ def extract_pdf_text(data: bytes) -> str | None:
     """
     from pypdf import PdfReader
     try:
-        pages = PdfReader(BytesIO(data)).pages
-        # the same gaps fix both modes' text (KAN-303, pdf_spaces.py)
-        gaps = [gapped_words(p) for p in pages]
-        layout = _join_pages(pages, "layout", gaps)
-        plain = _join_pages(pages, "plain", gaps)
+        # text in forms read once, where it shows (pdf_forms.py), and each
+        # mode's spaces as the page shows them (KAN-303, pdf_spaces.py)
+        texts = [page_texts(inline_forms(page)) for page in PdfReader(BytesIO(data)).pages]
+        layout = _tidy_lines("\n".join(text for text, _ in texts))
+        plain = _tidy_lines("\n".join(text for _, text in texts))
     except Exception:
         logger.warning("PDF text extraction failed", exc_info=True)
         return None
@@ -56,13 +57,15 @@ def _median_words_per_line(text: str) -> float:
     return statistics.median(counts) if counts else 0
 
 
-def _join_pages(pages, mode: str, gaps: list) -> str:
-    return _tidy_lines("\n".join(restore_spaces(p.extract_text(extraction_mode=mode) or "", glued)
-                                 for p, glued in zip(pages, gaps)))
+# Every Unicode space separator but the space itself. A Google Docs resume
+# kept a no-break space (U+00A0) in its name; ftfy keeps it, and the parser's
+# patterns, which spell a space " ", never match it.
+_SPACES = dict.fromkeys([0xA0, 0x1680, *range(0x2000, 0x200B), 0x202F, 0x205F, 0x3000], " ")
 
 
 def _tidy_lines(text: str) -> str:
     text = text.replace("\x00", "")  # Postgres text/jsonb rejects NUL bytes
+    text = text.translate(_SPACES)
     # PDF layout mode pads columns with runs of spaces, and Word separates
     # them with tabs. Turn each gap into two spaces rather than one, because
     # the parser uses that gap to tell a right-aligned location apart from
