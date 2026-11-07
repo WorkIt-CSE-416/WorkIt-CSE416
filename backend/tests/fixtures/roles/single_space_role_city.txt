@@ -1,0 +1,14 @@
+Experience
+Harborline Freight Jun 2025 – Aug 2025
+Software Engineering Intern Albany, NY
+• Built a route planner in Go that cut dispatch time by 15%
+Hilltop Systems Lab Jan 2025 – Present
+Undergraduate Researcher Hilltop, CA
+• Measured cache misses in 3 key-value stores
+Hilltop University Sep 2024 – Dec 2024
+Teaching Assistant Stony Point, NY
+• Graded weekly labs for 40 students
+Leadership
+Example Chess Society Sep 2024 – Present
+Treasurer Springfield, IL
+• Managed a $3,500 budget for tournament travel

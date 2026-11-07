@@ -110,17 +110,61 @@ is an **anchor**; non-date lines immediately above it are that entry's header
 ### Experience layout detection
 
 Resumes put company, title, dates, and location in different orders.
-`_parse_experience` detects layout per-entry using these signals:
+`_parse_experience` detects layout per-entry using these signals, in this
+order:
 
 | Signal | Layout |
 |--------|--------|
 | Date line is bare (only dates + location) | Title / Company / Dates above |
 | Pipe in the header line | `Title \| Company` or `Company \| Title` (ROLE_KEYWORDS decides) |
-| ROLE_KEYWORDS on the line after the date | Company+Date / Title+Location / bullets |
+| The line after the date is the role (`_role_line`) | Company+Date / Title+Location / bullets |
+| A dash on a date line that opens its entry (`_split_org_role`) | `Organization – Role` or `Role – Organization` |
 | None of the above | Company / Title+Date / bullets (default) |
 
 `ROLE_KEYWORDS` is the set of common job title words (Engineer, Manager, Intern,
-etc.) used to tell title from company when both are plain text.
+etc.) and club roles (Treasurer, Captain, Member, Chair, Mentor...) used to
+tell title from company when both are plain text.
+
+- **A role line needs no role word** (`_role_line`). Jake's Resume puts
+  "Organization  Dates" on one line and "Role  City, ST" under it. A role
+  with no role word ("Quartermaster") made the organization the title and
+  the role line the first bullet. So under a date line that opens its
+  entry, a line shaped like a role (at most 7 words, starting uppercase, no
+  sentence punctuation at its end) is the role when a location follows it
+  after a PDF gap, or bullets come right under it. Without the location, a
+  date line that holds a role word makes the line that role's subtitle:
+  "Data Analyst Intern  Jun 2023 – Aug 2023" over "Payments Team" stays a
+  second role at the company above.
+- **"Organization – Role" on one line splits at the dash**
+  (`_split_org_role`): an en or em dash, or a hyphen with a space each
+  side, so "Co-Founder" and "Part-Time" stay whole (the date range is gone
+  before the split). A Word resume's "Moonball League – Treasurer and
+  Co-Captain  Spring 2024 – Present" read as one title with no
+  organization. A role word on one side only decides which side is the
+  title; with none, or one on each side, the dash can be the
+  organization's own ("Riverbend Lab – Storage Group"), so the line stays
+  one name, and a dash inside parentheses splits nothing.
+- **Only a date line that opens its entry splits at a dash.** Under a
+  company line, the dash is the title's own ("Research Intern – Index
+  Project"). "Role – X" after an entry that was not one dash line is a
+  second role at the company above, X its subtitle; after a dash line, it
+  is "Role – Organization" like the line above.
+- **A role line under the date line wins over the date line's dash**:
+  "Hilltop University – Student Life Office  Dates" over "Peer Mentor
+  Hilltop, CA" keeps the dash in the organization.
+- **A season word the dates leave behind is dropped before the dash split**
+  (`_SEASON_LEFT_RE`). The date patterns read "2024 – Present" out of
+  "Spring 2024 – Present" and leave "Spring", so the title read "Treasurer
+  and Co-Captain Spring". Reading seasons is the date patterns' job; once
+  they do, nothing is left for this rule.
+- **A role word in an organization's name reads as a role** ("Volunteer
+  Fire Department"), above all where only role words decide: a pipe, the
+  Title / Company / Dates order, a second role. Add a word to
+  `ROLE_KEYWORDS` only when real resumes need it.
+
+Tests: `tests/test_parser_roles.py` over `tests/fixtures/roles/`, made-up
+text in the real layouts; it checks organization, title, location and
+bullet count, never dates.
 
 ### Location detection (`_extract_location`)
 
@@ -129,10 +173,21 @@ from `US_STATES`. Two passes: first looks for a multi-space gap (PDF extraction
 preserves these), then falls back to a 1-2 word city regex. "Remote" or "Hybrid" after a multi-space gap
 is the location too ("Engineer| Ruby, Rails  Remote").
 
+**On a role line, a role word that starts a two-word city is the role's**
+(`_role_and_location`, for the line under a date line only). A two-column
+Chrome PDF lost the gap before the location, so the fallback's two-word city
+took "Intern" from "Software Engineering Intern Albany, NY" (title "Software
+Engineering", location "Intern Albany, NY"), and all of "Treasurer Albany,
+NY", which then read as both the title and the location. A city after a
+PDF gap is left as read. `_extract_location` itself stays as it is: it also
+decides `_is_bare_date_line`, which splits entries.
+
 Known ceilings:
 - US-only (no international locations)
 - Max 2-word city names -- misses "Salt Lake City", "New York City"
 - No apostrophes in city names -- misses "O'Fallon"
+- No full state names -- "Hilltop University  Hilltop, California" keeps the
+  location in the organization (a Word upload, 2026-11-05)
 
 ### Bullet joining (`_bullets`)
 
@@ -239,6 +294,9 @@ as `None` (null end date).
 - Section headers must be standalone lines. Inline bold headers won't split.
 - Entry boundaries depend on dates. A dateless entry merges into the previous,
   except in Projects (above).
+- A Jake's Resume entry with no bullets loses its role: `_header_start`
+  reads its "Role  City, ST" line as the next entry's header, so the entry
+  above reads the organization as its title.
 - `_is_header_line` requires uppercase start -- lowercase company names (eBay,
   npm) are not recognized as headers when they're the 2nd+ entry.
 - Single-column assumption. Multi-column PDFs may interleave columns.

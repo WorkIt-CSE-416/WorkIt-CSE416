@@ -1,0 +1,21 @@
+Experience
+Riverbend Systems Lab – Storage Group  Hilltop, CA
+Research Intern – Index Project  Dec 2024 – May 2025
+•  Designed an index for 2 million log files in Rust
+•  Cut query time by 40% with a column store
+Hilltop University  Hilltop, CA
+Teaching Assistant – Data Structures  Jan 2025 – May 2025
+•  Graded 60 exams across two midterms and a final
+Lab Assistant – Algorithms  Sep 2024 – Dec 2024
+•  Ran weekly office hours for 25 students
+Campus Bookstore – Sales Associate (Part-Time)  Jun 2022 – Aug 2022
+•  Rang up 150 orders a day at the textbook counter
+Leadership
+Moonball League – Treasurer and Co-Captain  Spring 2024 – Present
+•  Kept the league's ledger and paid referees each week
+•  Signed up 12 new players at the fall club fair
+•  Booked gym time for 10 weekly practices
+Robotics Society — Webmaster  Sep 2023 – May 2024
+•  Rebuilt the society's site in plain HTML
+Garden Collective – Co-Founder  Mar 2022 – Present
+•  Started a seed library with 300 packets

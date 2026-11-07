@@ -104,12 +104,20 @@ URL_RE = re.compile(r'https?://\S+|github\.com/\S+', re.IGNORECASE)
 # ponytail: keyword list — add words as real resumes expose gaps
 ROLE_KEYWORDS = re.compile(
     r'\b(?:Engineer|Developer|Intern|Manager|Director|Analyst|Designer|Architect|'
-    r'Researcher|Fellow|Assistant|Associate|Lead|Senior|Junior|'
+    r'Researcher|Fellow|Assistant|Associate|Lead|Leader|Senior|Junior|'
     r'Coordinator|Specialist|Consultant|Administrator|Scientist|'
     r'Officer|President|Head|Chief|Technician|Scribe|Support|'
-    r'Advisor|Tutor|Representative|Operator|Strategist)\b',
+    r'Advisor|Tutor|Representative|Operator|Strategist|'
+    # club roles, which hold no job word ("Co-Founder" holds "Founder"). A
+    # word here in an organization's name ("Volunteer Fire Department") reads
+    # as a role too, so add one only when real resumes need it
+    r'Treasurer|Secretary|Captain|Member|(?:Co)?founder|Chair(?:person|man|woman)?|'
+    r'Mentor|Organi[sz]er|Ambassador|Editor|Instructor|Volunteer|Coach|Webmaster|Delegate)\b',
     re.IGNORECASE,
 )
+# a season the date patterns do not read ("Spring 2024 – Present") leaves its
+# word where the dates were; it is the date's, not the role's
+_SEASON_LEFT_RE = re.compile(r'[\s,|–—-]*\b(?:Spring|Summer|Fall|Autumn|Winter)$', re.IGNORECASE)
 
 # US state/territory codes for location detection (US only for now)
 US_STATES = {
@@ -354,6 +362,65 @@ def _split_title_company(text: str) -> tuple[str, str] | None:
     return parts[0], parts[1]
 
 
+def _split_org_role(text: str) -> tuple[str, str, bool] | None:
+    """'Organization – Role' or 'Role – Organization': (title, organization,
+    whether the role came first). The dash is an en or em dash, or a hyphen
+    with a space each side, so "Co-Founder" and "Part-Time" stay whole. A
+    role word on one side only decides; with none, or one on each side, the
+    dash can be the organization's own ("Riverbend Lab – Storage Group"), so
+    the line stays one name. A dash inside parentheses splits nothing."""
+    parts = [p.strip() for p in re.split(r'\s*[–—]\s*|\s+-\s+', text)]
+    if len(parts) != 2 or not all(parts) or any(p.count("(") != p.count(")") for p in parts):
+        return None
+    role_first, role_last = (bool(ROLE_KEYWORDS.search(p)) for p in parts)
+    if role_first == role_last:
+        return None
+    return (parts[0], parts[1], True) if role_first else (parts[1], parts[0], False)
+
+
+def _role_line(lines: list[str], date_idx: int, date_rest: str) -> bool:
+    """Whether the line under the date line is the entry's role (Company+Dates
+    / Role+Location). A role word says so. A line with none still is when
+    the date line opens the entry and the line is shaped like a role (short,
+    starting uppercase, no sentence punctuation at its end) with either a
+    location after a PDF gap ("Treasurer  Springfield, IL") or bullets right
+    under it. Without the location, a date line that holds a role word
+    itself (a second role, "Org – Role") makes the line that role's subtitle."""
+    line = lines[date_idx + 1].strip() if date_idx + 1 < len(lines) else ""
+    if not line or BULLET_RE.match(line):
+        return False
+    if ROLE_KEYWORDS.search(line):
+        return True
+    if date_idx or not line[0].isupper():
+        return False
+    location, role = _extract_location(line)
+    role = split_tools(role)[0]
+    if not role or len(role.split()) > 7 or role[-1] in ".!?:;,":
+        return False
+    if location and _after_gap(location, line):
+        return True
+    after = lines[date_idx + 2].strip() if date_idx + 2 < len(lines) else ""
+    return bool(BULLET_RE.match(after)) and not ROLE_KEYWORDS.search(date_rest)
+
+
+def _after_gap(location: str, line: str) -> bool:
+    """The location ends the line after a PDF gap: the right column."""
+    return bool(re.search(r'\s{2,}' + re.escape(location) + r'\s*$', line))
+
+
+def _role_and_location(line: str) -> tuple[str | None, str]:
+    """A role line's (location, role). With no PDF gap before the location,
+    its two-word city can take the role's last word ("Engineering Intern
+    Albany, NY", or all of "Treasurer Albany, NY", which then read as the
+    title and the location both): a role word there is the role's."""
+    location, role = _extract_location(line)
+    if location and not _after_gap(location, line):
+        first, _, city = location.partition(" ")
+        if city and ROLE_KEYWORDS.fullmatch(first):
+            return city, f"{role} {first}".strip()
+    return location, role
+
+
 def _is_bare_date_line(line: str) -> bool:
     """Only dates, plus maybe a location — the entry's title and company sit
     on the lines above it rather than beside the date."""
@@ -518,6 +585,8 @@ def _parse_experience(text: str) -> list[Experience]:
         return []
     entries = _split_entries(text)
     results: list[Experience] = []
+    # the entry above was one "Organization – Role" date line
+    after_dash_line = False
     for lines in entries:
         if not lines:
             continue
@@ -534,15 +603,22 @@ def _parse_experience(text: str) -> list[Experience]:
         date_line = lines[date_idx]
         start, end = _parse_date_range(date_line)
 
-        # Detect layout: if the line AFTER the date has a role keyword,
+        # Detect layout: if the line AFTER the date is the role (`_role_line`),
         # then date_line = company, next line = title + location.
         # Otherwise: line above = company, date_line = title.
         next_idx = date_idx + 1
         next_line = lines[next_idx].strip() if next_idx < len(lines) else ""
-        title_below = bool(next_line
-                           and not BULLET_RE.match(next_line)
-                           and ROLE_KEYWORDS.search(next_line))
         date_location, date_rest = _extract_location(_strip_dates(date_line))
+        title_below = _role_line(lines, date_idx, date_rest)
+        # "Organization – Role" only on a date line that opens its entry:
+        # under a company line the dash is the title's own ("Research Intern
+        # – Index Project"). "Role – X" under an earlier role is that
+        # company's second role with a subtitle, unless the entry above was
+        # a dash line too (the section writes every entry "Role – Org").
+        dash = _split_org_role(_SEASON_LEFT_RE.sub("", date_rest)) if date_idx == 0 else None
+        if dash and dash[2] and results and not after_dash_line:
+            dash = None
+        after_dash_line = False
 
         if not date_rest and date_idx > 0:
             above_location, above = _extract_location(lines[date_idx - 1].strip())
@@ -568,9 +644,15 @@ def _parse_experience(text: str) -> list[Experience]:
         elif title_below:
             # Layout: Company+Date / Title+Location / bullets
             company = BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", date_line)).strip().rstrip(",").rstrip("–—-").strip()
-            location, title = _extract_location(next_line)
+            location, title = _role_and_location(next_line)
             title = title.strip() or next_line.strip()
             bullet_start = next_idx + 1
+        elif dash:
+            # Layout: Organization – Role  Dates / bullets (or Role – Organization)
+            title, company, _ = dash
+            location = date_location
+            bullet_start = date_idx + 1
+            after_dash_line = True
         else:
             # Layout: Company / Title+Date / bullets  (or single-line)
             title = BARE_DATE_RE.sub("", DATE_RANGE_RE.sub("", date_line)).strip().rstrip(",").rstrip("–—-").strip()

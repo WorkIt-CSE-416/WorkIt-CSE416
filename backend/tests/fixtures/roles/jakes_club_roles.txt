@@ -1,0 +1,28 @@
+Experience
+Harborline Freight  Jun 2025 – Aug 2025
+Software Engineer Intern  Springfield, IL
+• Built a route planner in Go that cut dispatch time by 15%
+• Added PostgreSQL indexes that sped up the nightly report
+Data Analyst Intern  Jan 2025 – May 2025
+• Cleaned 40,000 shipment records with Python and pandas
+Hilltop Vision Lab  May 2024 – Aug 2024
+Research Intern; advised by Professor Ada Lin  Hilltop, CA
+• Trained a small detector on 3,000 labeled frames
+Leadership
+Example Chess Society  Sep 2024 – Present
+Treasurer  Springfield, IL
+• Managed a $3,500 budget for tournament travel and equipment
+• Filed reimbursements for 14 members each semester
+Hillside Rowing Club  Jan 2024 – Present
+Quartermaster  Lakeview, OR
+• Kept the boathouse inventory of 9 boats and 40 oars
+Hilltop University – Student Life Office  Sep 2023 – May 2024
+Peer Mentor  Hilltop, CA
+• Met weekly with 6 first-year students
+Maple Street Makers  Aug 2023 – May 2024
+Archivist
+• Scanned 200 photos from the club's first decade
+• Wrote a guide for new members on the photo index
+Lakeview Debate Union  Sep 2022 – May 2023
+Co-Founder and Social Chair  Lakeview, OR
+• Started a weekly practice round that grew to 30 regulars
