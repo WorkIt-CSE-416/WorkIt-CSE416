@@ -2517,9 +2517,16 @@ are in `docs/auth.md`.
   removed: Settings adds a middle name, and a mistyped password is reset
   through Forgot Password (`/login/reset-password`). A fact a later step needs
   (location, links, work authorization) is asked in onboarding, never here.
-- **A key the API's Pydantic schema doesn't declare is dropped silently**, not
-  rejected. A field added to a request body here does nothing until
-  `backend/app/schemas/` declares it too.
+- **A key the API's Pydantic schema doesn't declare is dropped silently,
+  unless the schema forbids extra keys** (`extra="forbid"`, as the entry
+  PATCH's `EntryUpdate` does; grep `backend/app/schemas/` for the rest):
+  there one stray key fails the whole request with a 422. So a request body
+  names the fields it sends, never spreads an object the API sent: the
+  Experiences editor copied a bank entry whole, and every edit, its new
+  bullets included, sent `resume_ids` and `copy_group` and saved nothing
+  (KAN-505, `fieldsOf` in `(seeker)/experiences/sections.ts`). A field added
+  to a request body here does nothing until `backend/app/schemas/` declares
+  it too.
 - **The service-role key never appears in this folder**: one `NEXT_PUBLIC_`
   prefix puts it in every browser. Env lives in `.env.local` (template
   `.env.example`); the anon key is meant to be public.
