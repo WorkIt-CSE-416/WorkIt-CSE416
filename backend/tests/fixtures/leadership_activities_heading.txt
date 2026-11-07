@@ -1,0 +1,28 @@
+Education
+Lakeview State University
+Bachelor of Science in Computer Science  Expected May 2027
+Technical Skills
+Languages: Python, TypeScript, SQL
+Frameworks: FastAPI, React
+Experience
+Northwind Data  June 2025 – August 2025
+Software Engineering Intern  Albany, NY
+
+•  Built a retry queue for 3 payment services, cutting failed transfers by 40%
+
+•  Wrote integration tests for the ledger API in Python
+Projects
+Course Planner Bot|LangChain, TypeScript, FastAPI  January 2026 – April 2026
+
+•  Built a chat assistant that answers degree-planning questions for 200+ students
+Leadership Activities
+Lakeview State University Residence Life  August 2024 – Present
+Resident Assistant  Albany, NY
+
+•  Led 8 hall events with over 300 attendees
+
+•  Mentored 35 first-year residents through their first semester
+Lakeview Robotics Club  September 2023 – May 2024
+Outreach Lead  Albany, NY
+
+•  Ran 6 workshops for local high school students

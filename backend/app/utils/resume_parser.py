@@ -56,8 +56,11 @@ _TERM = (
     r'Internships?|Employment(?:\s+History)?|Work\s+History|Professional\s+Background|Research|'
     # papers, which import keeps as projects
     r'(?:Research\s+)?Publications?|Papers|(?:Conference\s+)?Presentations|Patents|'
-    # clubs, activities and volunteering
-    r'Leadership|Extracurricular\s+Activities|Extracurriculars|'
+    # clubs, activities and volunteering; "Leadership Activities" has no "&"
+    # between its words, and was no heading until KAN-263
+    r'(?:(?:Campus|Student|Community)\s+)?Leadership'
+    r'(?:\s+(?:Activities|Roles?|Positions?|Involvement))?|'
+    r'Extracurricular\s+Activities|Extracurriculars|'
     r'(?:Campus|Community|Athletic)\s+Involvement|Involvement|Activities|'
     r'Volunteer(?:ing|\s+Work)?|Community\s+(?:Service|Engagement)|'
     r'(?:Professional\s+)?(?:Affiliations|Memberships)|(?:Student\s+)?Organizations|Athletics|'

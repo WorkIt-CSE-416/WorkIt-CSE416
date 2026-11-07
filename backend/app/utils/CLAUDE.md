@@ -42,6 +42,13 @@ Papers, Presentations and Patents are publications.
 - **A header is a whole line** that `SECTION_RE` matches in full: terms
   joined by "&" or "and", maybe ending in any one word ("Skills &
   Abilities"). A bullet line is never a header.
+- **Two words side by side, with no "&", are one term only when `_TERM`
+  lists them** (KAN-263): "Leadership Activities", "Leadership Roles" and
+  "Campus Leadership" are. "Leadership Activities" was not, so the resume
+  KAN-263 names put its Resident Assistant role inside its last project.
+  A new heading of that shape goes into `_TERM` with a line in `HEADINGS`;
+  `SECTION_RE` does not accept any two terms in a row, which would let
+  ordinary body lines ("Research Tools") read as headings.
 - **Formats come off first**: a colon ("Education:"), a rule or dash
   ("EXPERIENCE ____", "— Experience —"), a symbol or number in front ("■
   Experience", "01 Experience"), spaced letters ("E X P E R I E N C E") and

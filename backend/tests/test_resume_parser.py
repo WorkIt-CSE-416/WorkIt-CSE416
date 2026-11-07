@@ -86,6 +86,24 @@ EXPECTED = {
         "projects": ["WorkIt | Full Stack Recruiting Platform", "Stony Brook Academic Advising Bot"],
         "skill_count": 18,
     },
+    # KAN-263: "Leadership Activities", two heading words with no "&", was no
+    # heading, so its clubs joined the project above. Made-up text in the
+    # layout of the resume the ticket names: Organization + Dates, then
+    # Role + Location, then bullets.
+    "leadership_activities_heading.txt": {
+        "education": [
+            ("Lakeview State University", "Bachelor of Science", "Computer Science", None, "2027-05-01"),
+        ],
+        "experience": [
+            ("Northwind Data", "Software Engineering Intern", "Albany, NY", "2025-06-01", "2025-08-01", 2),
+        ],
+        "leadership": [
+            ("Lakeview State University Residence Life", "Resident Assistant", "Albany, NY", "2024-08-01", None, 2),
+            ("Lakeview Robotics Club", "Outreach Lead", "Albany, NY", "2023-09-01", "2024-05-01", 1),
+        ],
+        "projects": ["Course Planner Bot"],
+        "skill_count": 5,
+    },
     # Leadership & Activities in the Company+Dates / Title+Location layout;
     # Awards one per line as "Award – Issuer  Date", one with a year only
     "leadership_and_awards_single_column.txt": {
@@ -258,6 +276,14 @@ HEADINGS = [
     ("Student Organizations", "leadership"),
     ("Athletics", "leadership"),
     ("Leadership and Community Involvement", "leadership"),
+    # KAN-263: leadership words side by side, with no "&" or "and"
+    ("Leadership Activities", "leadership"),
+    ("LEADERSHIP ACTIVITIES", "leadership"),
+    ("Leadership Roles", "leadership"),
+    ("Leadership Positions", "leadership"),
+    ("Leadership & Involvement", "leadership"),
+    ("Campus Leadership", "leadership"),
+    ("Student Leadership", "leadership"),
     # Education
     ("Education and Training", "education"),
     ("Educational Background", "education"),
