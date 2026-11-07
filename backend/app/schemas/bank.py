@@ -13,6 +13,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from pydantic import (
+    AfterValidator,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -79,6 +80,9 @@ class EntryFields(BaseModel):
     link: LongText | None = None
     issuer: Text | None = None
     award_date: Month | None = None
+    # The section the student named (KAN-498), on a `custom` entry only. It
+    # is fixed once the entry exists, as `section` is.
+    custom_section_id: UUID | None = None
 
     @model_validator(mode="after")
     def _fits_together(self) -> "EntryFields":
@@ -86,6 +90,8 @@ class EntryFields(BaseModel):
         stray = [f for f in sorted(_ALL_SECTION_FIELDS - own) if getattr(self, f) not in (None, [])]
         if stray:
             raise ValueError(f"A {self.section.value} entry has no {', '.join(stray)}")
+        if self.custom_section_id is not None and self.section is not bank_section.custom:
+            raise ValueError(f"A {self.section.value} entry is in no section of yours")
 
         if self.end_kind is entry_end_kind.present and self.end_month is not None:
             raise ValueError("An entry that runs to Present has no end month")
@@ -105,6 +111,60 @@ class EntryCreate(EntryFields):
     """POST body: an entry, optionally with its bullets in order."""
 
     bullets: list[LongText] = Field(default_factory=list, max_length=30)
+
+    @model_validator(mode="after")
+    def _custom_has_section(self) -> "EntryCreate":
+        if self.section is bank_section.custom and self.custom_section_id is None:
+            raise ValueError("Pick the section this entry goes in")
+        return self
+
+
+# A custom section's layout (KAN-498): entries print as a project does
+# (title | organization, dates); lines print as plain lines, no heading.
+SectionLayout = Literal["entries", "lines"]
+# Most custom sections one owner holds: an upload, or the student's own
+MAX_CUSTOM_SECTIONS = 5
+# The fixed sections' printed names: a custom section never takes one, or
+# the page would print two headings of that name
+FIXED_SECTION_NAMES = frozenset({
+    "education", "experience", "projects", "leadership & activities", "leadership", "awards",
+    "certifications", "skills", "technical skills",
+})
+
+
+def _not_fixed(name: str) -> str:
+    if " ".join(name.casefold().split()) in FIXED_SECTION_NAMES:
+        raise ValueError(f"You already have a {name} section")
+    return name
+
+
+SectionName = Annotated[Name, AfterValidator(_not_fixed)]
+
+
+class CustomSectionCreate(BaseModel):
+    """POST body: a section the student names (KAN-498)."""
+
+    name: SectionName
+    layout: SectionLayout = "entries"
+
+
+class CustomSectionUpdate(BaseModel):
+    """PATCH body: a new name. The layout is fixed once made."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: SectionName
+
+
+class CustomSectionResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: UUID
+    name: str
+    layout: SectionLayout
+    resume_ids: list[UUID] = []
+    """The upload that owns it (an import's section, ADR 0005), then the
+    built resumes that show one of its entries, as an entry's."""
 
 
 class EntryUpdate(BaseModel):
@@ -221,6 +281,9 @@ class BankResponse(BaseModel):
     entries: list[EntryResponse]
     skills: list[SkillResponse]
     resumes: list[BankResume] = []
+    # The sections the student named (KAN-498), oldest first. A custom
+    # entry's `custom_section_id` is one of these.
+    sections: list[CustomSectionResponse] = []
 
 
 class DuplicateEntry(BaseModel):
@@ -246,6 +309,16 @@ class DraftEntry(EntryCreate):
 
     gpa: float | None = None
     gpa_scale: float | None = None
+    # A custom entry read from a heading the bank has no section for
+    # (KAN-498): the section's name, which the import makes as the upload's
+    # own, in place of an id no section has yet.
+    section_name: Name | None = None
+
+    @model_validator(mode="after")
+    def _custom_has_section(self) -> "DraftEntry":
+        if self.section is bank_section.custom and self.custom_section_id is None and self.section_name is None:
+            raise ValueError("Pick the section this entry goes in")
+        return self
 
 
 class ImportResult(BaseModel):

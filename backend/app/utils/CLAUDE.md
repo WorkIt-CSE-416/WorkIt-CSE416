@@ -53,9 +53,18 @@ Papers, Presentations and Patents are publications.
   projects ("Research Projects"), leadership ("Leadership Experience",
   "Volunteer Work"), awards, certifications, education ("Coursework" holds
   "work"), experience, skills.
-- **Sections import does not save are still headers** (Summary,
-  Qualifications, Interests, Hobbies, References, Additional Information,
-  Other), so their text joins nothing. Each keeps its own name.
+- **A heading the bank has no section for is kept** (KAN-498): Summary,
+  Qualifications, Interests, Hobbies, Additional Information, Other and the
+  learned "other" labels are headers, each under its own name, and
+  `parse_resume` returns their text as `ParsedResume.others` (the heading as
+  the resume first wrote it, in title case when it was all upper or all
+  lower case: `_display_heading`), which import saves as a Lines section of
+  that name (`../../../docs/custom_sections.md`). **References** is the one it
+  drops. The lines (`_plain_lines`): with bullet markers, as `_bullets`
+  reads them; without, a line continues the one above when it starts in
+  lower case, or the line above ends in a comma or filled the column (70
+  characters or more, not ending a sentence), so a wrapped summary is one
+  line and a list of interests stays several.
 - **A coursework header keeps its label** in Education's text, and the line
   after a label ending in ":" continues it, so the school's parser still
   finds "Relevant Coursework: ...".

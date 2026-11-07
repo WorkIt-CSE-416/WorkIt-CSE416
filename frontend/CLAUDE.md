@@ -1784,6 +1784,20 @@ PR until KAN-296 deletes it, and nothing is set or checked there (root
   Turning it on needs every write to call `revalidatePath` in its server
   action first, which Next's `revalidatePath.md` says clears every visited
   page from the client cache.
+- **An entry's section is `EntrySection`: a fixed `Section` or "custom"**
+  (KAN-498, `../docs/custom_sections.md`): a custom entry names its section
+  in `custom_section_id`, and the bank sends its `sections`. `EntryFields`,
+  `BankEntry` and `EntryDraft` take the section as a type parameter; intake
+  works on `<Section>`, the fixed ones, and the Experiences view hands it
+  only those (`isFixed`), since Scout asks about the fixed sections only.
+  The editor groups and orders custom entries with `model.ts`'s `groupOf`,
+  `groupsOf` and `printedOrder`, which repeat the backend's `custom_key`
+  and `printed_order`: change both together. Every `ResumeCopy` carries
+  `sections`, or its render prints no custom entry. **An entry's draft
+  holds its fields and bullets only** (`draftOf`): it copied `resume_ids`
+  and `copy_group` too, the edit's PATCH sent them, and the API, which
+  refuses any other key, answered 422 to every edit of a saved entry
+  (2026-11-05).
 - **Every resume write clears the router's copies, but the editor's saves
   never do** (KAN-443). A Back to the Resumes page showed the list from
   before an edit, rename or delete. Each write action in

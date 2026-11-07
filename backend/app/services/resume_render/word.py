@@ -14,7 +14,7 @@ from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
 from docx.shared import Inches, Pt
 
-from app.services.resume_render import SECTION_ORDER, HeaderIdentity
+from app.services.resume_render import SECTION_ORDER, HeaderIdentity, printed_order
 from app.services.resume_render.fields import (
     SECTION_LABELS,
     SKILLS_LABEL,
@@ -112,7 +112,7 @@ def render_docx(
         _paragraph(doc, space_after=4, align=WD_ALIGN_PARAGRAPH.CENTER).add_run(" | ".join(contact))
 
     by_name = {section.section: section for section in view.sections}
-    for name in order:
+    for name in printed_order(order, view.sections):
         if name == "skills" and view.skills:
             _section_heading(doc, SKILLS_LABEL)
             for label, skills in skill_lines(view.skills):
@@ -121,8 +121,17 @@ def render_docx(
                     p.add_run(f"{label}: ").bold = True
                 p.add_run(", ".join(s.name for s in skills))
         elif name in by_name:
-            _section_heading(doc, SECTION_LABELS[name])
-            for entry in by_name[name].entries:
+            section = by_name[name]
+            if section.layout == "lines":
+                # A Lines section (KAN-498): plain lines, no heading, no dot
+                lines = [b.text for entry in section.entries for b in entry.bullets]
+                if lines:
+                    _section_heading(doc, section.label or name)
+                for text in lines:
+                    _paragraph(doc).add_run(text)
+                continue
+            _section_heading(doc, section.label or SECTION_LABELS[name])
+            for entry in section.entries:
                 _entry(doc, entry)
 
     out = io.BytesIO()

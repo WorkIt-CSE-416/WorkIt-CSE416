@@ -2,11 +2,10 @@
 
 import { useEffect, useRef, useState, type MouseEvent } from "react";
 
-import type { Section } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
 import { SEEKER_BLEED, SEEKER_GUTTER } from "../gutter";
-import { SECTION_ICONS } from "./section-icons";
+import { SECTION_ICONS, type SectionMarkId } from "./section-icons";
 
 /** How long a click's glide may run before its link is parked, for a
  *  browser with no `scrollend`, which parks it as the glide ends. */
@@ -42,7 +41,9 @@ const GLIDE_MS = 1500;
 export function SectionNav({
   sections,
 }: {
-  sections: readonly { id: Section | "skills"; label: string; count: number }[];
+  /** `mark` is the icon, when `id` is not a fixed section's: a custom
+   *  section's id is its own (KAN-498). */
+  sections: readonly { id: string; label: string; count: number; mark?: SectionMarkId }[];
 }) {
   const navRef = useRef<HTMLElement>(null);
   const rowRef = useRef<HTMLUListElement>(null);
@@ -163,8 +164,8 @@ export function SectionNav({
         className="flex gap-1 overflow-x-auto pb-1 pointer-coarse:[scrollbar-width:none] pointer-coarse:pb-0"
         style={{ maskImage: fade(more) }}
       >
-        {sections.map(({ id, label, count }) => {
-          const Glyph = SECTION_ICONS[id];
+        {sections.map(({ id, label, count, mark }) => {
+          const Glyph = SECTION_ICONS[mark ?? (id as SectionMarkId)];
           const lit = id === current;
           return (
             <li key={id} className="shrink-0">

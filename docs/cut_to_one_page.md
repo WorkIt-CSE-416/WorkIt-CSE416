@@ -163,6 +163,12 @@ Certifications:
 
 **Leadership → Projects → Experience**
 
+The sections the student named (KAN-498, `../docs/custom_sections.md`)
+go before all of these, in both orders, the one printed lowest first
+(`fit_page._custom_first`): a Lines section's lines are bullets, so it
+goes down to one line, then whole. They count toward the schedules' share
+of entries cut.
+
 In each stage ("The stages"), a section gives way down to that stage's
 limit before the next section loses anything. Inside a section, the
 order is by rank or by position (next).

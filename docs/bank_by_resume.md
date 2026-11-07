@@ -37,6 +37,11 @@ never changes another's, and an import runs no duplicate check.
   intake, by Tailor's "Have you used X?", by Add under a built resume, or
   before this change. The Experiences view shows it under the built
   resumes that show it (below, "Unowned entries").
+- **A custom section is owned as an entry is** (KAN-498,
+  `custom_sections.md`): an import's sections belong to the upload and
+  are replaced with its entries; one added under a resume pick belongs to
+  that upload, or to the student. Its entries carry their own owner, which
+  may differ from the section's.
 - **Built resumes still point at entries** through their choice rows
   (`built_resume_entries`, `built_resume_skills`, KAN-207). A built resume
   holds what it shows, owns nothing and copies nothing (ADR 0001).

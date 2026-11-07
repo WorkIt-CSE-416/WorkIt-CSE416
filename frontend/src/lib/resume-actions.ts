@@ -140,7 +140,13 @@ export async function getResumeFileUrl(
 
 /** One entry of a parse preview: the entry fields, its bullets' text, and
  *  the ids of the other uploads' entries a confirm replaces (ADR 0006). */
-export type PreviewEntry = EntryFields & { bullets: string[]; replaces: string[] };
+/** `section_name`: a heading the bank has no section for (KAN-498), read as
+ *  a Lines section of that name. */
+export type PreviewEntry = EntryFields & {
+  bullets: string[];
+  replaces: string[];
+  section_name: string | null;
+};
 export type PreviewSkill = { name: string; group: string | null; replaces: string[] };
 /** POST .../resumes/preview (KAN-372): what the parser reads in a file,
  *  with nothing saved. `duplicate_of` names an upload with the same text. */

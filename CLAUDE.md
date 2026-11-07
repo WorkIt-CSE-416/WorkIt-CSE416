@@ -198,6 +198,12 @@ with the failure it prevents.
   the page fits; by the posting's rank on a
   resume with a job posting and by position on one without. Read it
   before changing Fit to One Page.
+- `docs/custom_sections.md` — custom sections, built (KAN-498): a section
+  the student names, Entries or Lines, five per owner, owned as entries are;
+  import keeps each heading the bank has no section for as a Lines section;
+  it prints last (a Summary first), Fit cuts it first and Tailor reads it as
+  any entry. Read it before changing the bank's sections, a resume's
+  section order or import's headings.
 - `docs/live_page.md` — the editor's live page (KAN-391), step 1 partly
   built: each edit renders from the editor's copy with no database read
   while its save writes beside it, and the page below a typed line

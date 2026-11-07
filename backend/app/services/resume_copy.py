@@ -45,6 +45,7 @@ def from_copy(copy: ResumeCopy):
     bank = SimpleNamespace(
         entries=entries,
         skills=[SimpleNamespace(id=s.id, name=s.name, group=s.group) for s in copy.skills],
+        sections=[SimpleNamespace(id=s.id, name=s.name, layout=s.layout) for s in copy.sections],
     )
     c = copy.choices
     choices = Choices(

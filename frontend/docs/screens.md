@@ -2219,6 +2219,26 @@ would still take the rows a search hides. **A group with nothing in it is one
 quiet line** under the page, each word adding to its group, and leaves the
 section nav: three "Nothing here yet" cards pushed Skills off the screen.
 
+**Sections the student names** (KAN-498, `../../docs/custom_sections.md`)
+follow the fixed cards, each with the one mark every custom section wears
+(`SECTION_ICONS.custom`) and a link in the section nav. **Add a Section**
+ends the quiet line under the cards; its card (`custom-sections.tsx`)
+takes a name, offers Summary, Volunteering, Languages, Interests and
+Publications (each setting the layout it usually takes), and asks how it
+prints: **Entries** (title, organization, dates and bullets, no location)
+or **Lines** (plain lines, a summary or the languages spoken). It saves into
+the picked resume, then opens the new section to fill. An Entries section
+lists rows as any section does; a Lines section shows its lines as plain
+text, and its + opens them in the entry editor with only the lines
+(`EntryEditor`'s `lines`: no title, place, dates or dots, "Add Line", no
+Delete Entry). A section's pencil holds Rename (its heading becomes a name
+field), Delete Section (it confirms; the entries go with it, off every
+resume) and, on Entries, Clear All. A section shows under the pick that
+owns it or shows one of its entries, and the student's own while it is
+empty; under All Experiences two of one name (two uploads' Summary) each add
+their owner's name. The API's error says when an owner has five or the name
+is taken.
+
 **The resume dialog's footer stays put** (`ChooseResume`): its middle scrolls,
 since the whole dialog scrolling put Cancel and Show past a short window.
 
@@ -3210,8 +3230,14 @@ student who opened a resume from Experiences landed on another view.
   takes all of them, so a resume already set that way prints as it did, shows no
   choice picked, and Reset Formatting clears it. A spacing is a segmented switch,
   not Jobright's slider: each change compiles the PDF, so a slider would queue a
-  compile for every step it crossed. Still to come: custom sections, education
-  order, skills layout and templates.
+  compile for every step it crossed. Still to come: education order, skills
+  layout and templates. **Custom sections** (KAN-498) are the bank's, made on
+  the Experiences view, not here: the Experiences picker and Cut From Resume
+  group their entries under each section's name (`groupsOf`), and the
+  Sections panel lists them where they print (`printedOrder`, the backend's
+  `printed_order`: a Summary first, the rest last until dragged; a drag
+  writes their `custom:<name>` keys into `section_order`, and one that no
+  longer prints leaves it).
 - **Add Bullet** (KAN-435, on the toolbar with a bullet or an entry's line
   open): an empty line under the open bullet, or at the foot of the open
   entry's, in place at once, its dot beside it and the page under it moved down

@@ -10,6 +10,7 @@ from app.models.dto import (
     Certification,
     Education,
     Experience,
+    OtherSection,
     ParsedResume,
     Project,
     Skill,
@@ -129,7 +130,8 @@ def parse_resume(raw_text: str) -> ParsedResume | None:
     individually with specific parsers
     """
     text = _clean_text(raw_text)
-    sections = _split_sections(text)
+    headings: dict[str, str] = {}
+    sections = _split_sections(text, headings)
     if not sections:
         return None
     return ParsedResume(
@@ -143,7 +145,56 @@ def parse_resume(raw_text: str) -> ParsedResume | None:
         # club roles read like jobs: organization, role, dates, bullets
         leadership=_parse_experience(sections.get("leadership", "")),
         awards=_parse_awards(sections.get("awards", "")),
+        others=[
+            OtherSection(heading=_display_heading(headings[name]), lines=lines)
+            for name, body in sections.items()
+            if name not in _READ and not name.startswith(_NOT_KEPT) and (lines := _plain_lines(body))
+        ],
     )
+
+
+# The sections parse_resume reads into the bank's own sections; any other
+# heading is kept as it stands (KAN-498), but "References" ("available upon
+# request"), which says nothing about the student
+_READ = {"education", "experience", "skills", "projects", "publications", "certifications", "leadership", "awards"}
+_NOT_KEPT = "reference"
+# Words a heading keeps in lower case once it is put in title case
+_SMALL_WORDS = {"of", "and", "&", "in", "the", "for", "to", "a", "an", "on"}
+
+
+def _display_heading(heading: str) -> str:
+    """A heading as a section's name: "INTERESTS" and "interests" read as
+    "Interests", "SUMMARY OF QUALIFICATIONS" as "Summary of Qualifications";
+    one in mixed case keeps the resume's own."""
+    if heading != heading.upper() and heading != heading.lower():
+        return heading
+    words = heading.lower().split()
+    return " ".join(w if i and w in _SMALL_WORDS else w[:1].upper() + w[1:] for i, w in enumerate(words))
+
+
+# A line at least this long filled the column, so the next one continues it
+_FULL_LINE = 70
+
+
+def _plain_lines(text: str) -> list[str]:
+    """A section with no shape of its own as lines (KAN-498). With bullet
+    markers, as `_bullets` reads them. Without, each line is its own unless
+    it continues the one above: it starts in lower case, or the line above
+    ends in a comma or filled the column, as a wrapped summary does. So a
+    paragraph reads as one line and a list of interests as several."""
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if any(BULLET_RE.match(ln) for ln in lines):
+        return (_bullets(lines) or "").splitlines()
+    parts: list[str] = []
+    above = ""
+    for line in lines:
+        wrapped = len(above) >= _FULL_LINE and not above.endswith((".", "!", "?"))
+        if parts and (line[0].islower() or above.endswith(",") or wrapped):
+            parts[-1] += " " + line
+        else:
+            parts.append(line)
+        above = line
+    return [re.sub(r"\s{2,}", " ", p) for p in parts]
 
 def count_sections(text: str) -> int:
     """How many section headers sit on lines of their own — the extractor
@@ -218,12 +269,16 @@ def _clean_text(text: str) -> str:
 
 
 # Split sections so each category is parsed individually by its own parser
-def _split_sections(text: str) -> dict[str, str]:
+def _split_sections(text: str, headings: dict[str, str] | None = None) -> dict[str, str]:
+    """Each section's text by its name. `headings`, when given, gets each
+    name's heading as the resume first wrote it, format off."""
     sections: dict[str, list[str]] = {}             # store text based on sections
     lines: list[str] | None = None                  # text before the first header goes
     for line in text.splitlines():
         name = section_of(line)
         if name:
+            if headings is not None:
+                headings.setdefault(name, heading_form(line))
             # two headers can name one section (Experience, Research Experience):
             # keep both, or the second replaces the first
             lines = sections.setdefault(name, [])

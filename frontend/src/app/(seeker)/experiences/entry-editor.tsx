@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { SelectField } from "@/components/ui/select-field";
 import { FIELD_CONTROL, FIELD_LABEL, TextField } from "@/components/ui/text-field";
-import type { BankEntry, EndKind } from "@/lib/bank-actions";
+import type { BankEntry, EndKind, EntrySection } from "@/lib/bank-actions";
 import { cn } from "@/lib/cn";
 
 import { savable, sectionOf, type EntryDraft } from "./sections";
@@ -25,6 +25,12 @@ import { savable, sectionOf, type EntryDraft } from "./sections";
  *
  * Only the title is required, so a student can save an entry with a section
  * and a title and add the rest later. The API checks everything again.
+ *
+ * A section the student named (KAN-498) prints its entries as a project
+ * does, so its form has a title, an organization, dates and bullets, and no
+ * location. A Lines section (`lines`) is only its lines: the bullets of the
+ * one entry that holds them, with no title, place, dates or dots, since
+ * none of those print.
  *
  * THE LAYOUT (KAN-257) is two columns at every width. A pair of short
  * fields shares a row (the start and end, a degree and its field, a GPA and
@@ -51,7 +57,7 @@ const END_OPTIONS = [
 const text = (value: string) => (value.trim() === "" ? null : value);
 const number = (value: string) => (value.trim() === "" ? null : Number(value));
 
-export function EntryEditor({
+export function EntryEditor<S extends EntrySection = EntrySection>({
   initial,
   onSave,
   onCancel,
@@ -63,9 +69,10 @@ export function EntryEditor({
   onDelete,
   note,
   cancelLabel = "Cancel",
+  lines = false,
 }: {
-  initial: EntryDraft;
-  onSave: (draft: EntryDraft) => void;
+  initial: EntryDraft<S>;
+  onSave: (draft: EntryDraft<S>) => void;
   onCancel: () => void;
   saving?: boolean;
   error?: string | null;
@@ -74,10 +81,10 @@ export function EntryEditor({
    *  <entry>" and offers Save as New, which hands the draft to
    *  `onSaveAsNew`, or Cancel. */
   duplicate?: Pick<BankEntry, "title" | "organization"> | null;
-  onSaveAsNew?: (draft: EntryDraft) => void;
+  onSaveAsNew?: (draft: EntryDraft<S>) => void;
   /** Every edit, as the whole draft: intake sends the card's edits back to
    *  the model with each turn. */
-  onChange?: (draft: EntryDraft) => void;
+  onChange?: (draft: EntryDraft<S>) => void;
   /** An entry already in the bank: Delete Entry at the foot's left, which
    *  the caller confirms (KAN-363). A row showed its own trash beside the
    *  pencil, under a section heading that already held Clear All and Add,
@@ -87,11 +94,13 @@ export function EntryEditor({
    *  save changes too (KAN-363). */
   note?: ReactNode;
   cancelLabel?: string;
+  /** A Lines section's lines (KAN-498): only the bullets show. */
+  lines?: boolean;
 }) {
   const [draft, setDraft] = useState(initial);
   const uid = useId();
   const section = sectionOf(draft.section);
-  const set = (changes: Partial<EntryDraft>) => {
+  const set = (changes: Partial<EntryDraft<S>>) => {
     const next = { ...draft, ...changes };
     setDraft(next);
     onChange?.(next);
@@ -114,6 +123,9 @@ export function EntryEditor({
   }
 
   const education = draft.section === "education";
+  // A custom section's entries print no location (as a project's)
+  const custom = draft.section === "custom";
+  const noun = lines ? "Line" : "Bullet";
 
   // Stacked where the form is narrow (Scout's panel), side by side where it
   // is wide (the bank page).
@@ -128,16 +140,18 @@ export function EntryEditor({
           onChange={(e) => set({ organization: text(e.target.value) })}
         />
       </div>
-      <div className="col-span-2 @lg/main:col-span-1">
-        <TextField
-          id={field("location")}
-          label="Location"
-          maxLength={200}
-          placeholder="City, State"
-          value={draft.location ?? ""}
-          onChange={(e) => set({ location: text(e.target.value) })}
-        />
-      </div>
+      {!custom && (
+        <div className="col-span-2 @lg/main:col-span-1">
+          <TextField
+            id={field("location")}
+            label="Location"
+            maxLength={200}
+            placeholder="City, State"
+            value={draft.location ?? ""}
+            onChange={(e) => set({ location: text(e.target.value) })}
+          />
+        </div>
+      )}
     </>
   );
 
@@ -184,7 +198,10 @@ export function EntryEditor({
   return (
     <form onSubmit={submit} className="flex max-w-3xl flex-col gap-3">
       {/* No spin arrows on a GPA: nobody steps through one. */}
-      <div className="grid grid-cols-2 gap-3 [&_input::-webkit-inner-spin-button]:appearance-none [&_input::-webkit-outer-spin-button]:appearance-none [&_input[type=number]]:[appearance:textfield]">
+      <div
+        hidden={lines}
+        className="grid grid-cols-2 gap-3 [&_input::-webkit-inner-spin-button]:appearance-none [&_input::-webkit-outer-spin-button]:appearance-none [&_input[type=number]]:[appearance:textfield]"
+      >
         <div className="col-span-2">
           <TextField
             id={field("title")}
@@ -303,28 +320,31 @@ export function EntryEditor({
           the last, and a pasted break becomes a space. */}
       <div role="group" aria-labelledby={field("bullets")} className="flex flex-col gap-1">
         <span id={field("bullets")} className={FIELD_LABEL}>
-          Bullets
+          {noun}s
         </span>
         <div className="flex flex-col gap-2">
           {draft.bullets.map((bullet, i) => (
             <div key={bullet.id ?? `new-${i}`} className="flex items-start gap-2">
               <div className="relative min-w-0 flex-1">
-                <span
-                  aria-hidden
-                  className="pointer-events-none absolute top-0 left-3.5 flex h-10.5 w-4 items-center justify-center"
-                >
-                  <span className="bg-ink-meta size-1.5 rounded-full" />
-                </span>
+                {!lines && (
+                  <span
+                    aria-hidden
+                    className="pointer-events-none absolute top-0 left-3.5 flex h-10.5 w-4 items-center justify-center"
+                  >
+                    <span className="bg-ink-meta size-1.5 rounded-full" />
+                  </span>
+                )}
                 <textarea
                   id={field(`bullet-${i}`)}
-                  aria-label={`Bullet ${i + 1}`}
+                  aria-label={`${noun} ${i + 1}`}
                   rows={1}
                   maxLength={500}
-                  placeholder="One thing you did"
+                  placeholder={lines ? "One line" : "One thing you did"}
                   autoFocus={!bullet.id && bullet.text === ""}
                   className={cn(
                     FIELD_CONTROL,
-                    "block field-sizing-content min-h-10.5 resize-none py-2.5 pr-3.5 pl-9.5",
+                    "block field-sizing-content min-h-10.5 resize-none py-2.5 pr-3.5",
+                    lines ? "pl-3.5" : "pl-9.5",
                   )}
                   value={bullet.text}
                   onChange={(e) =>
@@ -346,8 +366,8 @@ export function EntryEditor({
                 />
               </div>
               <IconButton
-                label="Remove Bullet"
-                tooltip="Remove this bullet"
+                label={`Remove ${noun}`}
+                tooltip={`Remove this ${noun.toLowerCase()}`}
                 // Centred on the box's first line, beside the mark.
                 className="mt-1.25 size-8"
                 onClick={() => set({ bullets: draft.bullets.filter((_, j) => j !== i) })}
@@ -365,7 +385,8 @@ export function EntryEditor({
                 "text-ink-meta hover:border-brand hover:text-brand flex min-w-0 flex-1 items-center gap-2 border-dashed px-3.5 py-2.5 text-left transition-colors",
               )}
             >
-              <PlusIcon aria-hidden className="size-4 shrink-0" /> Add Bullet Point
+              <PlusIcon aria-hidden className="size-4 shrink-0" />{" "}
+              {lines ? "Add Line" : "Add Bullet Point"}
             </button>
             {/* Keeps the box as wide as the bullets above, beside their × */}
             {draft.bullets.length > 0 && <span aria-hidden className="size-8 shrink-0" />}
@@ -408,7 +429,7 @@ export function EntryEditor({
           </Button>
         ) : (
           <Button type="submit" disabled={saving}>
-            {saving ? "Saving…" : "Save Entry"}
+            {saving ? "Saving…" : lines ? "Save Lines" : "Save Entry"}
           </Button>
         )}
       </div>

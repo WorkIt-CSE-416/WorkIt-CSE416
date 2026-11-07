@@ -148,6 +148,22 @@ function Reading({
             </section>
           );
         })}
+        {/* The headings the bank has no section for (KAN-498): each saves as
+            a section of its own, as plain lines */}
+        {entries
+          .filter((e) => e.section === "custom")
+          .map((entry, i) => (
+            <section key={`custom-${i}`} aria-label={entry.section_name ?? entry.title}>
+              <h3 className="text-caption text-ink-muted mb-2 uppercase">
+                {entry.section_name ?? entry.title}
+              </h3>
+              <ul className="text-body text-ink flex flex-col gap-1">
+                {entry.bullets.map((line, j) => (
+                  <li key={j}>{line}</li>
+                ))}
+              </ul>
+            </section>
+          ))}
         {skills.length > 0 && (
           <section aria-label="Skills">
             <h3 className="text-caption text-ink-muted mb-2 uppercase">Skills</h3>

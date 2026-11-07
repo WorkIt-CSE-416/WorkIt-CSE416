@@ -67,6 +67,13 @@ class Award(PydanticBase):
     issuer: str | None = None
     date: _Date | None = None
 
+class OtherSection(PydanticBase):
+    """A heading the bank has no section for ("Summary", "Interests"), as
+    the resume names it, and its lines (KAN-498): import keeps it as a
+    custom section of plain lines."""
+    heading: str
+    lines: list[str] = []
+
 class ParsedResume(PydanticBase):
     education: list[Education] = []
     experience: list[Experience] = []
@@ -76,6 +83,8 @@ class ParsedResume(PydanticBase):
     # Leadership & Activities: the same shape as a job (KAN-211)
     leadership: list[Experience] = []
     awards: list[Award] = []
+    # The headings the bank has no section for, in the resume's order (KAN-498)
+    others: list[OtherSection] = []
 
 
 # size range for company
@@ -258,6 +267,8 @@ class bank_section(enum.StrEnum):
     '''
     the section an experience bank entry belongs to. Skills, the seventh
     section, is its own table (bank_skills), so it has no member here.
+    `custom` is a section the student named (KAN-498): the entry's
+    `custom_section_id` says which one (bank_custom_sections).
     '''
     education= "education"
     experience= "experience"
@@ -265,6 +276,7 @@ class bank_section(enum.StrEnum):
     leadership= "leadership"
     awards= "awards"
     certifications= "certifications"
+    custom= "custom"
 
 class entry_end_kind(enum.StrEnum):
     '''

@@ -25,6 +25,11 @@ place:
   entries are never matched.
 - Functions flush but never commit: the caller owns the transaction, so an
   import can save many entries in one.
+- A section the student names (KAN-498, `bank_custom_sections`) is owned as
+  an entry is, holds at most `MAX_CUSTOM_SECTIONS` per owner, one name per
+  owner ignoring case, and its entries are `custom` entries pointing at it.
+  An import makes one for each heading the bank has no section for, as the
+  upload's own (`import_upload`).
 
 The session is handed in by the caller; this module opens no connection.
 """
@@ -32,7 +37,7 @@ The session is handed in by the caller; this module opens no connection.
 import datetime
 import uuid
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from sqlalchemy import delete, func, null, or_, select, update
 from sqlalchemy.dialects.postgresql import insert
@@ -40,6 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.bank import (
     Bank_Bullet,
+    Bank_Custom_Section,
     Bank_Entry,
     Bank_Skill,
     Experience_Bank,
@@ -50,9 +56,11 @@ from app.models.jobs import Job_Post
 from app.models.profiles import Applicant_Profile
 from app.models.resume import Resume
 from app.schemas.bank import (
+    MAX_CUSTOM_SECTIONS,
     BankResponse,
     BankResume,
     BulletResponse,
+    CustomSectionResponse,
     EntryCreate,
     EntryFields,
     EntryResponse,
@@ -77,6 +85,11 @@ class DuplicateSkillError(Exception):
     """The bank already has a skill of that name, ignoring case."""
 
 
+class SectionError(Exception):
+    """A custom section the owner cannot add or name (KAN-498): the message
+    says why, for the student."""
+
+
 @dataclass
 class Entry:
     """An entry row with its bullets in order."""
@@ -93,6 +106,8 @@ class Bank:
 
     entries: list[Entry]
     skills: list[Bank_Skill]
+    # The sections the student named (KAN-498), oldest first
+    sections: list[Bank_Custom_Section] = field(default_factory=list)
 
 
 _SECTION_ORDER = {section: i for i, section in enumerate(bank_section)}
@@ -205,7 +220,12 @@ async def load_bank(
         )
         .order_by(Bank_Skill.group.asc().nulls_last(), func.lower(Bank_Skill.name))
     )
-    return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills))
+    sections = await session.scalars(
+        select(Bank_Custom_Section)
+        .where(Bank_Custom_Section.applicant_id == applicant_id)
+        .order_by(Bank_Custom_Section.created_at, Bank_Custom_Section.id)
+    )
+    return Bank(entries=[Entry(r, bullets[r.id]) for r in rows], skills=list(skills), sections=list(sections))
 
 
 def bank_context(bank: Bank) -> tuple[str, list[str]]:
@@ -246,17 +266,19 @@ async def find_duplicate(
     title: str,
     organization: str | None,
     resume_id: uuid.UUID | None = None,
+    custom_section_id: uuid.UUID | None = None,
 ) -> Entry | None:
     """The entry of owner `resume_id` (None: the student's own) with this
     section, title and organization, ignoring case and surrounding spaces (no
     organization matches no organization). Another upload's entries never
-    match (ADR 0005)."""
+    match (ADR 0005), nor another custom section's."""
     row = await session.scalar(
         select(Bank_Entry)
         .where(
             Bank_Entry.applicant_id == applicant_id,
             Bank_Entry.resume_id.is_not_distinct_from(resume_id),
             Bank_Entry.section == section,
+            Bank_Entry.custom_section_id.is_not_distinct_from(custom_section_id),
             func.lower(func.trim(Bank_Entry.title)) == title.strip().lower(),
             func.lower(func.trim(func.coalesce(Bank_Entry.organization, "")))
             == (organization or "").strip().lower(),
@@ -279,10 +301,14 @@ async def create_entry(
     """Save a new entry and its bullets, owned by the upload `resume_id` (the
     caller has checked it is the applicant's) or by none. Raises
     DuplicateEntryError when it matches an entry of the same owner, unless
-    the student chose "Save as new"."""
+    the student chose "Save as new". A custom entry's section must be the
+    applicant's (NotFound otherwise)."""
+    if fields.custom_section_id is not None:
+        await section_row(session, applicant_id, fields.custom_section_id)
     if not allow_duplicate:
         existing = await find_duplicate(
-            session, applicant_id, fields.section, fields.title, fields.organization, resume_id)
+            session, applicant_id, fields.section, fields.title, fields.organization, resume_id,
+            fields.custom_section_id)
         if existing is not None:
             raise DuplicateEntryError(existing)
 
@@ -328,8 +354,9 @@ async def write_entry(
     value typed back over that save matched it and was dropped. One
     statement updates the row, if it is the applicant's, and marks the bank
     embedding stale; NotFound for another's entry."""
-    merged = EntryFields.model_validate({**current, **changes, "section": current["section"]}).model_dump()
-    values = {k: merged[k] for k in changes if k != "section"}
+    fixed = {"section": current["section"], "custom_section_id": current.get("custom_section_id")}
+    merged = EntryFields.model_validate({**current, **changes, **fixed}).model_dump()
+    values = {k: merged[k] for k in changes if k not in fixed}
     if not values:
         return
     edited = (
@@ -364,7 +391,8 @@ def edit_entry(row: Bank_Entry, changes: Mapping[str, object]) -> None:
     its bank already holds, so the PDF compiles before the write
     (routers/built_resumes.py, `save_line`)."""
     current = {name: getattr(row, name) for name in EntryFields.model_fields}
-    merged = EntryFields.model_validate({**current, **changes, "section": row.section})
+    merged = EntryFields.model_validate(
+        {**current, **changes, "section": row.section, "custom_section_id": row.custom_section_id})
     for name, value in merged.model_dump().items():
         setattr(row, name, value)
 
@@ -543,6 +571,79 @@ async def delete_skill(session: AsyncSession, applicant_id: uuid.UUID, skill_id:
     await session.flush()
 
 
+async def section_row(
+    session: AsyncSession, applicant_id: uuid.UUID, section_id: uuid.UUID
+) -> Bank_Custom_Section:
+    row = await session.scalar(
+        select(Bank_Custom_Section)
+        .where(Bank_Custom_Section.id == section_id, Bank_Custom_Section.applicant_id == applicant_id)
+    )
+    if row is None:
+        raise NotFound
+    return row
+
+
+async def _section_name_taken(
+    session: AsyncSession, applicant_id: uuid.UUID, resume_id: uuid.UUID | None, name: str,
+    other_than: uuid.UUID | None = None,
+) -> bool:
+    stmt = select(Bank_Custom_Section.id).where(
+        Bank_Custom_Section.applicant_id == applicant_id,
+        Bank_Custom_Section.resume_id.is_not_distinct_from(resume_id),
+        func.lower(Bank_Custom_Section.name) == name.lower(),
+    )
+    if other_than is not None:
+        stmt = stmt.where(Bank_Custom_Section.id != other_than)
+    return await session.scalar(stmt.limit(1)) is not None
+
+
+async def create_section(
+    session: AsyncSession, applicant_id: uuid.UUID, name: str, layout: str,
+    *, resume_id: uuid.UUID | None = None,
+) -> Bank_Custom_Section:
+    """A section the student names (KAN-498), owned as `create_entry`'s
+    entry is. SectionError when the owner has `MAX_CUSTOM_SECTIONS` already
+    or a section of this name, ignoring case. It holds nothing yet, so the
+    bank's embedding stays as it is."""
+    # The name first: "you already have it" is the more useful answer
+    if await _section_name_taken(session, applicant_id, resume_id, name):
+        raise SectionError(f"You already have a {name} section")
+    count = await session.scalar(
+        select(func.count()).select_from(Bank_Custom_Section).where(
+            Bank_Custom_Section.applicant_id == applicant_id,
+            Bank_Custom_Section.resume_id.is_not_distinct_from(resume_id),
+        )
+    )
+    if (count or 0) >= MAX_CUSTOM_SECTIONS:
+        raise SectionError(f"You can add up to {MAX_CUSTOM_SECTIONS} sections of your own")
+    row = Bank_Custom_Section(id=uuid.uuid4(), applicant_id=applicant_id, resume_id=resume_id, name=name,
+                              layout=layout)
+    session.add(row)
+    await session.flush()
+    await session.refresh(row)
+    return row
+
+
+async def rename_section(
+    session: AsyncSession, applicant_id: uuid.UUID, section_id: uuid.UUID, name: str
+) -> Bank_Custom_Section:
+    row = await section_row(session, applicant_id, section_id)
+    if await _section_name_taken(session, applicant_id, row.resume_id, name, other_than=row.id):
+        raise SectionError(f"You already have a {name} section")
+    row.name = name
+    await session.flush()
+    return row
+
+
+async def delete_section(session: AsyncSession, applicant_id: uuid.UUID, section_id: uuid.UUID) -> None:
+    """Delete a section; its entries, their bullets and their places on
+    built resumes go with it (ON DELETE CASCADE)."""
+    row = await section_row(session, applicant_id, section_id)
+    await session.delete(row)
+    await clear_embedding(session, applicant_id)
+    await session.flush()
+
+
 @dataclass
 class Imported:
     """What `import_upload` wrote."""
@@ -625,8 +726,13 @@ async def import_upload(
     With `replace_matching` (a confirmed parse preview, ADR 0006), the rows
     of the student's other uploads that the reading matches
     (`upload_matches`) go too, with their places on built resumes, so the
-    newest upload holds the one copy."""
-    for table in (Bank_Entry, Bank_Skill):
+    newest upload holds the one copy.
+
+    A draft for a heading the bank has no section for (`section_name`,
+    KAN-498) goes into a Lines section of that name, made as the upload's
+    own; at most `MAX_CUSTOM_SECTIONS`, the rest are left out. A confirmed
+    preview also replaces the other uploads' sections of those names."""
+    for table in (Bank_Entry, Bank_Skill, Bank_Custom_Section):
         await session.execute(
             delete(table).where(table.applicant_id == applicant_id, table.resume_id == resume_id)
         )
@@ -639,8 +745,36 @@ async def import_upload(
         for table, ids in ((Bank_Entry, replaced_entries), (Bank_Skill, replaced_skills)):
             if ids:
                 await session.execute(delete(table).where(table.applicant_id == applicant_id, table.id.in_(ids)))
+        names = {n.lower() for n in (getattr(d, "section_name", None) for d in entries) if n}
+        if names:
+            await session.execute(delete(Bank_Custom_Section).where(
+                Bank_Custom_Section.applicant_id == applicant_id,
+                Bank_Custom_Section.resume_id.is_not(None),
+                Bank_Custom_Section.resume_id != resume_id,
+                func.lower(Bank_Custom_Section.name).in_(names),
+            ))
+    made: dict[str, uuid.UUID] = {}
+    written = 0
     for draft in entries:
+        name = getattr(draft, "section_name", None)
+        if draft.section is bank_section.custom and draft.custom_section_id is None:
+            if not name:
+                continue
+            if name.lower() not in made:
+                if len(made) >= MAX_CUSTOM_SECTIONS:
+                    continue
+                # The wall clock, not now(): now() is the transaction's start,
+                # so one import's sections tied and the bank listed them in
+                # a random order; this keeps the resume's
+                section = Bank_Custom_Section(
+                    id=uuid.uuid4(), applicant_id=applicant_id, resume_id=resume_id, name=name, layout="lines",
+                    created_at=func.clock_timestamp())
+                session.add(section)
+                await session.flush()
+                made[name.lower()] = section.id
+            draft = draft.model_copy(update={"custom_section_id": made[name.lower()]})
         await create_entry(session, applicant_id, draft, draft.bullets, resume_id=resume_id, allow_duplicate=True)
+        written += 1
     names: set[str] = set()
     removed = await removed_skills(session, applicant_id)
     for name, group in skills:
@@ -652,7 +786,7 @@ async def import_upload(
     await clear_embedding(session, applicant_id)
     await session.flush()
     return Imported(
-        entries_added=len(entries),
+        entries_added=written,
         skills_added=len(names),
         entries_replaced=len(replaced_entries),
         skills_replaced=len(replaced_skills),
@@ -669,6 +803,9 @@ class Holdings:
     resumes: list[BankResume]
     entries: dict[uuid.UUID, list[uuid.UUID]]
     skills: dict[uuid.UUID, list[uuid.UUID]]
+    # A custom section (KAN-498): the upload that owns it, then the built
+    # resumes that show one of its entries
+    sections: dict[uuid.UUID, list[uuid.UUID]] = field(default_factory=dict)
 
 
 async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdings:
@@ -741,6 +878,18 @@ async def load_holdings(session: AsyncSession, applicant_id: uuid.UUID) -> Holdi
             uploads(Bank_Skill),
             built(Built_Resume_Skill, Built_Resume_Skill.skill_id),
         ),
+        sections=await held(
+            uploads(Bank_Custom_Section),
+            select(Bank_Entry.custom_section_id, Built_Resume_Entry.built_resume_id)
+            .select_from(Built_Resume_Entry)
+            .join(Bank_Entry, Bank_Entry.id == Built_Resume_Entry.entry_id)
+            .where(
+                Bank_Entry.applicant_id == applicant_id,
+                Bank_Entry.custom_section_id.is_not(None),
+                Built_Resume_Entry.shown,
+            )
+            .distinct(),
+        ),
     )
 
 
@@ -759,6 +908,12 @@ def skill_response(skill: Bank_Skill, resume_ids: list[uuid.UUID] | None = None)
     return SkillResponse(id=skill.id, name=skill.name, group=skill.group, resume_ids=resume_ids or [])
 
 
+def section_response(section: Bank_Custom_Section, resume_ids: list[uuid.UUID] | None = None
+                     ) -> CustomSectionResponse:
+    return CustomSectionResponse(id=section.id, name=section.name, layout=section.layout,  # type: ignore[arg-type]
+                                 resume_ids=resume_ids or [])
+
+
 def bank_response(bank: Bank, holdings: Holdings | None = None) -> BankResponse:
     """The whole bank as the API sends it; Scout's facts read this shape too.
     Without `holdings`, `resumes` and every `resume_ids` are empty."""
@@ -767,4 +922,5 @@ def bank_response(bank: Bank, holdings: Holdings | None = None) -> BankResponse:
         entries=[entry_response(e, holdings.entries.get(e.row.id)) for e in bank.entries],
         skills=[skill_response(s, holdings.skills.get(s.id)) for s in bank.skills],
         resumes=holdings.resumes,
+        sections=[section_response(s, holdings.sections.get(s.id)) for s in bank.sections],
     )

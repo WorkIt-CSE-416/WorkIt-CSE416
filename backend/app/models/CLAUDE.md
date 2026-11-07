@@ -260,9 +260,22 @@ design rationale is in `../../../docs/resume.md`, "The experience bank";
 the rules every write follows are in `../services/bank.py`. Invariants a
 change here must keep:
 
-- **`bank_section` has six values, not seven.** Skills is a section to the
-  student but its own table. Adding a section is an `ALTER TYPE ... ADD
-  VALUE` and a coordinated deploy (above).
+- **`bank_section` has the six fixed sections and `custom`**, not
+  Skills: Skills is a section to the student but its own table. Adding a
+  fixed section is an `ALTER TYPE ... ADD VALUE` and a coordinated deploy
+  (above); a section the student names never is, since it is a row.
+- **A section the student names is a `bank_custom_sections` row** (KAN-498,
+  `c9e4a1d7b498`, `../../../docs/custom_sections.md`): its `name`, its
+  `layout` (`entries` or `lines`, a CHECK, not an enum, so a third layout
+  needs no coordinated deploy) and its owner `resume_id`, which cascades as
+  an entry's does. A custom entry is `section = 'custom'` with
+  `custom_section_id` set, and only then
+  (`bank_entries_custom_section_check`); deleting the section deletes its
+  entries. One name per owner, ignoring case
+  (`bank_custom_sections_owner_name_key`, `NULLS NOT DISTINCT`); at most
+  `schemas/bank.py`'s `MAX_CUSTOM_SECTIONS` per owner, checked in
+  `services/bank.py`, not the database. The section is fixed once an entry
+  exists, as `section` is: `EntryUpdate` forbids the key.
 - **`experience_banks` has one row per applicant, made by the first bank
   change** (an upsert in `clear_embedding`), not at signup. A missing row
   reads as "no embedding yet". Its `embedding` is the only applicant vector

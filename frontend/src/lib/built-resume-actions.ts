@@ -1,7 +1,7 @@
 "use server";
 
 import { applicantCall, encodeId, type Result } from "@/lib/applicant-call";
-import type { BankEntry, Skill } from "@/lib/bank-actions";
+import type { BankEntry, CustomSection, Skill } from "@/lib/bank-actions";
 import type { ApplicantProfile } from "@/lib/profile-actions";
 import { revalidatingResumes } from "@/lib/resume-revalidate";
 
@@ -140,6 +140,9 @@ export type RenderMeasure = Pick<
 export type ResumeCopy = {
   entries: BankEntry[];
   skills: Skill[];
+  /** The sections the student named (KAN-498): a custom entry prints under
+   *  its section's name and layout, and without them prints nowhere. */
+  sections: CustomSection[];
   choices: Choices;
   identity: IdentityCopy;
   template: string;

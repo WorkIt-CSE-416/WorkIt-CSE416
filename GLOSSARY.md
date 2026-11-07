@@ -13,8 +13,12 @@ One thing in the experience bank, in one section: a job, degree, project, club r
 _Avoid_: experience (for the single item), item, record
 
 **Section**:
-One of the fixed kinds of entry in the experience bank: Education, Experience, Projects, Leadership & Activities, Awards, Certifications and Skills.
-_Avoid_: category, block, custom section
+One of the fixed kinds of entry in the experience bank: Education, Experience, Projects, Leadership & Activities, Awards, Certifications and Skills, or a **custom section**.
+_Avoid_: category, block
+
+**Custom section**:
+A section the student names, such as Volunteering, Languages or a Summary (KAN-498). It is **Entries** (each a title, organization, dates and bullets) or **Lines** (plain lines with no heading), picked when it is made. At most five for each resume that owns them.
+_Avoid_: extra section, other section
 
 **Skill**:
 A named ability in the experience bank. Skills are one list per student, not tied to entries.

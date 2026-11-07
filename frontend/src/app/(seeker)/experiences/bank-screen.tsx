@@ -32,6 +32,7 @@ import {
   createEntry,
   deleteEntries,
   deleteEntry,
+  deleteSection,
   deleteSkill,
   deleteSkills,
   entryResumeCount,
@@ -41,6 +42,8 @@ import {
   type Bank,
   type BankEntry,
   type BankResume,
+  type CustomSection,
+  type EntrySection,
   type Section,
   type Skill,
 } from "@/lib/bank-actions";
@@ -48,6 +51,7 @@ import {
 import { DeleteConfirm } from "../resumes/delete-confirm";
 import { RESUMES_SEARCH, ResumesHeader } from "../resumes/header";
 import { ClearAll } from "./clear-all";
+import { AddSection, RenameSection } from "./custom-sections";
 import { EntryEditor } from "./entry-editor";
 import { EntryRow } from "./entry-row";
 import { editSteps } from "./entry-save";
@@ -66,7 +70,7 @@ import {
   type Pick,
 } from "./holdings";
 import { Intake, type IntakeFocus } from "./intake";
-import { draftOf, emptyDraft, missingFacts, SECTIONS, type EntryDraft } from "./sections";
+import { draftOf, emptyDraft, isFixed, missingFacts, SECTIONS, type EntryDraft } from "./sections";
 import { ResumeBar } from "./resume-bar";
 import { SECTION_ICONS, SectionMark } from "./section-icons";
 import { SectionNav } from "./section-nav";
@@ -94,9 +98,19 @@ import { SectionNav } from "./section-nav";
  * into the picked resume, or into no upload under All Experiences, so the new
  * item stays in view. A student with no resume sees no card. Intake always
  * sees the whole bank.
+ *
+ * Sections the student named (KAN-498) follow the fixed ones, each a card of
+ * its own: Entries list as any section's, Lines as plain lines, edited as one
+ * entry's bullets. Add a Section, on the quiet line under the cards, makes
+ * one in the picked resume and opens it to fill. A section's pencil holds
+ * Rename and Delete Section. Under All Experiences two sections of one name
+ * (two uploads' Summary) show apart, each named with its owner.
  */
 
-type Editing = { kind: "new"; section: Section } | { kind: "edit"; entry: BankEntry } | null;
+type Editing =
+  | { kind: "new"; section: EntrySection; customSectionId?: string }
+  | { kind: "edit"; entry: BankEntry }
+  | null;
 
 export function BankScreen({
   initial,
@@ -127,11 +141,18 @@ export function BankScreen({
   // opens what it finds, since a word may be in a bullet.
   const [query, setQuery] = useState("");
   const searching = query.trim() !== "";
-  // The section whose Clear All confirm is open (KAN-352).
-  const [clearing, setClearing] = useState<Section | null>(null);
+  // The section whose Clear All confirm is open (KAN-352): a fixed
+  // section's id, or "custom-<id>".
+  const [clearing, setClearing] = useState<string | null>(null);
   // The section in edit mode (KAN-363): its entries show their pencils and
   // its heading holds Clear All. One at a time, as LinkedIn's details page.
-  const [editMode, setEditMode] = useState<Section | null>(null);
+  const [editMode, setEditMode] = useState<string | null>(null);
+  // Add a Section's card is open; a custom section is renamed, or its
+  // delete confirm open (KAN-498)
+  const [addingSection, setAddingSection] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [sectionBusy, setSectionBusy] = useState(false);
   // An error that outlives the editor: a bullet that failed after the
   // entry's fields saved, or a failed read-back.
   const [pageError, setPageError] = useState<string | null>(null);
@@ -221,13 +242,52 @@ export function BankScreen({
     rowsIn(id).length > 0 ||
     (editing?.kind === "new" && editing.section === id) ||
     marked?.section === id;
-  const rowsFound = SECTIONS.reduce((n, s) => n + rowsIn(s.id).length, 0);
+  // The sections the student named (KAN-498) under the pick: one the pick
+  // owns or shows an entry of, and the student's own while it is empty, so
+  // one made under a built resume stays in view to be filled.
+  const customs = bank.sections.filter((section) => {
+    const all = bank.entries.filter((e) => e.custom_section_id === section.id);
+    return (
+      shows(current, section) ||
+      all.some((e) => shows(current, e)) ||
+      (section.resume_ids.length === 0 && all.length === 0)
+    );
+  });
+  const customEntries = (section: CustomSection) =>
+    bank.entries.filter((e) => e.custom_section_id === section.id && shows(current, e));
+  const customRows = (section: CustomSection) =>
+    rowsOf(current, customEntries(section), bank.resumes).filter(
+      (row) => !searching || rowMatches(row, query),
+    );
+  // Two sections of one name (two uploads' Summary) each name their owner
+  const customLabel = (section: CustomSection) => {
+    const same = customs.filter((s) => s.name.toLowerCase() === section.name.toLowerCase());
+    if (same.length < 2) return section.name;
+    const owner = bank.resumes.find(
+      (r) => r.kind === "uploaded" && section.resume_ids.includes(r.id),
+    );
+    return `${section.name} · ${owner ? owner.name : "Your Own"}`;
+  };
+  const customCount = (section: CustomSection) =>
+    section.layout === "lines"
+      ? customRows(section).reduce((n, row) => n + row.entry.bullets.length, 0)
+      : customRows(section).length;
+  const customsDrawn = customs.filter((s) => !searching || customRows(s).length > 0);
+  const rowsFound =
+    SECTIONS.reduce((n, s) => n + rowsIn(s.id).length, 0) +
+    customsDrawn.reduce((n, s) => n + customRows(s).length, 0);
   const emptySections = SECTIONS.filter((s) => !drawn(s.id));
   const navSections = [
     ...SECTIONS.filter((s) => drawn(s.id)).map((s) => ({
       id: s.id,
       label: s.label,
       count: rowsIn(s.id).length,
+    })),
+    ...customsDrawn.map((s) => ({
+      id: `custom-${s.id}`,
+      label: customLabel(s),
+      count: customCount(s),
+      mark: "custom" as const,
     })),
     ...(searching && skillsNow.length === 0
       ? []
@@ -286,6 +346,29 @@ export function BankScreen({
     if (reloadError) setPageError(reloadError);
   }
 
+  /** A custom section's delete: its entries go with it, off every resume. */
+  async function removeSection(section: CustomSection) {
+    setSectionBusy(true);
+    const { error } = await deleteSection(section.id);
+    setSectionBusy(false);
+    if (error) return setPageError(error);
+    setRemoving(null);
+    setEditMode(null);
+    const reloadError = await reload();
+    if (reloadError) setPageError(reloadError);
+  }
+
+  /** A new section opens to be filled: its first entry, or its lines. */
+  async function sectionAdded(section: CustomSection) {
+    setAddingSection(false);
+    const reloadError = await reload();
+    if (reloadError) return setPageError(reloadError);
+    open({ kind: "new", section: "custom", customSectionId: section.id });
+    requestAnimationFrame(() =>
+      document.getElementById(`section-custom-${section.id}`)?.scrollIntoView({ block: "start" }),
+    );
+  }
+
   async function saveNew(draft: EntryDraft, allowDuplicate: boolean) {
     const { bullets, ...fields } = draft;
     // Into the picked resume, so the new entry shows under it (ADR 0005).
@@ -339,8 +422,8 @@ export function BankScreen({
       />
       <ScoutTakeover title="Scout" subtitle="Fills your experience bank as you talk">
         <Intake
-          filled={bank.entries.map((e) => e.section)}
-          entries={bank.entries}
+          filled={bank.entries.filter(isFixed).map((e) => e.section)}
+          entries={bank.entries.filter(isFixed)}
           walk
           importable
           autoImport={autoImport}
@@ -489,6 +572,242 @@ export function BankScreen({
         );
       })}
 
+      {customsDrawn.map((section) => {
+        const key = `custom-${section.id}`;
+        const lines = section.layout === "lines";
+        const entries = customEntries(section);
+        const rows = customRows(section);
+        const name = customLabel(section);
+        const adding = editing?.kind === "new" && editing.customSectionId === section.id;
+        // A Lines section's lines are one entry's bullets: the first under the pick
+        const holder = lines ? entries[0] : undefined;
+        const editingLines =
+          lines && editing?.kind === "edit" && editing.entry.custom_section_id === section.id;
+        const editable = editMode === key;
+        return (
+          <Card
+            as="section"
+            key={key}
+            id={`section-${key}`}
+            aria-labelledby={`bank-${key}`}
+            className="scroll-mt-16 transition-colors duration-200"
+          >
+            <div className="flex items-center justify-between gap-3">
+              {renaming === section.id ? (
+                <RenameSection
+                  section={section}
+                  onCancel={() => setRenaming(null)}
+                  onDone={async () => {
+                    setRenaming(null);
+                    const reloadError = await reload();
+                    if (reloadError) setPageError(reloadError);
+                  }}
+                />
+              ) : (
+                <h2
+                  id={`bank-${key}`}
+                  className="text-subtitle text-ink flex min-w-0 items-center gap-2.5"
+                >
+                  <SectionMark id="custom" />
+                  {name}
+                </h2>
+              )}
+              {!adding && !editingLines && renaming !== section.id && (
+                <SectionActions
+                  name={name}
+                  addLabel={
+                    lines
+                      ? `${holder ? "Edit the Lines in" : "Add Lines to"} ${name}`
+                      : `Add an Entry to ${name}`
+                  }
+                  addTooltip={lines ? "Add or edit lines" : "Add an entry"}
+                  // A section of the student's own can always be renamed or deleted
+                  hasItems
+                  editable={editable}
+                  clearable={!lines && current !== ALL && !searching && entries.length > 0}
+                  clearing={clearing === key}
+                  onAdd={() =>
+                    holder
+                      ? open({ kind: "edit", entry: holder })
+                      : open({ kind: "new", section: "custom", customSectionId: section.id })
+                  }
+                  onEdit={() => setEditMode(key)}
+                  onDone={() => {
+                    setEditMode(null);
+                    setClearing(null);
+                    setRemoving(null);
+                  }}
+                  onClear={() => setClearing(key)}
+                  extra={
+                    <>
+                      <Button variant="section" onClick={() => setRenaming(section.id)}>
+                        Rename
+                      </Button>
+                      {removing !== section.id && (
+                        <Button variant="section" onClick={() => setRemoving(section.id)}>
+                          <TrashIcon aria-hidden /> Delete Section
+                        </Button>
+                      )}
+                    </>
+                  }
+                />
+              )}
+            </div>
+
+            {removing === section.id && (
+              <DeleteConfirm
+                label="Delete Section"
+                busy={sectionBusy}
+                onDelete={() => removeSection(section)}
+                onKeep={() => setRemoving(null)}
+              >
+                Delete {section.name}
+                {bank.entries.some((e) => e.custom_section_id === section.id)
+                  ? " and everything in it? It comes off every resume that shows it."
+                  : "?"}
+              </DeleteConfirm>
+            )}
+
+            {clearing === key && entries.length > 0 && (
+              <ClearAll
+                items={entries}
+                resumes={bank.resumes}
+                noun={[`${section.name} entry`, `${section.name} entries`]}
+                bullets
+                pick={current}
+                remove={deleteEntries}
+                onCleared={async () => {
+                  setClearing(null);
+                  setEditMode(null);
+                  const reloadError = await reload();
+                  if (reloadError) setPageError(reloadError);
+                }}
+                onKeep={() => setClearing(null)}
+              />
+            )}
+
+            {lines ? (
+              editingLines && editing?.kind === "edit" ? (
+                <div className="mt-2">
+                  <EditEntry
+                    entry={editing.entry}
+                    lines
+                    usedIn={usedIn(current, editing.entry, bank.resumes)}
+                    onShowResume={(id) => showResume(id, editing.entry.id)}
+                    saving={saving}
+                    error={error}
+                    onSave={(draft) => save(draft)}
+                    onCancel={() => open(null)}
+                    onDeleted={async () => {
+                      open(null);
+                      const reloadError = await reload();
+                      if (reloadError) setPageError(reloadError);
+                    }}
+                  />
+                </div>
+              ) : adding ? (
+                <div className="mt-2">
+                  <EntryEditor
+                    lines
+                    initial={{
+                      ...emptyDraft("custom", section.id),
+                      title: section.name,
+                      bullets: [{ text: "" }],
+                    }}
+                    // One entry holds the lines, named after its section
+                    onSave={(draft) => save({ ...draft, title: section.name }, true)}
+                    onCancel={() => open(null)}
+                    saving={saving}
+                    error={error}
+                  />
+                </div>
+              ) : rows.length === 0 ? (
+                <p className="text-body text-ink-meta mt-2">
+                  {picked ? "Nothing from this resume." : "No lines yet."}
+                </p>
+              ) : (
+                <ul role="list" className="mt-2 flex flex-col gap-1.5">
+                  {rows.flatMap(({ entry }) =>
+                    entry.bullets.map((bullet) => (
+                      <li key={bullet.id} className="text-body text-ink">
+                        {bullet.text}
+                      </li>
+                    )),
+                  )}
+                </ul>
+              )
+            ) : (
+              <>
+                {entries.length === 0 && !adding && (
+                  <p className="text-body text-ink-meta mt-2">
+                    {picked ? "Nothing from this resume." : "Nothing here yet."}
+                  </p>
+                )}
+                <ul role="list" className="divide-border-subtle mt-2 flex flex-col divide-y">
+                  {rows.map((row) => {
+                    const { entry } = row;
+                    return (
+                      <ScoutMarked key={entry.id} id={`entry-${entry.id}`} active={false}>
+                        {editing?.kind === "edit" && editing.entry.id === entry.id ? (
+                          <EditEntry
+                            entry={entry}
+                            usedIn={usedIn(current, entry, bank.resumes)}
+                            onShowResume={(id) => showResume(id, entry.id)}
+                            saving={saving}
+                            error={error}
+                            onSave={(draft) => save(draft)}
+                            onCancel={() => open(null)}
+                            onDeleted={async () => {
+                              open(null);
+                              const reloadError = await reload();
+                              if (reloadError) setPageError(reloadError);
+                            }}
+                          />
+                        ) : (
+                          <EntryView
+                            row={row}
+                            resumes={bank.resumes}
+                            open={searching}
+                            onEdit={
+                              editable && entries.length > 0
+                                ? () => open({ kind: "edit", entry })
+                                : undefined
+                            }
+                            onShowResume={showResume}
+                          />
+                        )}
+                      </ScoutMarked>
+                    );
+                  })}
+                </ul>
+                {adding && (
+                  <div className="mt-2">
+                    <EntryEditor
+                      initial={emptyDraft("custom", section.id)}
+                      onSave={(draft) => save(draft)}
+                      onCancel={() => open(null)}
+                      saving={saving}
+                      error={error}
+                      duplicate={duplicate}
+                      onSaveAsNew={(draft) => save(draft, true)}
+                    />
+                  </div>
+                )}
+              </>
+            )}
+          </Card>
+        );
+      })}
+
+      {addingSection && (
+        <AddSection
+          resumeId={picked?.id}
+          taken={new Set(customs.map((s) => s.name.toLowerCase()))}
+          onAdded={sectionAdded}
+          onCancel={() => setAddingSection(false)}
+        />
+      )}
+
       {searching && rowsFound === 0 && skillsNow.length === 0 && (
         <p className="text-body text-ink-meta px-1">
           No experiences match &ldquo;{query.trim()}&rdquo;.
@@ -507,7 +826,7 @@ export function BankScreen({
         />
       </div>
 
-      {!searching && emptySections.length > 0 && (
+      {!searching && (
         <EmptySections
           sections={emptySections}
           picked={picked !== null}
@@ -517,6 +836,7 @@ export function BankScreen({
               document.getElementById(`section-${id}`)?.scrollIntoView({ block: "start" }),
             );
           }}
+          onAddSection={addingSection ? undefined : () => setAddingSection(true)}
         />
       )}
     </div>
@@ -532,17 +852,24 @@ function EmptySections({
   sections,
   picked,
   onAdd,
+  onAddSection,
 }: {
   sections: readonly { id: Section; label: string }[];
   /** A resume is picked, so the line says "from this resume". */
   picked: boolean;
   onAdd: (id: Section) => void;
+  /** Add a Section (KAN-498), at the line's end; absent while its card is
+   *  open. */
+  onAddSection?: () => void;
 }) {
+  if (sections.length === 0 && !onAddSection) return null;
   return (
     <div className="flex flex-wrap items-center gap-x-1 gap-y-1 px-1">
-      <span className="text-note text-ink-meta mr-1">
-        {picked ? "Nothing from this resume in" : "Nothing yet in"}
-      </span>
+      {sections.length > 0 && (
+        <span className="text-note text-ink-meta mr-1">
+          {picked ? "Nothing from this resume in" : "Nothing yet in"}
+        </span>
+      )}
       {sections.map(({ id, label }) => {
         const Glyph = SECTION_ICONS[id];
         return (
@@ -559,6 +886,12 @@ function EmptySections({
           </Button>
         );
       })}
+      {onAddSection && (
+        <Button variant="ghost" size="xs" onClick={onAddSection}>
+          <PlusIcon aria-hidden className="text-brand" />
+          Add a Section
+        </Button>
+      )}
     </div>
   );
 }
@@ -672,6 +1005,7 @@ function SectionActions({
   onEdit,
   onDone,
   onClear,
+  extra,
 }: {
   /** The card's name, for the pencil's label. */
   name: string;
@@ -688,9 +1022,13 @@ function SectionActions({
   onEdit: () => void;
   onDone: () => void;
   onClear: () => void;
+  /** More of edit mode's controls: a custom section's Rename and Delete
+   *  Section (KAN-498). */
+  extra?: ReactNode;
 }) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex flex-wrap items-center justify-end gap-3">
+      {editable && extra}
       {editable && clearable && !clearing && (
         <Button variant="section" onClick={onClear}>
           <TrashIcon aria-hidden /> Clear All
@@ -728,6 +1066,7 @@ function SectionActions({
  */
 function EditEntry({
   entry,
+  lines = false,
   usedIn,
   onShowResume,
   saving,
@@ -737,6 +1076,9 @@ function EditEntry({
   onDeleted,
 }: {
   entry: BankEntry;
+  /** A Lines section's lines (KAN-498): its bullets alone, and no Delete
+   *  Entry, since Delete Section and each line's cross remove them. */
+  lines?: boolean;
   /** The built resumes, other than the pick, that a save changes too. */
   usedIn: { id: string; name: string }[];
   /** Shows one of them in place of the pick. */
@@ -772,11 +1114,12 @@ function EditEntry({
     <>
       <EntryEditor
         initial={draftOf(entry)}
+        lines={lines}
         onSave={onSave}
         onCancel={onCancel}
         saving={saving || busy}
         error={error}
-        onDelete={confirm}
+        onDelete={lines ? undefined : confirm}
         note={usedIn.length > 0 && <AlsoChanges resumes={usedIn} onShow={onShowResume} />}
       />
       {confirming && (

@@ -1,4 +1,10 @@
-import type { BankEntry, EntryFields, Section } from "@/lib/bank-actions";
+import type {
+  BankEntry,
+  EntryFields,
+  EntrySection,
+  Section,
+  SectionLayout,
+} from "@/lib/bank-actions";
 
 /**
  * The experience bank's sections in the order every screen and resume shows
@@ -30,20 +36,49 @@ export const SECTIONS: readonly {
   },
 ];
 
-export function sectionOf(id: Section) {
-  return SECTIONS.find((s) => s.id === id)!;
+/** A section the student named (KAN-498): its entries' two fields, worded
+ *  for any kind of thing (Volunteering, Publications). */
+export const CUSTOM_FIELDS = {
+  id: "custom" as const,
+  label: "Your Section",
+  title: "Title",
+  organization: "Organization",
+};
+
+export function sectionOf(id: EntrySection) {
+  return id === "custom" ? CUSTOM_FIELDS : SECTIONS.find((s) => s.id === id)!;
+}
+
+/**
+ * Names Add Section offers, each with the layout it usually takes: a
+ * Summary or a list of languages is lines, volunteering is entries. A
+ * Summary prints first on a resume (`resume_render.printed_order`).
+ */
+export const SUGGESTED_SECTIONS: readonly { name: string; layout: SectionLayout }[] = [
+  { name: "Summary", layout: "lines" },
+  { name: "Volunteering", layout: "entries" },
+  { name: "Languages", layout: "lines" },
+  { name: "Interests", layout: "lines" },
+  { name: "Publications", layout: "entries" },
+];
+
+/** An entry of a fixed section: what intake and its questions read. */
+export function isFixed(entry: BankEntry): entry is BankEntry<Section> {
+  return entry.section !== "custom";
 }
 
 /** What the editor edits: an entry's fields, plus its bullets, which carry
  *  an id once saved. A draft from intake or import has no ids at all. */
-export type EntryDraft = EntryFields & { bullets: { id?: string; text: string }[] };
+export type EntryDraft<S extends EntrySection = EntrySection> = EntryFields<S> & {
+  bullets: { id?: string; text: string }[];
+};
 
 /** A draft as the API takes it: no empty bullet box, which makes the API
  *  refuse the whole entry, and no end month on an entry that runs to
  *  Present. Every save goes through it: the form's own Save, and the stage
  *  card's Save Entry, which hands over the kept draft as it stands (Enter on
  *  the last bullet leaves an empty box in it, KAN-249). */
-export function savable(draft: EntryDraft): EntryDraft {
+export function savable<S extends EntrySection>(draft: EntryDraft<S>): EntryDraft<S> {
   return {
     ...draft,
     end_month: draft.end_kind === "present" ? null : draft.end_month,
@@ -51,9 +86,14 @@ export function savable(draft: EntryDraft): EntryDraft {
   };
 }
 
-export function emptyDraft(section: Section): EntryDraft {
+/** A new entry's draft; a custom section's names its section. */
+export function emptyDraft<S extends EntrySection>(
+  section: S,
+  customSectionId: string | null = null,
+): EntryDraft<S> {
   return {
     section,
+    custom_section_id: customSectionId,
     title: "",
     organization: null,
     location: null,
@@ -80,16 +120,19 @@ function without<T extends object, K extends keyof T>(source: T, ...keys: K[]): 
   ) as Omit<T, K>;
 }
 
-export function draftOf(entry: BankEntry): EntryDraft {
+/** A saved entry as the editor's draft: its fields and bullets only. The
+ *  holdings (`resume_ids`, `copy_group`) stay out, or an edit's PATCH,
+ *  which refuses any other key, answered 422 (2026-11-05). */
+export function draftOf<S extends EntrySection>(entry: BankEntry<S>): EntryDraft<S> {
   return {
-    ...without(entry, "id", "bullets"),
+    ...without(entry, "id", "bullets", "resume_ids", "copy_group"),
     bullets: entry.bullets.map((b) => ({ id: b.id, text: b.text })),
   };
 }
 
 /** An edit's PATCH body: every field but the section, which is fixed. */
-export function changesOf(draft: EntryDraft): Omit<EntryFields, "section"> {
-  return without(draft, "section", "bullets");
+export function changesOf(draft: EntryDraft): Omit<EntryFields, "section" | "custom_section_id"> {
+  return without(draft, "section", "custom_section_id", "bullets");
 }
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -143,7 +186,7 @@ export function entryDetails(entry: EntryFields): string[] {
 }
 
 /** Sections whose entries a resume reads as "at" someone: a job, a club role. */
-const NEEDS_ORGANIZATION = new Set<Section>(["experience", "leadership"]);
+const NEEDS_ORGANIZATION = new Set<EntrySection>(["experience", "leadership"]);
 
 /**
  * Sections whose dates application forms ask for: Greenhouse requires a
@@ -151,7 +194,7 @@ const NEEDS_ORGANIZATION = new Set<Section>(["experience", "leadership"]);
  * a project's, club role's or award's dates, so the bank never asks for them
  * either. The backend's intake `_NEEDS` keeps the same list.
  */
-const NEEDS_DATES = new Set<Section>(["education", "experience"]);
+const NEEDS_DATES = new Set<EntrySection>(["education", "experience"]);
 
 /** A start, and an end or "still going": the dates a form takes. */
 function hasDates(entry: EntryFields): boolean {
@@ -191,7 +234,7 @@ export function missingFacts(entry: EntryFields): string[] {
 }
 
 /** Sections whose entries read as things the student did, so want bullets. */
-const NEEDS_BULLETS = new Set<Section>(["experience", "projects", "leadership"]);
+const NEEDS_BULLETS = new Set<EntrySection>(["experience", "projects", "leadership"]);
 
 /**
  * Intake's questions about an entry already in the bank, an imported one

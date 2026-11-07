@@ -42,9 +42,16 @@ from app.services.resume_view import ResumeView, ViewEntry, ViewSection, ViewSki
 # Bullets are cut section by section, the least needed first (stages 1 and
 # 2); whole entries in the same order without Awards and Certifications,
 # which go by the schedule (stage 3). Education is in neither: it has a
-# schedule of its own.
+# schedule of its own. The sections the student named (KAN-498) go before
+# all of these, in both (`_custom_first`).
 BULLET_ORDER = ("awards", "certifications", "leadership", "projects", "experience")
 ENTRY_ORDER = ("leadership", "projects", "experience")
+
+
+def _custom_first(view: ResumeView, order: tuple[str, ...]) -> tuple[str, ...]:
+    """`order` after the view's custom sections, last first: a section the
+    student added is the least needed, and the one printed lowest goes first."""
+    return (*reversed([s.section for s in view.sections if s.label is not None]), *order)
 
 # The schedules: (share of ENTRY_ORDER's entries cut, what opens), in the
 # order they run when two open at once.
@@ -118,7 +125,7 @@ def apply_cuts(view: ResumeView, cuts: Iterable[Cut]) -> ResumeView:
             for e in section.entries if e.id not in gone
         )
         if entries:
-            sections.append(ViewSection(section.section, entries))
+            sections.append(replace(section, entries=entries))
     return ResumeView(tuple(sections), tuple(s for s in view.skills if s.id not in gone))
 
 
@@ -423,7 +430,7 @@ def plan(view: ResumeView, scores: Scores | None, page: Page) -> list[Step]:
 
     # Stages 1 and 2: bullets down to two per entry, then to one
     for cap in (2, 1):
-        for section in BULLET_ORDER:
+        for section in _custom_first(view, BULLET_ORDER):
             for bullet_id in _bullets_over(by_section.get(section, ()), cap, gone, scores):
                 take_bullet(bullet_id)
 
@@ -480,10 +487,11 @@ def plan(view: ResumeView, scores: Scores | None, page: Page) -> list[Step]:
 
     # Stage 3: whole entries, with the schedules opening as they go.
     # Experience keeps its best entry (the top one by position).
-    counted = [e for s in ENTRY_ORDER for e in by_section.get(s, ())]
+    entry_order = _custom_first(view, ENTRY_ORDER)
+    counted = [e for s in entry_order for e in by_section.get(s, ())]
     pending = list(SCHEDULE)
     cut_count = 0
-    for section in ENTRY_ORDER:
+    for section in entry_order:
         order = _weakest_first(by_section.get(section, ()), scores)
         if section == "experience":
             order = order[:-1]

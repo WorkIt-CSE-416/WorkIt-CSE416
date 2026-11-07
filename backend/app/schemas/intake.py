@@ -87,6 +87,10 @@ class IntakeTurnRequest(BaseModel):
 
     @model_validator(mode="after")
     def _draft_in_section(self) -> "IntakeTurnRequest":
+        # Intake asks about the six fixed sections; a section the student
+        # named (KAN-498) has no questions, openers or needs of its own
+        if self.section is bank_section.custom:
+            raise ValueError("Scout fills the fixed sections only")
         if self.draft is not None and self.draft.section != self.section:
             raise ValueError("The draft belongs to another section")
         return self

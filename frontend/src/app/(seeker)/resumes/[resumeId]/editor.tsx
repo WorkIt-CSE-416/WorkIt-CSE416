@@ -749,6 +749,7 @@ export function Editor({
       ? {
           entries: bank.entries,
           skills: bank.skills,
+          sections: bank.sections,
           choices,
           ...printed,
           page_settings: pageNow.current,
@@ -1348,6 +1349,7 @@ export function Editor({
           const source = {
             entries: saved.bank.entries,
             skills: saved.bank.skills,
+            sections: saved.bank.sections,
             choices: saved.choices,
             ...saved.printed,
             page_settings: pdf.page_settings,

@@ -112,7 +112,7 @@ import {
  * Onboarding keeps the page layout.
  */
 
-type DraftWire = EntryFields & { bullets: string[] };
+type DraftWire = EntryFields<Section> & { bullets: string[] };
 
 type IntakeEvent =
   | { type: "text"; delta: string }
@@ -127,10 +127,10 @@ type Line =
   | { kind: "skipped"; section: Section };
 
 /** The card. `entryId` is set when it edits an entry already in the bank. */
-type Kept = { draft: EntryDraft; done: boolean; entryId?: string };
+type Kept = { draft: EntryDraft<Section>; done: boolean; entryId?: string };
 
 /** Where the walk goes next: a new entry in a section, or a bank entry's gaps. */
-type Target = { section: Section } | { entry: BankEntry };
+type Target = { section: Section } | { entry: BankEntry<Section> };
 
 /** Docked with an empty bank, Scout's greeting asks the resume question,
  *  alone: the first section waits for the answer (`resumeStage`). */
@@ -160,7 +160,7 @@ const ANOTHER: Record<Section, string> = {
 };
 
 /** Scout's first line on a visit to a bank entry with gaps. Fixed text too. */
-function gapOpener(entry: BankEntry): string {
+function gapOpener(entry: BankEntry<Section>): string {
   const [first, ...rest] = gapQuestions(entry);
   const name = [entry.title, entry.organization].filter(Boolean).join(", ");
   return (
@@ -169,12 +169,12 @@ function gapOpener(entry: BankEntry): string {
   );
 }
 
-const toWire = ({ bullets, ...fields }: EntryDraft): DraftWire => ({
+const toWire = ({ bullets, ...fields }: EntryDraft<Section>): DraftWire => ({
   ...fields,
   bullets: bullets.map((b) => b.text.trim()).filter(Boolean),
 });
 
-const fromWire = ({ bullets, ...fields }: DraftWire): EntryDraft => ({
+const fromWire = ({ bullets, ...fields }: DraftWire): EntryDraft<Section> => ({
   ...fields,
   bullets: bullets.map((text) => ({ text })),
 });
@@ -185,7 +185,11 @@ const fromWire = ({ bullets, ...fields }: DraftWire): EntryDraft => ({
  * student's value; every other field takes the model's. So a reply never
  * overwrites what the student is typing into the card.
  */
-function mergeReply(current: EntryDraft, sent: EntryDraft, reply: EntryDraft): EntryDraft {
+function mergeReply(
+  current: EntryDraft<Section>,
+  sent: EntryDraft<Section>,
+  reply: EntryDraft<Section>,
+): EntryDraft<Section> {
   const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
   const merged = { ...reply } as Record<string, unknown>;
   const now = current as Record<string, unknown>;
@@ -193,7 +197,7 @@ function mergeReply(current: EntryDraft, sent: EntryDraft, reply: EntryDraft): E
   for (const key of Object.keys(now)) {
     if (!same(now[key], then[key])) merged[key] = now[key];
   }
-  return merged as EntryDraft;
+  return merged as EntryDraft<Section>;
 }
 
 /** What intake is working on, for the page to mark: a bank entry it is
@@ -213,7 +217,7 @@ export function Intake({
   /** Sections with at least one entry in the bank. */
   filled: readonly Section[];
   /** The bank's entries, for the walk to visit those with gaps. */
-  entries?: readonly BankEntry[];
+  entries?: readonly BankEntry<Section>[];
   onSaved: () => Promise<string | null>;
   /** Lead the student through the sections, one after another. */
   walk?: boolean;
@@ -236,7 +240,7 @@ export function Intake({
   const [usesLeft, setUsesLeft] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [duplicate, setDuplicate] = useState<BankEntry | null>(null);
+  const [duplicate, setDuplicate] = useState<BankEntry<Section> | null>(null);
   const [sheet, setSheet] = useState(false);
   const [skipped, setSkipped] = useState<Section[]>([]);
   const [importing, setImporting] = useState(autoImport);
@@ -504,7 +508,7 @@ export function Intake({
     setError(failure);
   }
 
-  async function save(input: EntryDraft, allowDuplicate = false) {
+  async function save(input: EntryDraft<Section>, allowDuplicate = false) {
     const entry = savable(input);
     if (kept?.entryId) return saveVisit(kept.entryId, entry);
     setSaving(true);
@@ -516,7 +520,8 @@ export function Intake({
       allowDuplicate,
     );
     setSaving(false);
-    if (res.duplicate) return setDuplicate(res.duplicate);
+    // A duplicate is in the draft's own section, a fixed one
+    if (res.duplicate) return setDuplicate(res.duplicate as BankEntry<Section>);
     if (res.error) return setSaveError(res.error);
     setLines((l) => [...l, { kind: "saved", title: entry.title }]);
     advance(entry.section);
@@ -544,7 +549,7 @@ export function Intake({
   }
 
   /** Saves a visit to a bank entry as an edit of it. */
-  async function saveVisit(entryId: string, edited: EntryDraft) {
+  async function saveVisit(entryId: string, edited: EntryDraft<Section>) {
     const saved = entries.find((e) => e.id === entryId);
     if (!saved) return setSaveError("This entry is no longer in your bank.");
     setSaving(true);
@@ -1063,15 +1068,15 @@ function DraftCard({
   error,
   duplicate,
 }: {
-  draft: EntryDraft | null;
+  draft: EntryDraft<Section> | null;
   done: boolean;
-  onChange: (draft: EntryDraft) => void;
-  onSave: (draft: EntryDraft) => void;
-  onSaveAsNew: (draft: EntryDraft) => void;
+  onChange: (draft: EntryDraft<Section>) => void;
+  onSave: (draft: EntryDraft<Section>) => void;
+  onSaveAsNew: (draft: EntryDraft<Section>) => void;
   onDiscard: () => void;
   saving: boolean;
   error: string | null;
-  duplicate: BankEntry | null;
+  duplicate: BankEntry<Section> | null;
 }) {
   if (!draft)
     return (

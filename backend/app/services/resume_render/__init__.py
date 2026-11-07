@@ -25,8 +25,11 @@ import re
 import shutil
 import subprocess
 import tempfile
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
+
+from app.services.resume_view import ViewSection
 
 HERE = Path(__file__).resolve().parent
 TEMPLATE = HERE / "jakes.tex"
@@ -176,6 +179,38 @@ HEADER_ALIGNMENTS = ("left", "center", "right")
 # Every section, as the page prints them unless the student drags them; the
 # bank's sections (resume_view.SECTIONS), then the skills
 SECTION_ORDER = ("education", "experience", "projects", "leadership", "awards", "certifications", "skills")
+# A section the student named (KAN-498) joins the order as its
+# `resume_view.custom_key`, "custom:<name>". The key only orders the blocks;
+# it never reaches the LaTeX. At most this many, each at most this long.
+CUSTOM_PREFIX = "custom:"
+MAX_CUSTOM_ORDER = 30
+MAX_CUSTOM_KEY = 80
+# A custom section the order does not name prints first when its name says
+# it sums the student up, else last
+_LEADS = ("summary", "objective", "profile", "about me")
+
+
+def valid_order(order: Sequence[str]) -> bool:
+    """Every fixed section once, then any custom keys, each once."""
+    custom = [k for k in order if k.startswith(CUSTOM_PREFIX)]
+    fixed = [k for k in order if not k.startswith(CUSTOM_PREFIX)]
+    return (
+        sorted(fixed) == sorted(SECTION_ORDER)
+        and len(set(custom)) == len(custom) <= MAX_CUSTOM_ORDER
+        and all(len(CUSTOM_PREFIX) < len(k) <= MAX_CUSTOM_KEY for k in custom)
+    )
+
+
+def printed_order(order: Sequence[str], sections: Iterable[ViewSection]) -> list[str]:
+    """Every block's key in the order the page prints it (KAN-498): the
+    page's `section_order`, with each custom section it does not name yet
+    first when its name reads as a summary ("Summary", "Career Objective"),
+    else last, in the view's order. The PDF, the LaTeX and the Word file all
+    print by it, and the editor's Sections panel shows the same order."""
+    unnamed = [s for s in sections if s.label is not None and s.section not in order]
+    leads = [s.section for s in unnamed if any(word in s.label.casefold() for word in _LEADS)]  # type: ignore[union-attr]
+    rest = [s.section for s in unnamed if s.section not in leads]
+    return [*leads, *order, *rest]
 # \\small's \\baselineskip in each of article's sizes, in TeX points: a
 # bullet's lines
 _SMALL_LEADING = {10: 11.0, 11: WRAPPED_LINE, 12: 13.6}
@@ -217,7 +252,7 @@ class PageSettings:
     def __post_init__(self) -> None:
         # Stored as a JSON list, and frozen here
         object.__setattr__(self, "section_order", tuple(self.section_order))
-        if sorted(self.section_order) != sorted(SECTION_ORDER):
+        if not valid_order(self.section_order):
             raise ValueError(f"unknown page settings {self!r}")
         allowed = (
             (self.font_size, FONT_SIZES), (self.line_spacing, LINE_SPACINGS), (self.side_margin, MARGINS),

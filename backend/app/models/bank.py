@@ -43,6 +43,32 @@ class Experience_Bank(BaseModel):
     removed_skills: Mapped[list[str]] = mapped_column(ARRAY(Text), server_default=text("'{}'"))
 
 
+class Bank_Custom_Section(BaseModel):
+    '''
+    A section the student named (KAN-498), such as Volunteering, Languages
+    or a Summary: its entries are `bank_entries` rows with section `custom`
+    pointing here. `layout` says how it prints: `entries` (each a title,
+    organization, dates and bullets, as a project prints) or `lines` (plain
+    lines with no heading: the bullets of its entries). Owned as an entry is
+    (`resume_id`, ADR 0005): an import's sections belong to that upload and
+    go with it. A name stands once per owner, ignoring case.
+    '''
+    __tablename__ = "bank_custom_sections"
+    __table_args__ = (
+        Index("bank_custom_sections_owner_name_key", "applicant_id", "resume_id", text("lower(name)"),
+              unique=True, postgresql_nulls_not_distinct=True),
+        CheckConstraint("layout IN ('entries', 'lines')", name="bank_custom_sections_layout_check"),
+    )
+
+    id: Mapped[_uuid.UUID] = mapped_column(
+        primary_key=True, default=_uuid.uuid4, server_default=text("gen_random_uuid()"))
+    applicant_id: Mapped[_uuid.UUID] = mapped_column(
+        ForeignKey("applicant_profiles.id", ondelete="CASCADE"), index=True)
+    resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
+    name: Mapped[str]
+    layout: Mapped[str]
+
+
 class Bank_Entry(BaseModel):
     '''
     One thing the applicant did, in one section. Months are stored as the
@@ -61,6 +87,11 @@ class Bank_Entry(BaseModel):
         ForeignKey("applicant_profiles.id", ondelete="CASCADE"), index=True)
     resume_id: Mapped[_uuid.UUID | None] = mapped_column(ForeignKey("resumes.id", ondelete="CASCADE"))
     section: Mapped[bank_section]
+    # The student's own section (KAN-498), set exactly when `section` is
+    # custom (bank_entries_custom_section_check). Deleting the section
+    # deletes its entries.
+    custom_section_id: Mapped[_uuid.UUID | None] = mapped_column(
+        ForeignKey("bank_custom_sections.id", ondelete="CASCADE"), index=True)
     title: Mapped[str]
     organization: Mapped[str | None]
     location: Mapped[str | None]
