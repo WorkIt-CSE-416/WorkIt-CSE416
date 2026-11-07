@@ -92,6 +92,7 @@ def _raw_drafts(parsed: ParsedResume, today: datetime.date) -> list[dict]:
         drafts.append({
             "section": bank_section.education,
             "title": _clip(school.institution),
+            "location": _clip(school.location),
             "degree": _clip(school.degree),
             "field_of_study": _clip(school.field_of_study),
             "gpa": school.gpa,

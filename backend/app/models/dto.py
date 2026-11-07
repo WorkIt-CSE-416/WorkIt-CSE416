@@ -24,6 +24,8 @@ class ResumeStatus(str, enum.Enum):
 
 class Education(PydanticBase):
     institution: str
+    # the school's "City, ST", once left in its name
+    location: str | None = None
     degree: str | None = None
     field_of_study: str | None = None
     gpa: float | None = None

@@ -21,22 +21,30 @@ MONTH_MAP = {
     "jul": 7, "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12,
 }
 
-MONTH = r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*'
+# A season stands for its months: it starts in the first and ends in the
+# last. Semester terms, so "Expected Spring 2027" is May; Winter as a quarter
+# or a winter session, from January.
+SEASON_MONTHS = {"spring": (1, 5), "summer": (6, 8), "fall": (9, 12), "autumn": (9, 12), "winter": (1, 3)}
 
-YEAR = r'(\d{4})'
+# "Sept." and "Aug." carry a full stop
+MONTH = r'(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?'
+SEASON = r'(?:Spring|Summer|Fall|Autumn|Winter)'
+# 19xx or 20xx only: "pp. 1201–1210" is no pair of years
+YEAR = r'\b(?:19|20)\d{2}\b'
+# "May 2025", "Sept. 2023", "Fall 2024", "06/2025"
+MONTH_YEAR = rf'(?:(?:{MONTH}|{SEASON})\s+|\b(?:0?[1-9]|1[0-2])/){YEAR}'
+# a range may give years alone: "2023 – 2024"
+WHEN = rf'(?:(?:{MONTH}|{SEASON})\s+|\b(?:0?[1-9]|1[0-2])/)?{YEAR}'
 
 # REGEX
-DATE_RANGE_RE = re.compile(
-    rf'(?:({MONTH})\s+)?{YEAR}\s*[–\-—]\s*(Present|Current|Now|(?:({MONTH})\s+)?{YEAR})',
-    re.IGNORECASE,
-)
+DATE_RANGE_RE = re.compile(rf'({WHEN})\s*[–\-—]\s*(Present|Current|Now|{WHEN})', re.IGNORECASE)
 # "Expected May 2027", "Expected Graduation: May 2027", "Anticipated Grad Date May 2027"
 EXPECTED_RE = re.compile(
-    rf'(?:Expected|Anticipated)(?:\s+(?:Graduation|Grad\.?)(?:\s+Date)?)?\s*:?\s*({MONTH})\s+{YEAR}',
+    rf'(?:Expected|Anticipated)(?:\s+(?:Graduation|Grad\.?)(?:\s+Date)?)?\s*:?\s*({MONTH_YEAR})',
     re.IGNORECASE,
 )
 # Bare "Month Year" ending a line or a "|" field — no range, no "Expected"
-BARE_DATE_RE = re.compile(rf'({MONTH})\s+{YEAR}\s*(?=\||$)', re.IGNORECASE | re.MULTILINE)
+BARE_DATE_RE = re.compile(rf'({MONTH_YEAR})\s*(?=\||$)', re.IGNORECASE | re.MULTILINE)
 
 # Section headings, from career-center guides (KAN-348). One term is one
 # section's name; a heading is terms joined by "&" or "and", and may end in
@@ -91,10 +99,17 @@ DEGREE_RE = re.compile(
     r'(?:High\s+School\s+)?Diploma|GED)\b',
     re.IGNORECASE,
 )
-INSTITUTION_RE = re.compile(r'\b(?:University|College|School|Institute|Academy)\b', re.IGNORECASE)
+# School words. A school with none ("Georgia Tech") is found by where its
+# line sits (`_school_name`): "Tech" would also name a club ("Women in Tech")
+INSTITUTION_RE = re.compile(
+    r'\b(?:(?:Univers\w*|College|School|Institute|Academy|Polytechni\w*|Politecnico|Conservatory|SUNY|CUNY)\b'
+    r'|Univ\.)',
+    re.IGNORECASE,
+)
 DEGREE_FIELD_RE = re.compile(
-    r'\b(?:B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|Bachelor\w*|Master\w*)'
-    r'(?:\s+of\s+\w+)?(?:\s+in\s+|,\s*)([^|;,\n]+)',
+    r"\b(?:B\.?S\.?|B\.?A\.?|M\.?S\.?|M\.?A\.?|A\.A\.?|A\.S\.?|Ph\.?D\.?|(?:Bachelor|Master)(?:'?s)?)"
+    # "B.S. in X", "Bachelor of Science, X", or the field right after: "B.S. Computer Science"
+    r'(?:\s+of\s+\w+)?(?:\s+in\s+|,\s*|[ \t]+(?=(?-i:[A-Z])))([^|;,\n]+)',
     re.IGNORECASE,
 )
 # catch bullet points; a hyphen before a digit is a minus sign ("-20%"), not one
@@ -264,30 +279,38 @@ def _section_name(heading: str) -> str:
     return " ".join(heading.lower().split())
 
 
-def _month_to_int(month_str: str) -> int:
-    return MONTH_MAP.get(month_str[:3].lower(), 1)
-
-
-def _to_date(year: str, month: str | None) -> date | None:
-    return date(int(year), _month_to_int(month) if month else 1, 1)
+def _to_date(when: str, end: bool = False) -> date:
+    """One end of a date, which always ends in its year: "Sept. 2023",
+    "06/2025", "Fall 2024" or "2023". A season gives its first month as a
+    start and its last as an end; a year alone gives January."""
+    head = when[:-4].strip().rstrip("/").lower()
+    if head.isdigit():
+        month = int(head)
+    elif head in SEASON_MONTHS:
+        month = SEASON_MONTHS[head][1 if end else 0]
+    else:
+        month = MONTH_MAP.get(head[:3], 1)
+    return date(int(when[-4:]), month, 1)
 
 
 def _parse_date_range(text: str) -> tuple[date | None, date | None]:
     m = EXPECTED_RE.search(text)
     if m:
-        return None, _to_date(m.group(2), m.group(1))
+        return None, _to_date(m.group(1), end=True)
     m = DATE_RANGE_RE.search(text)
-    if not m:
-        # Bare "Month Year" with no range — treat as end date only
-        b = BARE_DATE_RE.search(text)
-        if b:
-            return None, _to_date(b.group(2), b.group(1))
+    if m:
+        start = _to_date(m.group(1))
+        # keep present as null
+        if m.group(2).lower() in ("present", "current", "now"):
+            return start, None
+        return start, _to_date(m.group(2), end=True)
+    # A month alone is an end date; a season alone spans its months
+    # ("Summer 2025" is June to August)
+    b = BARE_DATE_RE.search(text)
+    if not b:
         return None, None
-    start = _to_date(m.group(2), m.group(1))
-    # keep present as null
-    if m.group(3).lower() in ("present", "current", "now"):
-        return start, None
-    return start, _to_date(m.group(5), m.group(4))
+    alone = b.group(1)
+    return (_to_date(alone) if alone[:-4].strip().lower() in SEASON_MONTHS else None), _to_date(alone, end=True)
 
 
 def _extract_location(text: str) -> tuple[str | None, str]:
@@ -360,21 +383,38 @@ def _is_bare_date_line(line: str) -> bool:
     return not _extract_location(_strip_dates(line))[1]
 
 
+def _reads_as_sentence(line: str) -> bool:
+    """A bullet's words, not a name: two lowercase words of four letters or
+    more ("Cut the weekly report ..."), or one beside a number ("Led a team
+    of 5"). Words in brackets do not count. A name has none ("Society of
+    Women Engineers", "Center for the Study of Language")."""
+    lower = [w for w in re.sub(r'\([^)]*\)', ' ', line).split()
+             if w[0].islower() and sum(c.isalpha() for c in w) >= 4]
+    return len(lower) >= 2 or (bool(lower) and bool(re.search(r'\d', line)))
+
+
 def _header_start(lines: list[str], anchor: int) -> int:
     """First line of the entry whose date line is lines[anchor]. Usually one
     header line (company/org); two when the date line is bare (Title /
     Company / Dates). PDF extraction wraps long bullets into continuation
     lines that lack a bullet marker — looking further back risks pulling
-    those fragments in as the company name."""
+    those fragments in as the company name. Where bullets are drawn as
+    shapes (Chrome), no marker reaches the text: a line that reads as a
+    sentence is the entry before's last bullet, unless the date line is bare
+    and needs the lines above for its title and company."""
     start = anchor
+    above = lines[anchor - 1] if anchor > 0 else ""
+    bare = _is_bare_date_line(lines[anchor])
     # a dated line above is its own entry, not this one's header
-    if anchor > 0 and _is_header_line(lines[anchor - 1]) and not _has_date(lines[anchor - 1]):
+    if (anchor > 0 and _is_header_line(above) and not _has_date(above)
+            and (bare or not _reads_as_sentence(above))):
         start -= 1
         # a "Title | Company" line already holds both
-        if (_is_bare_date_line(lines[anchor]) and start > 0
+        if (bare and start > 0
                 and not _split_title_company(lines[start])
                 and _is_header_line(lines[start - 1])
-                and not lines[start - 1].rstrip().endswith(".")):
+                and not lines[start - 1].rstrip().endswith(".")
+                and not _reads_as_sentence(lines[start - 1])):
             start -= 1
     return start
 
@@ -444,29 +484,109 @@ def _bullets(lines: list[str]) -> str | None:
     return "\n".join(re.sub(r'\s{2,}', ' ', p) for p in parts) if parts else None
 
 
+def _without_dates(line: str) -> str:
+    return _strip_dates(EXPECTED_RE.sub("", line))
+
+
+def _date_line(lines: list[str]) -> int | None:
+    """Where an entry's dates are: its first dated line that is no bullet."""
+    return next((i for i, ln in enumerate(lines) if not BULLET_RE.match(ln) and _has_date(ln)), None)
+
+
+def _split_location(line: str) -> tuple[str | None, str]:
+    """"City, ST" ending a school's line or one of its "|" fields ("School
+    City, ST", "School | City, ST  Dates"), and the line without it. Never
+    the school's own words: "Rutgers University, NJ" stays the school."""
+    for part in line.split("|"):
+        location, _ = _extract_location(_without_dates(part))
+        if location and not INSTITUTION_RE.search(location):
+            head, _, tail = line.rpartition(location)
+            return location, head.rstrip(", ") + tail
+    return None, line
+
+
+def _school_word(field: str) -> bool:
+    return bool(INSTITUTION_RE.search(field)) and not DEGREE_RE.search(field)
+
+
+def _could_be_school(field: str) -> bool:
+    return bool(field) and not (DEGREE_RE.search(field) or GPA_RE.search(field) or COURSEWORK_RE.match(field))
+
+
+def _own_school(line: str) -> str | None:
+    """The school a dated line names by itself: a "|" field with a school
+    word ("Degree | Dates | School"), else its first field when that is no
+    degree, GPA or coursework ("SUNY Harbor  Feb 2027 – Jun 2027")."""
+    fields = [f.strip() for f in _without_dates(line).split("|")]
+    return next((f for f in fields if _school_word(f)), None) or (fields[0] if _could_be_school(fields[0]) else None)
+
+
+def _school_name(lines: list[str], anchor: int) -> str | None:
+    """The school an entry names, or None for a degree line alone (a second
+    degree at the school above). A field with a school word comes first
+    ("Degree / School / Dates" puts it on a line above the dates), then the
+    date line's own text, then a line above it ("Georgia Tech" over "B.S. in
+    CS  May 2027")."""
+    above = [[f.strip() for f in _without_dates(ln).split("|")] for ln in lines[:anchor]]
+    return (next((f for fields in above for f in fields if _school_word(f)), None)
+            or _own_school(lines[anchor])
+            or next((fields[0] for fields in above if _could_be_school(fields[0])), None))
+
+
+def _school_entries(entries: list[list[str]]) -> list[list[str]]:
+    """A dated line that names its own school starts its entry. A line
+    `_split_entries` put above it that names no school and no degree is the
+    end of the school before: a wrapped coursework or honors line, or a GPA
+    line. It became the next school's name (a SUNY campus had no school
+    word), or took the first school's coursework with it."""
+    out: list[list[str]] = []
+    for lines in entries:
+        anchor = _date_line(lines)
+        above = lines[:anchor] if anchor else []
+        if out and above and _own_school(_split_location(lines[anchor])[1]) and not any(
+                INSTITUTION_RE.search(rest) or DEGREE_RE.search(rest)
+                for rest in (_split_location(ln)[1] for ln in above)):
+            out[-1] = out[-1] + above
+            lines = lines[anchor:]
+        out.append(lines)
+    return out
+
+
 def _parse_education(text: str) -> list[Education]:
     if not text.strip():
         return []
-    entries = _split_entries(text)
     results: list[Education] = []
-    for lines in entries:
+    for lines in _school_entries(_split_entries(text)):
         if not lines:
             continue
-        first = lines[0]
-        all_text = "\n".join(lines)
+        anchor = _date_line(lines)
 
-        # Institution: usually the first field, but "Degree / School / Dates"
-        # and "Degree | Dates | School" put it later — prefer a header line or
-        # "|" field naming a school, not a degree
-        anchor = next((i for i, ln in enumerate(lines)
-                       if _has_date(ln)), 0)
-        fields = [f.strip() for ln in lines[:anchor + 1] for f in ln.split("|")]
-        inst_field = next((f for f in fields
-                           if INSTITUTION_RE.search(f) and not DEGREE_RE.search(f)), first.split("|")[0])
-        inst = _strip_dates(EXPECTED_RE.sub("", inst_field)) or inst_field.strip()
+        # The school's "City, ST": on its own line ("School  City, ST", "School
+        # | City, ST  Dates"), or under a dated school ("Degree  City, ST"). It
+        # comes off first: it stayed in the school's name, and ", MA" read as
+        # a degree.
+        location, body = None, list(lines)
+        for i, ln in enumerate(lines[:(anchor or 0) + 2]):
+            if not BULLET_RE.match(ln) and not COURSEWORK_RE.match(ln.strip()):
+                location, body[i] = _split_location(ln)
+                if location:
+                    break
+        all_text = "\n".join(body)
 
-        # Dates
-        _, end = _parse_date_range(all_text)
+        inst = _school_name(body, anchor or 0)
+        if inst is None and results:
+            # "M.S. in X  Expected May 2029" under the school, then "B.S. in X
+            # Expected May 2028": each degree is an entry at that school
+            inst, location = results[-1].institution, location or results[-1].location
+        if inst is None:
+            inst = _without_dates(body[0].split("|")[0]) or body[0].strip()
+
+        # Dates: the date line's own, so a bullet's dates never become the
+        # school's. A lone date is the graduation: "Spring 2027" ends in May
+        # and starts nothing.
+        start, end = _parse_date_range(all_text if anchor is None else lines[anchor])
+        if anchor is None or not DATE_RANGE_RE.search(lines[anchor]):
+            start = None
 
         # GPA
         gpa_m = GPA_RE.search(all_text)
@@ -479,23 +599,29 @@ def _parse_education(text: str) -> list[Education]:
 
         # Field of study: look for "Major(s):" or ": <field>" pattern, or text after degree
         field = None
-        for ln in lines[1:]:
+        for ln in body[1:]:
             # "Major:", "Majors:", "Majors (B.S.):"
             m = re.search(r'Majors?\s*(?:\([^)]*\))?\s*:\s*(.*?)(?:GPA|$)', ln, re.IGNORECASE)
             if m and m.group(1).strip():
                 field = re.sub(r'\s*;.*', '', m.group(1).strip())
                 break
         if field is None:
-            # "B.S. in Computer Science", "Bachelor of Science in X", "B.S., X"
+            # "B.S. in Computer Science", "Bachelor of Science in X", "B.S., X", "B.S. X"
             m = DEGREE_FIELD_RE.search(all_text)
             if m and m.group(1).strip():
-                # "Computer Science  GPA: 3.81/4.00": the field ends at a PDF gap or the GPA
-                field = re.split(r'\s{2,}|\s*\bGPA\b', m.group(1).strip(), flags=re.IGNORECASE)[0].strip() or None
+                # "Computer Science  GPA: 3.81/4.00": the field ends at a PDF gap
+                # or the GPA, and holds no date ("Statistics Expected May 2027")
+                field = re.split(r'\s{2,}|\s*\bGPA\b', _without_dates(m.group(1)),
+                                 flags=re.IGNORECASE)[0].strip() or None
+                if field and INSTITUTION_RE.search(field):
+                    field = None   # "B.A., Lakeview University" names the school, not a field
 
         # Description: coursework + other non-header lines
         desc_parts: list[str] = []
-        for ln in lines[1:]:
+        for ln in body[1:]:
             stripped = ln.strip()
+            if not stripped:
+                continue
             if COURSEWORK_RE.match(stripped):
                 desc_parts.append(stripped)
             elif BULLET_RE.match(stripped):
@@ -507,8 +633,8 @@ def _parse_education(text: str) -> list[Education]:
         desc = "\n".join(re.sub(r'\s{2,}', ' ', d) for d in desc_parts) if desc_parts else None
 
         results.append(Education(
-            institution=inst, degree=degree, field_of_study=field,
-            gpa=gpa, gpa_scale=gpa_scale, end_date=end, description=desc,
+            institution=inst, location=location, degree=degree, field_of_study=field,
+            gpa=gpa, gpa_scale=gpa_scale, start_date=start, end_date=end, description=desc,
         ))
     return results
 
@@ -717,6 +843,10 @@ def _parse_publications(text: str) -> list[Project]:
     for item in (_bullets(text.splitlines()) or "").splitlines():
         url_m = URL_RE.search(item)
         name = URL_RE.sub("", item).strip().rstrip(",").strip()
+        # "..., Workshop, May 2025.": the citation's full stop hid its month,
+        # which read as January. Only here: a looser date pattern would also
+        # split entries on a wrapped bullet that ends "shipped by May 2025."
+        name = re.sub(rf'({MONTH_YEAR})\.$', r'\1', name, flags=re.IGNORECASE)
         _, when = _parse_date_range(name)
         year = CITATION_YEAR_RE.search(name)
         if when is None and year:
